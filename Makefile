@@ -1,7 +1,7 @@
-include ../make/config.mk
+include php_agent/make/config.mk
 
 AGENT_SDK_CPPFLAGS := $(PLATFORM_DEFS)
-AGENT_SDK_CPPFLAGS += -I../axiom
+AGENT_SDK_CPPFLAGS += -Iphp_agent/axiom
 
 AGENT_SDK_CFLAGS := -std=gnu99 -fPIC -DPIC -pthread
 AGENT_SDK_CFLAGS += -Wall
@@ -41,8 +41,8 @@ PCRE_CFLAGS := $(shell pcre-config --cflags)
 OBJS := \
 	libnewrelic.o
 
-libnewrelic.a: $(OBJS) ../axiom/libaxiom.a
-	cp ../axiom/libaxiom.a libnewrelic.a
+libnewrelic.a: $(OBJS) php_agent/axiom/libaxiom.a
+	cp php_agent/axiom/libaxiom.a libnewrelic.a
 	$(AR) rcs $@ $(OBJS)
 
 # TODO: statically link to pcre instead
