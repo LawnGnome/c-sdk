@@ -1,0 +1,3 @@
+[submodule "php_agent"]
+	path = php_agent
+	url = git@source.datanerd.us:php-agent/php_agent.git
