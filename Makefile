@@ -49,7 +49,15 @@ axiom: php_agent/Makefile
 
 .PHONY: axiom-clean
 axiom-clean:
-	$(MAKE) -C php_agent clean
+	$(MAKE) -C php_agent axiom-clean
+
+.PHONY: daemon
+daemon:
+	$(MAKE) -C php_agent daemon
+
+.PHONY: daemon-clean
+daemon-clean:
+	$(MAKE) -C php_agent daemon-clean
 
 libnewrelic.a: $(OBJS) php_agent/axiom/libaxiom.a
 	cp php_agent/axiom/libaxiom.a libnewrelic.a
@@ -63,7 +71,7 @@ libnewrelic.so: libnewrelic.a
 	$(CC) $(AGENT_SDK_CPPFLAGS) $(CPPFLAGS) $(AGENT_SDK_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean
-clean: axiom-clean
+clean: axiom-clean daemon-clean
 	rm -f *.o libnewrelic.a libnewrelic.so test_app
 
 dynamic: libnewrelic.so
