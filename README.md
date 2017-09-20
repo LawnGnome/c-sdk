@@ -80,7 +80,7 @@ gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread
 Start the daemon:
 
 ```
-../bin/daemon -f -logfile stdout -loglevel debug
+./bin/daemon -f -logfile stdout -loglevel debug
 ```
 
 ### Features
