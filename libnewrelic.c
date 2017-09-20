@@ -126,11 +126,11 @@ newrelic_connect_app (newrelic_app_t *app, nrapplist_t *context, unsigned short 
   nr_agent_applist = context;
 
   /* Query the daemon until a successful connection is made or timeout occurs.*/
-  start_time = nr_get_time_monotonic ();
+  start_time = nr_get_time();
   while (true) {
     nrapp = nr_agent_find_or_add_app (context, app->app_info, NULL);
 
-    delta_time = nr_time_duration (start_time, nr_get_time_monotonic ());
+    delta_time = nr_time_duration (start_time, nr_get_time());
     if (NULL != nrapp || (delta_time >= timeout_time)) {
       break;
     }
