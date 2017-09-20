@@ -41,6 +41,24 @@ PCRE_CFLAGS := $(shell pcre-config --cflags)
 OBJS := \
 	libnewrelic.o
 
+all: axiom libnewrelic.a
+
+.PHONY: axiom
+axiom: php_agent/Makefile
+	$(MAKE) -C php_agent axiom
+
+.PHONY: axiom-clean
+axiom-clean:
+	$(MAKE) -C php_agent axiom-clean
+
+.PHONY: daemon
+daemon:
+	$(MAKE) -C php_agent daemon
+
+.PHONY: daemon-clean
+daemon-clean:
+	$(MAKE) -C php_agent daemon-clean
+
 libnewrelic.a: $(OBJS) php_agent/axiom/libaxiom.a
 	cp php_agent/axiom/libaxiom.a libnewrelic.a
 	$(AR) rcs $@ $(OBJS)
@@ -53,7 +71,7 @@ libnewrelic.so: libnewrelic.a
 	$(CC) $(AGENT_SDK_CPPFLAGS) $(CPPFLAGS) $(AGENT_SDK_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean
-clean:
+clean: axiom-clean daemon-clean
 	rm -f *.o libnewrelic.a libnewrelic.so test_app
 
 dynamic: libnewrelic.so
