@@ -3,6 +3,3 @@ test_app
 agent_sdk.log
 libnewrelic.a
 libnewrelic.o
-
-
-					
