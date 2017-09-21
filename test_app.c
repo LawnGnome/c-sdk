@@ -12,7 +12,8 @@ int main (void) {
   newrelic_txn_t *txn = 0;
   newrelic_config_t *config = 0;
 
-  config = newrelic_new_config ("SDK Test App", "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
+  /* Staging account 432507 */
+  config = newrelic_new_config ("C-Agent Test App", "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy (config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy (config->redirect_collector, "staging-collector.newrelic.com");
   strcpy (config->log_filename, "./agent_sdk.log");
