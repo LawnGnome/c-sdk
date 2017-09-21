@@ -16,7 +16,7 @@ int main (void) {
   config = newrelic_new_config ("C-Agent Test App", "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy (config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy (config->redirect_collector, "staging-collector.newrelic.com");
-  strcpy (config->log_filename, "./agent_sdk.log");
+  strcpy (config->log_filename, "./c_agent.log");
   config->log_level = LOG_INFO;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */

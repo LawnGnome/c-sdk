@@ -1,5 +1,22 @@
+FILES
+*.out
 *.o
+junk
+make.log
+.*.swp
+Makefile_*.deps
+*.T
+releases
+.DS_Store
+
+#
+# Byproducts from building and running the test_app
+#
 test_app
-agent_sdk.log
+c-agent.log
+
+#
+# Byproducts from make all
+#
 libnewrelic.a
 libnewrelic.o
