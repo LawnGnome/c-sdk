@@ -4,8 +4,10 @@ Generic library to communicate with New Relic.
 
 ### Requirements
 * 64-bit Linux with
-    * glibc 2.5+ with NPTL support; or musl libc version 1.1 or higher
-    * kernel version 2.6.13 or higher (2.6.26+ highly recommended)
+  * glibc 2.5+ with NPTL support; or musl libc version 1.1 or higher
+  * kernel version 2.6.13 or higher (2.6.26+ highly recommended)
+  * libpcre 8.13+
+  * libpthread
 
 ### Getting started
 
@@ -46,7 +48,6 @@ int main (void) {
 
   sleep (0.5);
 
-
   /* End web transaction */
   newrelic_end_transaction (&txn);
 
@@ -70,8 +71,8 @@ int main (void) {
 }
 ```
 
-
-Link your app against the library. For example:
+Link your app against the library. The C agent currently ships as a static
+library, so you must also link against libpcre and libpthread. For example:
 
 ```
 gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread
@@ -80,25 +81,35 @@ gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread
 Start the daemon:
 
 ```
-../bin/daemon -f -logfile stdout -loglevel debug
+./bin/daemon -f -logfile stdout -loglevel debug
 ```
 
+Run your test application and check the `c-agent.log` file for output.
+
 ### Features
-* [x] Named transactions
-* [x] Web and non-web transactions events
-* [X] Transaction event attributes
-* [x] Logging levels
+* Transactions
+  * Transaction events
+  * Web and non-web transactions
+  * Custom attributes
+* Logging levels
 
 ### About
 
 #### Thread safety
-If you want to do anything beyond timing (e.g. events or attributes), transactions are *not* thread safe. Scope transactions to single threads.
+If you want to do anything beyond timing (e.g. events or attributes),
+transactions are *not* thread safe. Scope transactions to single threads.
 
 #### Agent-daemon communication
-The agent makes blocking writes to the daemon. Unless the kernel is resource-starved, it will handle these writes efficiently.
+The agent makes blocking writes to the daemon. Unless the kernel is resource-
+starved, it will handle these writes efficiently.
 
 #### Memory management
-The C Agent's memory use is proportional to the amount of data sent. The libc allocator `malloc` (and `free`) is used extensively. The dominant memory cost is user-provided data, including custom attributes, events, and metric names.
+The C Agent's memory use is proportional to the amount of data sent. The libc
+allocator `malloc` (and `free`) is used extensively. The dominant memory cost is
+user-provided data, including custom attributes, events, and metric names.
 
 #### Elevated privileges (sudo)
-By default the logs will be saved in "/var/log/newrelic/c_agent.log" and needs elevated privileges to execute properly. To avoid running the application with these privileges have the log files saved in a location that can be written to by the current user.
+By default the logs will be saved in "/var/log/newrelic/c_agent.log" and needs
+elevated privileges to execute properly. To avoid running the application with
+these privileges have the log files saved in a location that can be written to
+by the current user.
