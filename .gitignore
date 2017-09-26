@@ -14,6 +14,7 @@ releases
 #
 test_app
 c-agent.log
+c_agent.log
 
 #
 # Byproducts from make all

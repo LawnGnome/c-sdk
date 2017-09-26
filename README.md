@@ -17,23 +17,27 @@ git clone git@source.datanerd.us:c-agent/c-agent.git
 
 Pull in dependencies
 ```
+cd /path/to/checked-out/c-agent
 git submodule update --init
 ```
 
 Compile the agent
 ```
-cd c-agent
+cd /path/to/checked-out/c-agent
 make
 ```
 
 Compile and start the daemon
 ```
+cd /path/to/checked-out/c-agent
 make daemon
 ./php_agent/bin/daemon -f -logfile stdout -loglevel debug
 ```
 
-Compile and run the test app
+Compile and run the test app, (the `test_app` requires a running daemon to work properly -- see above)
+
 ```
+cd /path/to/checked-out/c-agent
 make test_app
 ./test_app
 ```
