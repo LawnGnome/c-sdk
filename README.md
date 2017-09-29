@@ -29,7 +29,7 @@ make
 Compile and start the daemon
 ```
 make daemon
-./php_agent/bin/daemon -f -logfile stdout -loglevel debug
+./php_agent/bin/daemon -f --logfile stdout --loglevel debug
 ```
 
 Compile and run the test app, (the `test_app` requires a running daemon to work properly -- see above)
