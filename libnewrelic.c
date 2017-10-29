@@ -327,95 +327,80 @@ newrelic_end_transaction (newrelic_txn_t **transaction)
   return;
 }
 
-bool
-newrelic_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value)
-{
-  nr_status_t rv;
-  nrobj_t *obj;
-
-  if (NULL == key) {
-    nrl_error (NRL_INSTRUMENT, "unable to add integer attribute with NULL key");
+static bool
+newrelic_add_attribute (newrelic_txn_t *transaction, const char *key, nrobj_t *obj) {
+  if (NULL == transaction) {
+    nrl_error (NRL_INSTRUMENT, "unable to add attribute for a NULL transaction");
     return false;
   }
 
-  obj = nro_new_int (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
-  nro_delete (obj);
+  if (NULL == key) {
+    nrl_error (NRL_INSTRUMENT, "unable to add attribute with a NULL key");
+    return false;
+  }
 
-  if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "unable to add integer attribute key=\"%s\" value=\"%d\"", key, value);
+  if (NR_FAILURE == nr_txn_add_user_custom_parameter (transaction, key, obj)) {
+    nrl_error (NRL_INSTRUMENT, "unable to add attribute for key=\"%s\"", key);
     return false;
   }
 
   return true;
+}
+
+bool
+newrelic_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value)
+{
+  nrobj_t *obj;
+  bool outcome;
+
+  obj = nro_new_int (value);
+  outcome = newrelic_add_attribute (transaction, key, obj);
+  nro_delete (obj);
+
+  return outcome;
 }
 
 bool
 newrelic_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value)
 {
-  nr_status_t rv;
   nrobj_t *obj;
-
-  if (NULL == key) {
-    nrl_error (NRL_INSTRUMENT, "unable to add long attribute with NULL key");
-    return false;
-  }
+  bool outcome;
 
   obj = nro_new_long (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
+  outcome = newrelic_add_attribute (transaction, key, obj);
   nro_delete (obj);
 
-  if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "unable to add long attribute key=\"%s\" value=\"%ld\"", key, value);
-    return false;
-  }
-
-  return true;
+  return outcome;
 }
 
 bool
 newrelic_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value)
 {
-  nr_status_t rv;
   nrobj_t *obj;
-
-  if (NULL == key) {
-    nrl_error (NRL_INSTRUMENT, "unable to add double attribute with NULL key");
-    return false;
-  }
+  bool outcome;
 
   obj = nro_new_double (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
+  outcome = newrelic_add_attribute (transaction, key, obj);
   nro_delete (obj);
 
-  if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "unable to add double attribute key=\"%s\" value=\"%f\"", key, value);
-    return false;
-  }
-
-  return true;
+  return outcome;
 }
 
 bool
 newrelic_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value)
 {
-  nr_status_t rv;
   nrobj_t *obj;
+  bool outcome;
 
-  if (NULL == key || NULL == value) {
-    nrl_error (NRL_INSTRUMENT, "unable to add string attribute with NULL key or value");
+  if (NULL == value) {
+    nrl_error (NRL_INSTRUMENT, "unable to add attribute with a NULL value");
     return false;
   }
 
   obj = nro_new_string (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
+  outcome = newrelic_add_attribute (transaction, key, obj);
   nro_delete (obj);
 
-  if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "unable to add string attribute key=\"%s\" value=\"%s\"", key, value);
-    return false;
-  }
-
-  return true;
+  return outcome;
 }
 
