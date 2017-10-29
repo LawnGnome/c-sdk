@@ -328,7 +328,7 @@ newrelic_end_transaction (newrelic_txn_t **transaction)
 }
 
 bool
-newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value)
+newrelic_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value)
 {
   nr_status_t rv;
   nrobj_t *obj;
@@ -351,7 +351,7 @@ newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char 
 }
 
 bool
-newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value)
+newrelic_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value)
 {
   nr_status_t rv;
   nrobj_t *obj;
@@ -374,7 +374,7 @@ newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char
 }
 
 bool
-newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value)
+newrelic_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value)
 {
   nr_status_t rv;
   nrobj_t *obj;
@@ -397,7 +397,7 @@ newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const ch
 }
 
 bool
-newrelic_transaction_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value)
+newrelic_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value)
 {
   nr_status_t rv;
   nrobj_t *obj;

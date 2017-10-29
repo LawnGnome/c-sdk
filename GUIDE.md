@@ -41,8 +41,8 @@ int main (void) {
   txn = newrelic_start_web_transaction (app, "veryImportantWebTransaction");
 
   /* Add attributes */
-  newrelic_transaction_add_attribute_int (txn, "my_custom_int", INT_MAX);
-  newrelic_transaction_add_attribute_string (txn, "my_custom_string", "String String String");
+  newrelic_add_attribute_int (txn, "my_custom_int", INT_MAX);
+  newrelic_add_attribute_string (txn, "my_custom_string", "String String String");
 
   sleep (1);
 
@@ -52,6 +52,7 @@ int main (void) {
   /* Start and end a non-web transaction */
   txn = newrelic_start_non_web_transaction (app, "veryImportantOtherTransaction");
   sleep (1);
+
   newrelic_end_transaction (&txn);
 
   newrelic_destroy_app (&app);
