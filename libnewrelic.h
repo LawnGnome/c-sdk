@@ -54,23 +54,22 @@ typedef struct _newrelic_config_t {
 } newrelic_config_t;
 
 /*
- * A helper function to create a configuration struct newrelic_config_t
- * populated with default values. The user can create their own config struct
- * if they choose to do so, but this helper function ensures all fields are
- * populated. The user needs to free the struct when they are finished.
+ * Given an application name and license key, this method returns a config
+ * struct with default values for the remaining fields. The caller should
+ * destroy the config after the application has been created.
  */
 newrelic_config_t *newrelic_new_config (const char *app_name, const char *license_key);
 
 /*
  * Application
  *
- * Given a config, newrelic_create_app() returns a pointer to the newly allocated
- * application, or NULL if there was an error. The caller should destroy the
- * application with newrelic_destroy_app() when finished.
+ * Given a config, newrelic_create_app() returns a pointer to the newly
+ * allocated application, or NULL if there was an error. The caller should
+ * destroy the application with the destroy method when finished.
  *
- * Specify a timeout in milliseconds for the function to retry and establish
- * a connection to the daemon.  Setting timeout_ms to zero will cause the
- * function to perform one attempt at connecting to the daemon and return NULL
+ * Specify a timeout in milliseconds for the method to retry and establish
+ * a connection to the daemon. Setting timeout_ms to zero will cause the
+ * method to perform one attempt at connecting to the daemon and return NULL
  * on failure.
  */
 newrelic_app_t *newrelic_create_app (const newrelic_config_t *config, unsigned short timeout_ms);
@@ -79,9 +78,9 @@ void newrelic_destroy_app (newrelic_app_t **app);
 /*
  * Transaction
  *
- * Given an application and transaction name, the start method begins timing a
- * transaction. The end method stops timing then sends the data to the New Relic
- * daemon and destroys the transaction.
+ * Given an application and transaction name, the start methods begin timing a
+ * transaction. The end method stops timing, sends the data to the New Relic
+ * daemon, and destroys the transaction.
  */
 newrelic_txn_t *newrelic_start_web_transaction (newrelic_app_t *app, const char *name);
 newrelic_txn_t *newrelic_start_non_web_transaction (newrelic_app_t *app, const char *name);
@@ -90,14 +89,13 @@ void newrelic_end_transaction (newrelic_txn_t **transaction);
 /*
  * Attributes 
  *
- * Given a transaction, these functions add custom attributes into the provided
- * transaction.
- *
+ * Given a transaction, the add_attribute methods add custom key-value pairs
+ * to the transaction.
  */
-bool newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char *name, const int value);
-bool newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char *name, const long value);
-bool newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const char *name, const double value);
-bool newrelic_transaction_add_attribute_string (newrelic_txn_t *transaction, const char *name, const char *value);
+bool newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value);
+bool newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value);
+bool newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value);
+bool newrelic_transaction_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value);
 
 #ifdef __cplusplus
 }
