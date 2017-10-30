@@ -303,6 +303,11 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            const char* errmsg,
                            const char* errclass);
 
+typedef struct _newrelic_segment_t newrelic_segment_t;
+
+newrelic_segment_t *newrelic_start_segment (newrelic_txn_t *transaction, const char *name);
+void newrelic_end_segment (newrelic_segment_t **segment);
+
 #ifdef __cplusplus
 }
 #endif

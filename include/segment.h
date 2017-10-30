@@ -8,6 +8,12 @@
 
 #include <stdbool.h>
 
+typedef struct _newrelic_segment_t {
+  nrtxn_t*    transaction;
+  char*       name;
+  nrtxntime_t start;
+} newrelic_segment_t;
+
 /*!
  * @brief Validate segment parameter.
  *

@@ -53,6 +53,15 @@ int main (void) {
   newrelic_notice_error(txn, priority, "Meaningful error message",
                         "Error.class");
 
+  /* Add segments */
+  segment1 = newrelic_start_segment (txn, "Secret Stuff");
+  sleep (1);
+  newrelic_end_segment (&segment1);
+
+  segment2 = newrelic_start_segment (txn, "More Secret Stuff");
+  sleep (2);
+  newrelic_end_segment (&segment2);
+
   /* End web transaction */
   newrelic_end_transaction(&txn);
 
@@ -101,6 +110,7 @@ Run your test application and check the `c-agent.log` file for output.
   * Web and non-web transactions
   * Custom attributes
   * Error instrumentation
+  * Segments
 * Logging levels
 
 #### Error instrumentation

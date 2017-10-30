@@ -12,6 +12,8 @@ int main(void) {
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
+  newrelic_segment_t *segment1 = 0;
+  newrelic_segment_t *segment2 = 0;
 
   /* Staging account 432507 */
   config = newrelic_new_config("C-Agent Test App",
@@ -38,6 +40,15 @@ int main(void) {
   /* Record an error */
   newrelic_notice_error(txn, priority, "Meaningful error message",
                         "Error.class");
+
+  /* Add segments */
+  segment1 = newrelic_start_segment (txn, "Secret Stuff");
+  sleep (1);
+  newrelic_end_segment (&segment1);
+
+  newrelic_start_segment (txn, "More Secret Stuff");
+  sleep (2);
+  newrelic_end_segment (&segment2);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
