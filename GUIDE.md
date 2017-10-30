@@ -38,31 +38,20 @@ int main (void) {
   free (config);
 
   /* Start a web transaction */
-  txn = newrelic_start_web_transaction (app, "veryImportantTransaction");
+  txn = newrelic_start_web_transaction (app, "veryImportantWebTransaction");
 
-  /* Add attributes and check/alert if they fail */
-  if (!newrelic_transaction_add_attribute_int (txn, "CustomInt", INT_MAX))
-    printf ("Failed to add custom Int\n");
-  if (!newrelic_transaction_add_attribute_long (txn, "CustomLong", LONG_MAX))
-    printf ("Failed to add custom Long\n");
+  /* Add attributes */
+  newrelic_transaction_add_attribute_int (txn, "my_custom_int", INT_MAX);
+  newrelic_transaction_add_attribute_string (txn, "my_custom_string", "String String String");
 
-  sleep (0.5);
+  sleep (1);
 
   /* End web transaction */
   newrelic_end_transaction (&txn);
 
-  /* Start a non-web transaction */
-  txn = newrelic_start_non_web_transaction (app, "veryImportantTransactionPart2");
-
-  /* Add attributes and check/alert if they fail */
-  if (!newrelic_transaction_add_attribute_double (txn, "CustomDbl", DBL_MAX))
-    printf ("Failed to add custom Double\n");
-  if (!newrelic_transaction_add_attribute_string (txn, "CustomStr", "String String String"))
-    printf ("Failed to add custom String\n");
-
-  sleep (0.5);
-
-  /* End non-web transaction */
+  /* Start and end a non-web transaction */
+  txn = newrelic_start_non_web_transaction (app, "veryImportantOtherTransaction");
+  sleep (1);
   newrelic_end_transaction (&txn);
 
   newrelic_destroy_app (&app);

@@ -42,26 +42,16 @@ newrelic_new_config (const char *app_name, const char *license_key)
   nr_strxcpy (config->app_name, app_name, nr_strlen (app_name));
   nr_strxcpy (config->license_key, license_key, nr_strlen (license_key));
 
-  // TODO Check env vars
-
   return config;
 }
 
-/*
- * This helper function returns a set of default options. Having this as
- * a separate function will help in the future when the option variables are
- * moved into the newrelic_config_t struct and they need to be extracted/copied
- * into the options struct. The helper function returns a populated options
- * struct ready to be passed to Axiom.
- */
 static nrtxnopt_t *
-newrelic_get_options (void)
+newrelic_get_default_options (void)
 {
   nrtxnopt_t *opt = nr_zalloc (sizeof (nrtxnopt_t));
 
-  /* Set default options */
-  opt->analytics_events_enabled         = true; // Enable transaction events
-  opt->custom_events_enabled            = true;
+  opt->analytics_events_enabled         = true;
+  opt->custom_events_enabled            = false;
   opt->synthetics_enabled               = false;
   opt->instance_reporting_enabled       = false;
   opt->database_name_reporting_enabled  = false;
@@ -73,7 +63,7 @@ newrelic_get_options (void)
   opt->ep_enabled                       = false;
   opt->tt_recordsql                     = false;
   opt->tt_slowsql                       = false;
-  opt->apdex_t                          = 0;    // Set by application
+  opt->apdex_t                          = 0;
   opt->tt_threshold                     = 0;
   opt->ep_threshold                     = 0;
   opt->ss_threshold                     = 0;
@@ -168,7 +158,6 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
     }
   }
 
-  /* Sanity checking */
   if (0 >= nr_strlen (given_config->app_name)) {
     nrl_error (NRL_INSTRUMENT, "app name is required");
     return NULL;
@@ -183,7 +172,6 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
     return NULL;
   }
 
-  /* Assemble config */
   config = newrelic_new_config (given_config->app_name, given_config->license_key);
 
   if (0 < nr_strlen (given_config->daemon_socket)) {
@@ -196,7 +184,6 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
     nr_strxcpy (config->log_filename, given_config->log_filename, nr_strlen (given_config->log_filename));
   }
 
-  /* Assemble app info */
   app_info = (nr_app_info_t *) nr_zalloc (sizeof (nr_app_info_t));
 
   if (0 < nr_strlen (given_config->redirect_collector)) {
@@ -211,7 +198,6 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
   app_info->environment = nro_new_hash ();
   app_info->version     = nr_strdup ("0.1");
 
-  /* Assemble app */
   app = (newrelic_app_t *) nr_zalloc (sizeof (newrelic_app_t));
   app->app_info = app_info;
   app->config = config;
@@ -219,14 +205,14 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
 
   context = newrelic_init (app->config->daemon_socket);
   if (NULL == context) {
-    /* There should already be an error msg printed */
+    /* There should already be an error message printed */
     return NULL;
   }
 
   app->context = context;
 
   if (NR_FAILURE == newrelic_connect_app (app, context, timeout_ms)) {
-    /* There should already be an error msg printed */
+    /* There should already be an error message printed */
     nrl_close_log_file ();
     return NULL;
   }
@@ -269,15 +255,15 @@ newrelic_start_transaction (newrelic_app_t *app, const char *name, bool is_web_t
   nr_attribute_config_t *attribute_config = NULL;
 
   if (NULL == app) {
-    nrl_error (NRL_INSTRUMENT, "application is NULL");
+    nrl_error (NRL_INSTRUMENT, "unable to start transaction with a NULL application");
     return NULL;
   }
 
-  options = newrelic_get_options ();
+  options = newrelic_get_default_options ();
   transaction = nr_txn_begin (app->app, options, attribute_config);
 
   if (NULL == name) {
-    name = "NULL Transaction Name";
+    name = "NULL";
   }
 
   nr_txn_set_path (NULL, transaction, name, NR_PATH_TYPE_ACTION, NR_OK_TO_OVERWRITE);
@@ -342,22 +328,22 @@ newrelic_end_transaction (newrelic_txn_t **transaction)
 }
 
 bool
-newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char *name, const int value)
+newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value)
 {
   nr_status_t rv;
   nrobj_t *obj;
 
-  if (NULL == name) {
-    nrl_error (NRL_INSTRUMENT, "failed to add integer attribute with NULL name");
+  if (NULL == key) {
+    nrl_error (NRL_INSTRUMENT, "unable to add integer attribute with NULL key");
     return false;
   }
 
   obj = nro_new_int (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, name, obj);
+  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
   nro_delete (obj);
 
   if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "failed to add integer attribute name=\"%s\" value=\"%d\"", name, value);
+    nrl_error (NRL_INSTRUMENT, "unable to add integer attribute key=\"%s\" value=\"%d\"", key, value);
     return false;
   }
 
@@ -365,22 +351,22 @@ newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char 
 }
 
 bool
-newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char *name, const long value)
+newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value)
 {
   nr_status_t rv;
   nrobj_t *obj;
 
-  if (NULL == name) {
-    nrl_error (NRL_INSTRUMENT, "failed to add long attribute with NULL name");
+  if (NULL == key) {
+    nrl_error (NRL_INSTRUMENT, "unable to add long attribute with NULL key");
     return false;
   }
 
   obj = nro_new_long (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, name, obj);
+  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
   nro_delete (obj);
 
   if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "failed to add long attribute name=\"%s\" value=\"%ld\"", name, value);
+    nrl_error (NRL_INSTRUMENT, "unable to add long attribute key=\"%s\" value=\"%ld\"", key, value);
     return false;
   }
 
@@ -388,22 +374,22 @@ newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char
 }
 
 bool
-newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const char *name, const double value)
+newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value)
 {
   nr_status_t rv;
   nrobj_t *obj;
 
-  if (NULL == name) {
-    nrl_error (NRL_INSTRUMENT, "failed to add double attribute with NULL name");
+  if (NULL == key) {
+    nrl_error (NRL_INSTRUMENT, "unable to add double attribute with NULL key");
     return false;
   }
 
   obj = nro_new_double (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, name, obj);
+  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
   nro_delete (obj);
 
   if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "failed to add double attribute name=\"%s\" value=\"%f\"", name, value);
+    nrl_error (NRL_INSTRUMENT, "unable to add double attribute key=\"%s\" value=\"%f\"", key, value);
     return false;
   }
 
@@ -411,22 +397,22 @@ newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const ch
 }
 
 bool
-newrelic_transaction_add_attribute_string (newrelic_txn_t *transaction, const char *name, const char *value)
+newrelic_transaction_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value)
 {
   nr_status_t rv;
   nrobj_t *obj;
 
-  if (NULL == name || NULL == value) {
-    nrl_error (NRL_INSTRUMENT, "failed to add string attribute with NULL name or value");
+  if (NULL == key || NULL == value) {
+    nrl_error (NRL_INSTRUMENT, "unable to add string attribute with NULL key or value");
     return false;
   }
 
   obj = nro_new_string (value);
-  rv = nr_txn_add_user_custom_parameter (transaction, name, obj);
+  rv = nr_txn_add_user_custom_parameter (transaction, key, obj);
   nro_delete (obj);
 
   if (NR_FAILURE == rv) {
-    nrl_error (NRL_INSTRUMENT, "failed to add string attribute name=\"%s\" value=\"%s\"", name, value);
+    nrl_error (NRL_INSTRUMENT, "unable to add string attribute key=\"%s\" value=\"%s\"", key, value);
     return false;
   }
 
