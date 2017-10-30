@@ -18,7 +18,7 @@ git clone git@source.datanerd.us:c-agent/c-agent.git
 Pull in dependencies
 ```
 cd /path/to/checked-out/c-agent
-git submodule update --init
+git submodule update --init --recursive
 ```
 
 Compile the agent
