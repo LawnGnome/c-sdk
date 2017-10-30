@@ -92,10 +92,10 @@ void newrelic_end_transaction (newrelic_txn_t **transaction);
  * Given a transaction, the add_attribute methods add custom key-value pairs
  * to the transaction.
  */
-bool newrelic_transaction_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value);
-bool newrelic_transaction_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value);
-bool newrelic_transaction_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value);
-bool newrelic_transaction_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value);
+bool newrelic_add_attribute_int (newrelic_txn_t *transaction, const char *key, const int value);
+bool newrelic_add_attribute_long (newrelic_txn_t *transaction, const char *key, const long value);
+bool newrelic_add_attribute_double (newrelic_txn_t *transaction, const char *key, const double value);
+bool newrelic_add_attribute_string (newrelic_txn_t *transaction, const char *key, const char *value);
 
 #ifdef __cplusplus
 }
