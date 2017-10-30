@@ -22,6 +22,12 @@ typedef struct _nr_app_and_info_t {
   nrapplist_t *context;
 } nr_app_and_info_t;
 
+static const char *
+newrelic_version (void)
+{
+  return NR_STR2 (NEWRELIC_VERSION);
+}
+
 newrelic_config_t *
 newrelic_new_config (const char *app_name, const char *license_key)
 {
@@ -209,7 +215,7 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
   app_info->license     = nr_strdup (given_config->license_key);
   app_info->lang        = nr_strdup ("sdk");
   app_info->environment = nro_new_hash ();
-  app_info->version     = nr_strdup ("0.1");
+  app_info->version     = nr_strdup (newrelic_version());
 
   /* Assemble app */
   app = (newrelic_app_t *) nr_zalloc (sizeof (newrelic_app_t));
