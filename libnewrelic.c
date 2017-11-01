@@ -14,6 +14,7 @@
 #include "util_memory.h"
 #include "util_strings.h"
 #include "util_sleep.h"
+#include "version.h"
 
 typedef struct _nr_app_and_info_t {
   nrapp_t *app;
@@ -196,7 +197,7 @@ newrelic_create_app (const newrelic_config_t *given_config, unsigned short timeo
   app_info->license     = nr_strdup (given_config->license_key);
   app_info->lang        = nr_strdup ("sdk");
   app_info->environment = nro_new_hash ();
-  app_info->version     = nr_strdup ("0.1");
+  app_info->version     = nr_strdup (newrelic_version());
 
   app = (newrelic_app_t *) nr_zalloc (sizeof (newrelic_app_t));
   app->app_info = app_info;
