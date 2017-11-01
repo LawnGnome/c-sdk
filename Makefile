@@ -38,11 +38,12 @@ endif
 # Check whether it exists, and if not assume a sensible default.
 PCRE_CFLAGS := $(shell pcre-config --cflags)
 
-AGENT_VERSION := $(shell if test -f VERSION; then cat VERSION; else echo "unreleased"; fi)
+AGENT_VERSION := $(shell if test -f VERSION; then cat VERSION; fi)
 VERSION_FLAGS += -DNEWRELIC_VERSION=$(AGENT_VERSION)
 
 OBJS := \
-	libnewrelic.o
+	libnewrelic.o \
+	version.o
 
 all: axiom libnewrelic.a
 
@@ -69,6 +70,8 @@ libnewrelic.a: $(OBJS) php_agent/axiom/libaxiom.a
 # TODO: statically link to pcre instead
 libnewrelic.so: libnewrelic.a
 	$(CC) -shared -pthread $(PCRE_CFLAGS) -ldl -o $@ -Wl,--whole-archive $^  -Wl,--no-whole-archive
+
+version.o: VERSION
 
 %.o: %.c
 	$(CC) $(AGENT_SDK_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(AGENT_SDK_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
