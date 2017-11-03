@@ -47,9 +47,11 @@ OBJS := \
 
 all: axiom libnewrelic.a
 
-.PHONY: axiom
-axiom: php_agent/Makefile
+php_agent/axiom/libaxiom.a: php_agent/Makefile
 	$(MAKE) -C php_agent axiom
+
+.PHONY: axiom
+axiom: php_agent/axiom/libaxiom.a
 
 .PHONY: axiom-clean
 axiom-clean:
