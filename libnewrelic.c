@@ -1,4 +1,5 @@
 #include "libnewrelic.h"
+#include "internal_libnewrelic.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +47,7 @@ newrelic_new_config (const char *app_name, const char *license_key)
   return config;
 }
 
-static nrtxnopt_t *
+nrtxnopt_t *
 newrelic_get_default_options (void)
 {
   nrtxnopt_t *opt = nr_zalloc (sizeof (nrtxnopt_t));
@@ -74,7 +75,7 @@ newrelic_get_default_options (void)
   return opt;
 }
 
-static nrapplist_t *
+nrapplist_t *
 newrelic_init (const char *daemon_socket)
 {
   nrapplist_t *context = nr_applist_create ();
@@ -99,7 +100,7 @@ newrelic_init (const char *daemon_socket)
   return context;
 }
 
-static nr_status_t
+nr_status_t
 newrelic_connect_app (newrelic_app_t *app, nrapplist_t *context, unsigned short timeout_ms)
 {
   nrapp_t *nrapp;
@@ -248,7 +249,7 @@ newrelic_destroy_app (newrelic_app_t **app)
   return;
 }
 
-static newrelic_txn_t *
+newrelic_txn_t *
 newrelic_start_transaction (newrelic_app_t *app, const char *name, bool is_web_transaction)
 {
   newrelic_txn_t *transaction = NULL;
@@ -328,7 +329,7 @@ newrelic_end_transaction (newrelic_txn_t **transaction)
   return;
 }
 
-static bool
+bool
 newrelic_add_attribute (newrelic_txn_t *transaction, const char *key, nrobj_t *obj) {
   if (NULL == transaction) {
     nrl_error (NRL_INSTRUMENT, "unable to add attribute for a NULL transaction");
