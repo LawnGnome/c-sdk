@@ -4,6 +4,6 @@
 /*
  * The returned value ultimately comes from the top-level VERSION file
  */
-const char * newrelic_version (void);
+const char* newrelic_version(void);
 
 #endif /* VERSION_HDR */
