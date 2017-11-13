@@ -1,5 +1,5 @@
-#ifndef INTERNAL_LIBNEWRELIC_H
-#define INTERNAL_LIBNEWRELIC_H
+#ifndef LIBNEWRELIC_INTERNAL_H
+#define LIBNEWRELIC_INTERNAL_H
 
 #include "php_agent/axiom/nr_txn.h"
 
@@ -16,4 +16,4 @@ nr_status_t newrelic_connect_app (newrelic_app_t *app, nrapplist_t *context, uns
 newrelic_txn_t * newrelic_start_transaction (newrelic_app_t *app, const char *name, bool is_web_transaction);
 bool newrelic_add_attribute (newrelic_txn_t *transaction, const char *key, nrobj_t *obj);
 
-#endif /* INTERNAL_LIBNEWRELIC_H */
+#endif /* LIBNEWRELIC_INTERNAL_H */
