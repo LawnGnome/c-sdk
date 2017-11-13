@@ -1,4 +1,6 @@
 FILES
+.deps
+*.d
 *.out
 *.o
 junk
