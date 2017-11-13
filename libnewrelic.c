@@ -1,5 +1,5 @@
 #include "libnewrelic.h"
-#include "internal_libnewrelic.h"
+#include "libnewrelic_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
