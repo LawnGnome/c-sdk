@@ -17,13 +17,6 @@
 #include "util_sleep.h"
 #include "version.h"
 
-typedef struct _nr_app_and_info_t {
-  nrapp_t *app;
-  nr_app_info_t *app_info;
-  newrelic_config_t *config;
-  nrapplist_t *context;
-} nr_app_and_info_t;
-
 newrelic_config_t *
 newrelic_new_config (const char *app_name, const char *license_key)
 {
