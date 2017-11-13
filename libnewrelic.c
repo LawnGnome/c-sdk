@@ -398,4 +398,3 @@ newrelic_add_attribute_string (newrelic_txn_t *transaction, const char *key, con
 
   return outcome;
 }
-

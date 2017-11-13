@@ -25,5 +25,3 @@ bool newrelic_add_attribute (newrelic_txn_t *transaction, const char *key, nrobj
 #endif
 
 #endif /* INTERNAL_LIBNEWRELIC_H */
-
- 
