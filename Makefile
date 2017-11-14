@@ -90,6 +90,7 @@ version.o: VERSION
 .PHONY: clean
 clean: axiom-clean daemon-clean
 	rm -f *.o libnewrelic.a libnewrelic.so test_app
+	$(MAKE) -C tests clean
 
 dynamic: libnewrelic.so
 

@@ -160,7 +160,7 @@ clean:
 # Dependency handling. When we build a .o file, we also build a .d file
 # containing that module's dependencies using -MM. Those files are in Makefile
 # format, so we include them here to define dependency rules: this means that
-# if we change a header, all affected modules will be recompiled automatically.
+# if we change a header, cdall affected modules will be recompiled automatically.
 #
 -include $(TLIB_OBJS:.o=.d)
 -include $(TESTS:%=%.d)
