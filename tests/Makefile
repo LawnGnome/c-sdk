@@ -93,7 +93,7 @@ all: tests
 # file name must start with test_.
 #
 TESTS := \
-	test_config \
+	test_newrelic_new_config \
 
 #
 # The list of tests to skip and tests to run.
