@@ -8,10 +8,8 @@
 
 #include "libnewrelic.h"
 
-#define CONFIG_NAME ("Test Config Name")
 #define LICENSE_KEY ("Thisisafortycharacterkeyabcdefghijklmnop")
 #define TOO_SHORT_LICENSE_KEY ("abc123def456")
-
 
 static void test_setup(void** state) {
   assert_false(0);
@@ -19,7 +17,7 @@ static void test_setup(void** state) {
 
 static void test_config_null_app_name(void** state) {
   newrelic_config_t* config;
-  config = newrelic_new_config(NULL, "abc");
+  config = newrelic_new_config(NULL, LICENSE_KEY);
   assert_null(config);
 }
 
@@ -31,7 +29,7 @@ static void test_config_null_license_key(void** state) {
 
 static void test_config_short_license_key(void** state) {
   newrelic_config_t* config;
-  config = newrelic_new_config("Test App", "SMRT");
+  config = newrelic_new_config("Test App", TOO_SHORT_LICENSE_KEY);
   assert_null(config);
 }
 
@@ -47,8 +45,7 @@ static void test_config_long_license_key(void** state) {
 
 static void test_config_justright_license_key(void** state) {
   newrelic_config_t* config;
-  config = newrelic_new_config("Test App",
-                               "Thisisafortycharacterkeyabcdefghijklmnop");
+  config = newrelic_new_config("Test App", LICENSE_KEY);
   assert_non_null(config);
   free(config);
 }
