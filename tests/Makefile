@@ -14,7 +14,6 @@ include ../php_agent/make/config.mk
 TEST_CFLAGS := -std=gnu99 -pthread
 
 TEST_CFLAGS += -Wall
-TEST_CFLAGS += -Werror
 TEST_CFLAGS += -Wextra
 TEST_CFLAGS += -Wbad-function-cast
 TEST_CFLAGS += -Wcast-qual
@@ -45,7 +44,7 @@ endif
 
 TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -ltlib -L../php_agent/axiom/ -laxiom
+TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom -lcmocka
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
@@ -93,7 +92,7 @@ all: tests
 # file name must start with test_.
 #
 TESTS := \
-	test_newrelic_new_config \
+	test_config \
 
 #
 # The list of tests to skip and tests to run.
