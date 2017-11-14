@@ -49,7 +49,6 @@ all: axiom libnewrelic.a
 
 PHONY: run_tests
 run_tests:
-	$(MAKE) -C php_agent axiom-tests
 	$(MAKE) -C tests run_tests
 
 .PHONY: axiom
@@ -57,14 +56,6 @@ axiom: php_agent/axiom/libaxiom.a
 
 php_agent/axiom/libaxiom.a: php_agent/Makefile
 	$(MAKE) -C php_agent/axiom
-
-PHONY: axiom-tests
-axiom-tests: php_agent/Makefile
-	$(MAKE) -C php_agent axiom-tests
-
-.PHONY: unit-run-tests
-unit-run-tests:
-	$(MAKE) -C tests run_tests
 
 .PHONY: axiom-clean
 axiom-clean:
