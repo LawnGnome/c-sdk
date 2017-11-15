@@ -106,6 +106,11 @@ update_version_yml()
 #updates the subtrees 
 update_subtrees()
 {
+    if [ ! -d "php_agent" ]
+    then
+        echo "ERROR: There's no php_agent folder -- you need to run add_subtrees first."
+        exit 1
+    fi
     for i in {0..2}
     do
         folder=${subtree[$i]} 
