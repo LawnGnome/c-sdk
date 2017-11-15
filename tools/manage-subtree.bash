@@ -12,6 +12,17 @@ declare -a repo=(
   "git@source.datanerd.us:agents/cross_agent_tests.git"
   "git@source.datanerd.us:php-agent/newrelic-integration.git")
   
+prefetch_repos()
+{
+    #prefetch repos so subtree can access the hash/sha it needs to
+    #without this attempts to access a specific SHA will fail, because
+    #the subtree command can't seem them in the local object store
+    for i in {0..2}
+    do
+        git fetch ${repo[$i]}
+    done
+}
+    
 #does initial adding of the subtrees. Only need to call once
 add_subtrees()
 {
@@ -20,6 +31,9 @@ add_subtrees()
         echo "ERROR: There's already a php_agent folder -- maybe you added the subtrees already?"
         exit 1
     fi
+    
+    prefetch_repos
+    
     #add php_agent subtree
     git subtree add --prefix=php_agent/ git@source.datanerd.us:php-agent/php_agent.git ${at_commit[0]} --squash    
     
@@ -111,6 +125,9 @@ update_subtrees()
         echo "ERROR: There's no php_agent folder -- you need to run add_subtrees first."
         exit 1
     fi
+    
+    prefetch_repos
+    
     for i in {0..2}
     do
         folder=${subtree[$i]} 
