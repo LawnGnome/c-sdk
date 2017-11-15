@@ -114,7 +114,7 @@ update_version_yml()
         echo "    commit: $commitID" >> $folder/../vendor.yml
     done
     echo ""
-    echo "IMPORTANT: Don't forget to commit your vendor.yml files"
+    echo "IMPORTANT: Don't forget to stage and commit any new vendor.yml files."
 }
 
 #updates the subtrees 
