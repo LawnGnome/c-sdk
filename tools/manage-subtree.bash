@@ -32,6 +32,15 @@ add_subtrees()
         exit 1
     fi
     
+    #make sure the tree is clean
+    git diff --exit-code --quiet
+    if [ "$?" = "1" ]
+    then
+        echo "ERROR: It looks like you have uncommitted changes in your tree. Clean"
+        echo "       those up (commit, stash, etc.) and try again."
+        exit 1    
+    fi
+    
     check_staged_commits
     
     prefetch_repos
