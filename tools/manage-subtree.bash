@@ -177,6 +177,21 @@ set_commit_hashes()
     exit 1
 }
 
+preflight_checks()
+{
+    if [ "$0" != "./tools/manage-subtree.bash" ]
+    then
+        echo "Please invoke from the root of the c-agent repo [./tools/manage-subtree.sh]"
+        exit 1
+    fi 
+
+    if [ "${#repo[@]}" != "${#subtree[@]}" ] && [ "${#subtree[@]}" != "${#at_commit[@]}" ]
+    then
+        echo "Looks like the arrays (repo, subtree, at_commit) aren't balanced."
+        exit 1
+    fi     
+}
+
 #test, remove
 #main program execution starts
 
@@ -187,10 +202,7 @@ then
     exit 0
 fi
 
-if [ "$0" != "./tools/manage-subtree.bash" ]
-then
-    echo "Please invoke from the root of the c-agent repo [./tools/manage-subtree.sh]"
-fi 
+preflight_checks
   
 #loads the commit hashes
 at_commit=()
