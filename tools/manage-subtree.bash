@@ -48,6 +48,8 @@ add_subtrees()
     
     git rm php_agent/axiom/tests/cross_agent_tests
     git rm php_agent/tests/include/newrelic-integration
+    git rm php_agent/.gitmodules
+    
     git commit . -m "removing sub module prior to adding subtree"
     
     #subtree the former submodules
