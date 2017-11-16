@@ -32,6 +32,15 @@ add_subtrees()
         exit 1
     fi
     
+    #make sure the tree is clean
+    git diff --exit-code --quiet
+    if [ "$?" = "1" ]
+    then
+        echo "ERROR: It looks like you have uncommitted changes in your tree. Clean"
+        echo "       those up (commit, stash, etc.) and try again."
+        exit 1    
+    fi
+    
     check_staged_commits
     
     prefetch_repos
@@ -48,6 +57,8 @@ add_subtrees()
     
     git rm php_agent/axiom/tests/cross_agent_tests
     git rm php_agent/tests/include/newrelic-integration
+    git rm php_agent/.gitmodules
+    
     git commit . -m "removing sub module prior to adding subtree"
     
     #subtree the former submodules
@@ -138,7 +149,14 @@ update_subtrees()
         echo "ERROR: There's no php_agent folder -- you need to run add_subtrees first."
         exit 1
     fi
-  
+
+    if [ ! -f /tmp/newrelic_cagent_subtree_hashes ]
+    then
+        # <3 bash: https://stackoverflow.com/questions/11393817/bash-read-lines-in-file-into-an-array
+        echo "ERROR: Please use set_commit_hashes to set each subtree SHA"
+        exit;
+    fi
+        
     check_staged_commits
     
     prefetch_repos
