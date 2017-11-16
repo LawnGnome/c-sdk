@@ -53,7 +53,7 @@ The C Agent is dependent on code [from the php_agent repository](https://source.
 
 For day to day development, you don't need to be aware of this.  i.e. this repo will `make` with additional steps.
 
-When we need a fix/feature that's been added to the upstream [php_agent repository](https://source.datanerd.us/php-agent/php_agent), we use `git subtree` to pull in those changes.  We've also codified this process in The
+When we need a fix/feature that's been added to the upstream [php_agent repository](https://source.datanerd.us/php-agent/php_agent), we use `git subtree` to pull in those changes.  We've also codified this process in the
 
     ./tools/manage-subtree.bash
     
