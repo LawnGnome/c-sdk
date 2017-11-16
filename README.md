@@ -64,3 +64,5 @@ shell script.  Use the
 invokation to set the commits SHAs you want to fetch, and then run 
 
     ./tools/manage-subtree.bash update_subtrees   
+    
+The `manage-subtree.bash` script will also automatically update a `vendor.xml` file for each subtree dependency. These files include the relative folder name managed by `git subtree`, as well as the current commit SHA.      
