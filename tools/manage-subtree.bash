@@ -32,6 +32,8 @@ add_subtrees()
         exit 1
     fi
     
+    check_staged_commits
+    
     prefetch_repos
     
     #add php_agent subtree
@@ -117,6 +119,17 @@ update_version_yml()
     echo "IMPORTANT: Don't forget to stage and commit any new vendor.yml files."
 }
 
+check_staged_commits()
+{
+    git diff --exit-code --staged --quiet
+    if [ "$?" = "1" ]
+    then
+        echo "ERROR: It looks like there are staged commits. Please commit, stash, "
+        echo "       or otherwise cleanup and try again"
+        exit 1
+    fi  
+}
+
 #updates the subtrees 
 update_subtrees()
 {
@@ -125,6 +138,8 @@ update_subtrees()
         echo "ERROR: There's no php_agent folder -- you need to run add_subtrees first."
         exit 1
     fi
+  
+    check_staged_commits
     
     prefetch_repos
     
