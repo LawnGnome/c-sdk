@@ -138,7 +138,14 @@ update_subtrees()
         echo "ERROR: There's no php_agent folder -- you need to run add_subtrees first."
         exit 1
     fi
-  
+
+    if [ ! -f /tmp/newrelic_cagent_subtree_hashes ]
+    then
+        # <3 bash: https://stackoverflow.com/questions/11393817/bash-read-lines-in-file-into-an-array
+        echo "ERROR: Please use set_commit_hashes to set each subtree SHA"
+        exit;
+    fi
+        
     check_staged_commits
     
     prefetch_repos
