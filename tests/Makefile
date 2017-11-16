@@ -94,6 +94,7 @@ all: tests
 #
 TESTS := \
 	test_config \
+	test_txn
 
 #
 # The list of tests to skip and tests to run.
