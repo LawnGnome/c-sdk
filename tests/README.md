@@ -15,6 +15,7 @@ Download cmocka-1.1.1 at https://cmocka.org/files/1.1/.  Dearchive, build, and i
 
 ```
 tar -xvf cmocka-1.1.1.tar.xz
+mkdir cmocka-1.1.1/build
 cd cmocka-1.1.1/build
 cmake ..
 make
