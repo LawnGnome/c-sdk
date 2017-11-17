@@ -7,14 +7,14 @@ environment to install the framework and run the unit tests.
 
 ### Requirements
 
-* cmocka 1.1.1
+* cmocka 1.1.1, available at ~/vendor/cmocka-1.1.1
 
 ### Getting started
 
-Download cmocka-1.1.1 at https://cmocka.org/files/1.1/.  Dearchive, build, and install.
+Build and install cmocka
 
 ```
-tar -xvf cmocka-1.1.1.tar.xz
+cd vendor/cmocka-1.1.1
 mkdir cmocka-1.1.1/build
 cd cmocka-1.1.1/build
 cmake ..
