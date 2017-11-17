@@ -47,6 +47,10 @@ OBJS := \
 
 all: axiom libnewrelic.a
 
+PHONY: run_tests
+run_tests:
+	$(MAKE) -C tests run_tests
+
 .PHONY: axiom
 axiom: php_agent/axiom/libaxiom.a
 
@@ -81,6 +85,7 @@ version.o: VERSION
 .PHONY: clean
 clean: axiom-clean daemon-clean
 	rm -f *.o libnewrelic.a libnewrelic.so test_app
+	$(MAKE) -C tests clean
 
 dynamic: libnewrelic.so
 

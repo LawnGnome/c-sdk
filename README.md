@@ -20,6 +20,12 @@ Compile the agent
 make
 ```
 
+Compile and run unit tests
+```
+make all
+make run_tests
+```
+
 Compile and start the daemon
 ```
 make daemon
