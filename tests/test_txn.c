@@ -9,6 +9,11 @@
 #include "nr_txn.h"
 #include "util_memory.h"
 
+/* Declare prototypes for mocks */
+nrtxn_t* __wrap_nr_txn_set_as_web_transaction(const nrapp_t*,
+                                              const nrtxnopt_t*,
+                                              const nr_attribute_config_t*);
+
 /*
  * Purpose: This is a cmocka mock. It wraps/monkey-patches
  * the nr_txn_set_as_web_transaction function.  Instead of
@@ -19,10 +24,10 @@
  * to queue values (see tests below)
  */
 nrtxn_t* __wrap_nr_txn_set_as_web_transaction(
-    const nrapp_t* app,
-    const nrtxnopt_t* opts,
-    const nr_attribute_config_t* attribute_config) {
-  return (nrtxn_t*)mock();
+    const nrapp_t* app NRUNUSED,
+    const nrtxnopt_t* opts NRUNUSED,
+    const nr_attribute_config_t* attribute_config NRUNUSED) {
+  return mock_type(nrtxn_t*);
 }
 
 /*
@@ -33,11 +38,13 @@ nrtxn_t* __wrap_nr_txn_set_as_web_transaction(
  * Returns: an int indicating the success (0) or failture (non-zero)
  * of the fixture.  Used in test reporting output.
  */
-static int group_setup(void** state) {
+static int group_setup(void** state NRUNUSED) {
+  int* answer;
   newrelic_app_t* appWithInfo;
-  appWithInfo = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
 
-  int* answer = malloc(sizeof(int));
+  appWithInfo = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
+  answer = (int*)malloc(sizeof(int));
+
   assert_non_null(answer);
 
   *state = appWithInfo;
@@ -61,7 +68,7 @@ static int group_teardown(void** state) {
 /*
  * Purpose: Tests that function can survive a null app being passed
  */
-static void test_null_app(void** state) {
+static void test_null_app(void** state NRUNUSED) {
   newrelic_app_t* app = NULL;
   newrelic_txn_t* txn = NULL;
   txn = newrelic_start_web_transaction(app, "aTransaction");
@@ -72,7 +79,6 @@ static void test_null_app(void** state) {
  * Purpose: Tests that function can survive a null name
  */
 static void test_null_name(void** state) {
-  nrapp_t* app;
   newrelic_txn_t* txn;
 
   // fetch our fixture value from the state

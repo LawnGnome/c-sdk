@@ -107,7 +107,7 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 # recompilation; we're figuring out dependencies anyway, so we'll want to keep
 # them.
 #
-.PRECIOUS: %.o
+#.PRECIOUS: %.o
 %.o: %.c Makefile .deps/compile_flags
 	$(CC) $(TEST_CPPFLAGS) $(CPPFLAGS) $(TEST_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 
