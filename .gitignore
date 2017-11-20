@@ -12,6 +12,11 @@ releases
 .DS_Store
 
 #
+# Byproducts from building cmocka
+#
+vendor/cmocka/build
+
+#
 # Byproducts from building and running the test_app
 #
 test_app
