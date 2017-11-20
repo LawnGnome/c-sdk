@@ -5,8 +5,9 @@ Generic library to communicate with New Relic.
 
 ### Requirements
 
-* libpcre 8.13+
+* cmake
 * golang 1.4+
+* libpcre 8.13+
 
 ### Getting started
 
