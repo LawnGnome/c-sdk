@@ -45,7 +45,11 @@ OBJS := \
 	libnewrelic.o \
 	version.o
 
-all: cmocka axiom libnewrelic.a
+all: vendor axiom libnewrelic.a
+
+.PHONY: vendor
+vendor:
+	$(MAKE) -C vendor cmocka
 
 .PHONY: run_tests
 run_tests:
