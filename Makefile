@@ -34,6 +34,12 @@ AGENT_SDK_CFLAGS += -Wuninitialized
 AGENT_SDK_CFLAGS += -Wunused-label
 endif
 
+#
+# CMOCKA
+#
+CMOCKA_LIB = $(shell pwd)/vendor/cmocka/build/src/libcmocka.a
+export CMOCKA_LIB
+
 # TODO(msl): OS X 10.11 (at least) does not provide pcre-config by default.
 # Check whether it exists, and if not assume a sensible default.
 PCRE_CFLAGS := $(shell pcre-config --cflags)
