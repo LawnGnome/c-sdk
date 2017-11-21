@@ -17,6 +17,12 @@ releases
 vendor/cmocka/build
 
 #
+# Names of all unit-test executables in tests/
+#
+tests/test_config
+tests/test_txn
+
+#
 # Byproducts from building and running the test_app
 #
 test_app

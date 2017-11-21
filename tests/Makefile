@@ -9,9 +9,11 @@
 #
 include ../php_agent/make/config.mk
 
+CMOCKA_INCLUDE = -I$(shell pwd)/vendor/cmocka/include
+
 # These flags that are required to build the tests, and should be unioned with
 # any flags inherited from the environment.
-TEST_CFLAGS := -std=gnu99 -pthread
+TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
 
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
@@ -45,7 +47,7 @@ endif
 
 TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom -lcmocka
+TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom $(CMOCKA_LIB)
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
@@ -107,9 +109,13 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 # recompilation; we're figuring out dependencies anyway, so we'll want to keep
 # them.
 #
-#.PRECIOUS: %.o
+.PRECIOUS: %.o
 %.o: %.c Makefile .deps/compile_flags
 	$(CC) $(TEST_CPPFLAGS) $(CPPFLAGS) $(TEST_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
+
+.PHONY: mocks
+mocks:
+	nm test*.o | grep -o "__wrap\w*"
 
 #
 # The top level phony rule to build the tests.
