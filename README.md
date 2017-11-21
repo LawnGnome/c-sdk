@@ -17,12 +17,6 @@ Clone the agent
 git clone git@source.datanerd.us:c-agent/c-agent.git
 ```
 
-Compile and install the necessary vendor-supplied libraries (e.g., cmocka)
-
-```
-make vendor
-```
-
 Compile the agent
 ```
 make
