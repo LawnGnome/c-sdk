@@ -94,6 +94,7 @@ all: tests
 #
 TESTS := \
 	test_config \
+	test_destroy \
 	test_end_transaction \
 
 #

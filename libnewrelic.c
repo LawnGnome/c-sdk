@@ -214,9 +214,9 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
   return app;
 }
 
-void newrelic_destroy_app(newrelic_app_t** app) {
+bool newrelic_destroy_app(newrelic_app_t** app) {
   if ((NULL == app) || (NULL == *app)) {
-    return;
+    return false;
   }
 
   nrl_info(NRL_INSTRUMENT, "newrelic shutting down");
@@ -236,7 +236,7 @@ void newrelic_destroy_app(newrelic_app_t** app) {
 
   nr_realfree((void**)app);
 
-  return;
+  return true;
 }
 
 newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
