@@ -93,7 +93,7 @@ newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
                                                const char* name);
 newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
                                                    const char* name);
-void newrelic_end_transaction(newrelic_txn_t** transaction);
+bool newrelic_end_transaction(newrelic_txn_t** transaction);
 
 /*
  * Attributes

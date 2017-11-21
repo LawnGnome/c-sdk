@@ -94,6 +94,7 @@ all: tests
 #
 TESTS := \
 	test_config \
+	test_end_transaction \
 
 #
 # The list of tests to skip and tests to run.
