@@ -1,0 +1,17 @@
+#
+# This Makefile is supplied so that New Relic C-Agent developers may
+# conveniently build the vendor-supplied libraries using this top-level
+# make command:
+#
+# $ make vendor
+
+all:	cmocka
+
+cmocka: build_dir
+	(cd cmocka/build && cmake ..)
+	$(MAKE) -C cmocka/build
+
+
+.PHONY: build_dir
+build_dir:
+	mkdir -p cmocka/build

@@ -49,7 +49,7 @@ all:  axiom libnewrelic.a
 
 .PHONY: vendor
 vendor:
-	$(MAKE) -C vendor/cmocka/build cmocka
+	$(MAKE) -C vendor
 
 .PHONY: run_tests
 run_tests:
