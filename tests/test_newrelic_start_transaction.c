@@ -146,6 +146,7 @@ int main(void) {
   const struct CMUnitTest license_tests[] = {                       
       cmocka_unit_test(test_null_app),      
       cmocka_unit_test(test_null_name),        
+      cmocka_unit_test(test_string_name),        
   };
 
   
