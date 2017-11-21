@@ -9,7 +9,7 @@ all:	cmocka
 
 cmocka: build_dir
 	cd cmocka/build && cmake ..
-	$(MAKE) -C cmocka/build
+	$(MAKE) -C cmocka/buildgi
 
 .PHONY: build_dir
 build_dir:
