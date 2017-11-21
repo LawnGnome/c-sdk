@@ -47,13 +47,13 @@ OBJS := \
 
 all:  axiom libnewrelic.a
 
+.PHONY: run_tests
+run_tests: vendor
+	$(MAKE) -C tests run_tests
+
 .PHONY: vendor
 vendor:
 	$(MAKE) -C vendor
-
-.PHONY: run_tests
-run_tests:
-	$(MAKE) -C tests run_tests
 
 .PHONY: axiom
 axiom: php_agent/axiom/libaxiom.a

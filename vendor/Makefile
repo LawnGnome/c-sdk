@@ -8,9 +8,9 @@
 all:	cmocka
 
 cmocka: build_dir
-	(cd cmocka/build && cmake ..)
+	cd cmocka/build && cmake ..
 	$(MAKE) -C cmocka/build
-	(cd cmocka/build && sudo make install)
+	cd cmocka/build && sudo make install
 	export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 .PHONY: build_dir
