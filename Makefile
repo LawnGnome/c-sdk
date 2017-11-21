@@ -45,9 +45,13 @@ OBJS := \
 	libnewrelic.o \
 	version.o
 
-all: axiom libnewrelic.a
+all:  axiom libnewrelic.a
 
-PHONY: run_tests
+.PHONY: vendor
+vendor:
+	$(MAKE) -C vendor
+
+.PHONY: run_tests
 run_tests:
 	$(MAKE) -C tests run_tests
 
@@ -94,4 +98,4 @@ test_app: test_app.o libnewrelic.a
 	$(CC) -o test_app test_app.o -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 test_app_dynamic: test_app.o libnewrelic.so
-	$(CC) -o test_app test_app.o -L. -lnewrelic 
+	$(CC) -o test_app test_app.o -L. -lnewrelic

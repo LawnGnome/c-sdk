@@ -5,14 +5,22 @@ Generic library to communicate with New Relic.
 
 ### Requirements
 
-* libpcre 8.13+
+* cmake
+* cmocka 1.1.1, (available in the `vendor` directory)
 * golang 1.4+
+* libpcre 8.13+
 
 ### Getting started
 
 Clone the agent
 ```
 git clone git@source.datanerd.us:c-agent/c-agent.git
+```
+
+Compile and install the necessary vendor-supplied libraries (e.g., cmocka)
+
+```
+make vendor
 ```
 
 Compile the agent
