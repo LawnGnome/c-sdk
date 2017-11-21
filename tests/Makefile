@@ -94,6 +94,7 @@ all: tests
 #
 TESTS := \
 	test_config \
+	test_end_transaction \
 	test_txn \
 
 TESTS_OBJS := $(addsuffix .o, $(TESTS))
