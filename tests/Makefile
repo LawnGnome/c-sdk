@@ -11,7 +11,7 @@ include ../php_agent/make/config.mk
 
 # These flags that are required to build the tests, and should be unioned with
 # any flags inherited from the environment.
-TEST_CFLAGS := -std=gnu99 -pthread
+TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
 
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
@@ -45,7 +45,7 @@ endif
 
 TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom -lcmocka
+TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom $(CMOCKA_LIB)
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
