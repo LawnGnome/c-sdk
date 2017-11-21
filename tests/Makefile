@@ -9,8 +9,6 @@
 #
 include ../php_agent/make/config.mk
 
-CMOCKA_INCLUDE = -I$(shell pwd)/vendor/cmocka/include
-
 # These flags that are required to build the tests, and should be unioned with
 # any flags inherited from the environment.
 TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)

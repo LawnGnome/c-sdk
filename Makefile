@@ -38,7 +38,10 @@ endif
 # CMOCKA
 #
 CMOCKA_LIB = $(shell pwd)/vendor/cmocka/build/src/libcmocka.a
+CMOCKA_INCLUDE = -I$(shell pwd)/vendor/cmocka/include
+
 export CMOCKA_LIB
+export CMOCKA_INCLUDE
 
 # TODO(msl): OS X 10.11 (at least) does not provide pcre-config by default.
 # Check whether it exists, and if not assume a sensible default.
