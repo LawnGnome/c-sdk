@@ -24,7 +24,6 @@ make
 
 Compile and run unit tests
 ```
-make all
 make run_tests
 ```
 

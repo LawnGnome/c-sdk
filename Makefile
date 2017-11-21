@@ -57,7 +57,7 @@ OBJS := \
 all:  axiom libnewrelic.a
 
 .PHONY: run_tests
-run_tests: vendor
+run_tests: vendor libnewrelic.a
 	$(MAKE) -C tests run_tests
 
 .PHONY: vendor
