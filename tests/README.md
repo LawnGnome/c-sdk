@@ -7,20 +7,14 @@ environment to install the framework and run the unit tests.
 
 ### Requirements
 
-* cmocka 1.1.1, available at ~/vendor/cmocka-1.1.1
+* cmocka 1.1.1, available at ~/vendor/cmocka.
 
 ### Getting started
 
-Build and install cmocka
+Build and install cmocka.  From the top-level of this repository:
 
 ```
-cd vendor/cmocka-1.1.1
-mkdir cmocka-1.1.1/build
-cd cmocka-1.1.1/build
-cmake ..
-make
-sudo make install
-export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+make vendor
 ```
 
 To run unit-tests, from the top of the C-Agent repository,
