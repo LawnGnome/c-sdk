@@ -2,9 +2,9 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <setjmp.h>
 
-#include "cmocka.h"
+#include <setjmp.h>
+#include <cmocka.h>
 
 #include "libnewrelic.h"
 #include "test.h"

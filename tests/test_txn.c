@@ -1,8 +1,8 @@
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
 
-#include "cmocka.h"
+#include <setjmp.h>
+#include <cmocka.h>
 
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
