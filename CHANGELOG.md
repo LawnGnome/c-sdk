@@ -12,6 +12,9 @@
   its return type from void to bool.  A value of true is returned if the transaction was
   properly sent.  An error is still logged on failure.
 
+* The function `bool newrelic_destroy_app(newrelic_app_t** app)` has changed its return
+  type from void to bool.
+
 ### Notes ###
 
 ### Bug Fixes ###

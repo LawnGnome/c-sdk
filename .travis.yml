@@ -12,5 +12,7 @@ before_install:
   - sudo update-alternatives --quiet --install /usr/bin/gcc gcc /usr/bin/gcc-5 60
 
 script:
+  - make vendor
   - make -C php_agent axiom-run-tests
   - make test_app
+  - make run_tests
