@@ -20,6 +20,7 @@ vendor/cmocka/build
 # Names of all unit-test executables in tests/
 #
 tests/test_config
+tests/test_destroy
 tests/test_end_transaction
 tests/test_txn
 
