@@ -16,7 +16,7 @@ TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
 TEST_CFLAGS += -Wextra
-TEST_CFLAGS += -Wbad-function-cast
+#TEST_CFLAGS += -Wbad-function-cast
 TEST_CFLAGS += -Wcast-qual
 TEST_CFLAGS += -Wdeclaration-after-statement
 TEST_CFLAGS += -Wimplicit-function-declaration
@@ -128,7 +128,7 @@ tests: $(TESTS)
 # All test binaries depend on libnewrelic.a, libtlib.a, and assume that libaxiom.a exists
 #
 test_%: test_%.o ../libnewrelic.a ../php_agent/axiom/libaxiom.a Makefile .deps/link_flags
-	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS)
+	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(../tools/object-to-linker.bash $<)
 
 #
 # The top level rule to run the tests.

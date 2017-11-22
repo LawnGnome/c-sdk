@@ -1,12 +1,14 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
-#include <cmocka.h>
+
+#include "cmocka.h"
 
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
 
 #include "nr_txn.h"
+#include "test.h"
 #include "util_memory.h"
 
 /* Declare prototypes for mocks */
@@ -27,7 +29,7 @@ nrtxn_t* __wrap_nr_txn_set_as_web_transaction(
     const nrapp_t* app NRUNUSED,
     const nrtxnopt_t* opts NRUNUSED,
     const nr_attribute_config_t* attribute_config NRUNUSED) {
-  return mock_type(nrtxn_t*);
+  return mock_ptr_type(nrtxn_t*);
 }
 
 /*
@@ -79,7 +81,7 @@ static void test_null_app(void** state NRUNUSED) {
  * Purpose: Tests that function can survive a null name
  */
 static void test_null_name(void** state) {
-  newrelic_txn_t* txn;
+  nrtxn_t* txn;
 
   // fetch our fixture value from the state
   newrelic_app_t* appWithInfo;
@@ -88,7 +90,7 @@ static void test_null_name(void** state) {
   // we mock the nr_txn_set_as_web_transaction function to
   // avoid segfaulting (or needing to completely stub
   // out the appWithInfo struct
-  will_return(__wrap_nr_txn_set_as_web_transaction, txn);
+  //will_return(__wrap_nr_txn_set_as_web_transaction, txn);
   txn = newrelic_start_web_transaction(appWithInfo, NULL);
 
   assert_null(txn);
