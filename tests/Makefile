@@ -97,8 +97,6 @@ TESTS := \
 	test_end_transaction \
 	test_txn \
 
-TESTS_OBJS := $(addsuffix .o, $(TESTS))
-
 #
 # The list of tests to skip and tests to run.
 #
@@ -113,10 +111,6 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 .PRECIOUS: %.o
 %.o: %.c Makefile .deps/compile_flags
 	$(CC) $(TEST_CPPFLAGS) $(CPPFLAGS) $(TEST_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
-
-.PHONY: mocks
-mocks:
-	nm TEST_OBJS | grep -o "__wrap\w*"
 
 #
 # The top level phony rule to build the tests.
@@ -135,7 +129,6 @@ test_%: test_%.o ../libnewrelic.a ../php_agent/axiom/libaxiom.a Makefile .deps/l
 #
 .PHONY: check run_tests
 check run_tests: tests Makefile
-	@echo $(TESTS_OBJS)
 	@for T in $(RUNNABLE_TESTS); do ./$$T $(TESTARGS); done
 
 #

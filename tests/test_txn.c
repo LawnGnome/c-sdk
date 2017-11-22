@@ -70,7 +70,7 @@ static int group_teardown(void** state) {
 /*
  * Purpose: Tests that function can survive a null app being passed
  */
-static void test_null_app(void** state NRUNUSED) {
+static void test_init_null_app(void** state NRUNUSED) {
   newrelic_app_t* app = NULL;
   newrelic_txn_t* txn = NULL;
   txn = newrelic_start_web_transaction(app, "aTransaction");
@@ -80,7 +80,7 @@ static void test_null_app(void** state NRUNUSED) {
 /*
  * Purpose: Tests that function can survive a null name
  */
-static void test_null_name(void** state) {
+static void test_init_null_name(void** state) {
   nrtxn_t* txn;
 
   // fetch our fixture value from the state
@@ -104,7 +104,8 @@ int main(void) {
   // array of unit tests.  A unit tests is a named function
   // passed into cmocka_unit_test
   const struct CMUnitTest license_tests[] = {
-      cmocka_unit_test(test_null_app), cmocka_unit_test(test_null_name),
+      cmocka_unit_test(test_init_null_app),
+      cmocka_unit_test(test_init_null_name),
   };
 
   return cmocka_run_group_tests(license_tests,  // our tests
