@@ -81,7 +81,7 @@ static void test_txn_null_app(void** state NRUNUSED) {
  * Purpose: Tests that function can survive a null name
  */
 static void test_txn_null_name(void** state) {
-  nrtxn_t* txn;
+  nrtxn_t* txn = NULL;
 
   // fetch our fixture value from the state
   newrelic_app_t* appWithInfo;
@@ -90,7 +90,7 @@ static void test_txn_null_name(void** state) {
   // we mock the nr_txn_set_as_web_transaction function to
   // avoid segfaulting (or needing to completely stub
   // out the appWithInfo struct
-  //will_return(__wrap_nr_txn_set_as_web_transaction, txn);
+  will_return(__wrap_nr_txn_set_as_web_transaction, txn);
   txn = newrelic_start_web_transaction(appWithInfo, NULL);
 
   assert_null(txn);
