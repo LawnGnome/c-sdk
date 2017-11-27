@@ -17,7 +17,7 @@ releases
 vendor/cmocka/build
 
 #
-# Names of all unit-test executables in tests/
+# All unit-test executables, but not .c files, in tests/
 #
 tests/test_*
 !tests/test_*.c
