@@ -80,7 +80,7 @@ nrapplist_t* newrelic_init(const char* daemon_socket) {
   }
 
   if (!nr_agent_try_daemon_connect(10)) {
-    nrl_error(NRL_INSTRUMENT, "failed to connect to the daemon");
+    nrl_error(NRL_INSTRUMENT, "failed to connect to the daemon!");
     return NULL;
   }
 
@@ -142,6 +142,13 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
   /* Map newrelic_loglevel_t ENUM to char* */
   static const char* log_array[] = {"info", "debug", "error", "verbose"};
 
+  if (NULL == given_config) {
+      nrl_set_log_file("stderr");
+      nrl_error(NRL_INSTRUMENT, "%s expects a non-null config",
+                __func__);   
+      return NULL;   
+  }
+  
   if (0 < nr_strlen(given_config->log_filename)) {
     if (NR_FAILURE == nrl_set_log_file(given_config->log_filename)) {
       nrl_set_log_file("stderr");
