@@ -16,10 +16,6 @@ TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
 TEST_CFLAGS += -Wextra
-
-# TODO: TLC. Figure out how I can add this back in.
-# TEST_CFLAGS += -Wbad-function-cast
-
 TEST_CFLAGS += -Wcast-qual
 TEST_CFLAGS += -Wdeclaration-after-statement
 TEST_CFLAGS += -Wimplicit-function-declaration
