@@ -122,7 +122,7 @@ tests: $(TESTS)
 # All test binaries depend on libnewrelic.a and assume that libaxiom.a exists.  See
 # tools/object-to-linker.bash for details on the shell script embedded in this rule.
 #
-test_%: test_%.o ../libnewrelic.a ../php_agent/axiom/libaxiom.a Makefile .deps/link_flags
+test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
 	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')
 
 #
