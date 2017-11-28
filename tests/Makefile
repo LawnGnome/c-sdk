@@ -95,6 +95,7 @@ TESTS := \
 	test_config \
 	test_destroy \
 	test_end_transaction \
+	test_newrelic_create_app \
 	test_txn \
 
 #
@@ -119,7 +120,7 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 tests: $(TESTS)
 
 #
-# All test binaries depend on libnewrelic.a, libtlib.a, and assume that libaxiom.a exists.  See
+# All test binaries depend on libnewrelic.a and assume that libaxiom.a exists.  See
 # tools/object-to-linker.bash for details on the shell script embedded in this rule.
 #
 test_%: test_%.o ../libnewrelic.a ../php_agent/axiom/libaxiom.a Makefile .deps/link_flags
