@@ -52,6 +52,7 @@ VERSION_FLAGS += -DNEWRELIC_VERSION=$(AGENT_VERSION)
 
 OBJS := \
 	libnewrelic.o \
+	libnewrelic_internal.o \
 	version.o
 
 all:  axiom libnewrelic.a

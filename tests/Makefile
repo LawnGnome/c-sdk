@@ -120,7 +120,21 @@ tests: $(TESTS)
 
 #
 # All test binaries depend on libnewrelic.a.
-# See tools/object-to-linker.bash for details on the shell script embedded in this rule.
+#
+# The shell portion of this pattern rule does the following:
+# 1) extracts all symbols from the object file that begin with `__wrap`;
+# 2) transforms the symbols to strings representing the gcc linker options necessary to link with libcmocka.
+#
+# For example, suppose the following object file has the following symbols:
+#
+# $ nm test_example.o | grep -o "__wrap\w*"
+# __wrap_foo
+# __wrap_bar
+#
+# These symbols would be transformed into these linker optioms:
+#
+# -Wl,--wrap=foo -Wl,--wrap=bar
+#
 #
 test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
 	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')
