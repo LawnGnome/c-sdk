@@ -5,8 +5,10 @@ Generic library to communicate with New Relic.
 
 ### Requirements
 
-* libpcre 8.13+
+* cmake
+* cmocka 1.1.1, (available in the `vendor` directory)
 * golang 1.4+
+* libpcre 8.13+
 
 ### Getting started
 
@@ -22,7 +24,6 @@ make
 
 Compile and run unit tests
 ```
-make all
 make run_tests
 ```
 

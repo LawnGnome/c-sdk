@@ -34,6 +34,15 @@ AGENT_SDK_CFLAGS += -Wuninitialized
 AGENT_SDK_CFLAGS += -Wunused-label
 endif
 
+#
+# CMOCKA
+#
+CMOCKA_LIB = $(shell pwd)/vendor/cmocka/build/src/libcmocka.a
+CMOCKA_INCLUDE = -I$(shell pwd)/vendor/cmocka/include
+
+export CMOCKA_LIB
+export CMOCKA_INCLUDE
+
 # TODO(msl): OS X 10.11 (at least) does not provide pcre-config by default.
 # Check whether it exists, and if not assume a sensible default.
 PCRE_CFLAGS := $(shell pcre-config --cflags)
@@ -43,13 +52,18 @@ VERSION_FLAGS += -DNEWRELIC_VERSION=$(AGENT_VERSION)
 
 OBJS := \
 	libnewrelic.o \
+	libnewrelic_internal.o \
 	version.o
 
-all: axiom libnewrelic.a
+all:  axiom libnewrelic.a
 
-PHONY: run_tests
-run_tests:
+.PHONY: run_tests
+run_tests: vendor libnewrelic.a
 	$(MAKE) -C tests run_tests
+
+.PHONY: vendor
+vendor:
+	$(MAKE) -C vendor
 
 .PHONY: axiom
 axiom: php_agent/axiom/libaxiom.a
@@ -94,4 +108,4 @@ test_app: test_app.o libnewrelic.a
 	$(CC) -o test_app test_app.o -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 test_app_dynamic: test_app.o libnewrelic.so
-	$(CC) -o test_app test_app.o -L. -lnewrelic 
+	$(CC) -o test_app test_app.o -L. -lnewrelic

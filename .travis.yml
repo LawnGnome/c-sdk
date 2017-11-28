@@ -14,3 +14,4 @@ before_install:
 script:
   - make -C php_agent axiom-run-tests
   - make test_app
+  - make run_tests

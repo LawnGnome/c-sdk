@@ -39,6 +39,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   return config;
 }
 
+<<<<<<< HEAD
 nrtxnopt_t* newrelic_get_default_options(void) {
   nrtxnopt_t* opt = nr_zalloc(sizeof(nrtxnopt_t));
 
@@ -221,9 +222,9 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
   return app;
 }
 
-void newrelic_destroy_app(newrelic_app_t** app) {
+bool newrelic_destroy_app(newrelic_app_t** app) {
   if ((NULL == app) || (NULL == *app)) {
-    return;
+    return false;
   }
 
   nrl_info(NRL_INSTRUMENT, "newrelic shutting down");
@@ -243,44 +244,7 @@ void newrelic_destroy_app(newrelic_app_t** app) {
 
   nr_realfree((void**)app);
 
-  return;
-}
-
-newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
-                                           const char* name,
-                                           bool is_web_transaction) {
-  newrelic_txn_t* transaction = NULL;
-  nrtxnopt_t* options = NULL;
-  nr_attribute_config_t* attribute_config = NULL;
-
-  if (NULL == app) {
-    nrl_error(NRL_INSTRUMENT,
-              "unable to start transaction with a NULL application");
-    return NULL;
-  }
-
-  options = newrelic_get_default_options();
-  transaction = nr_txn_begin(app->app, options, attribute_config);
-
-  if (NULL == name) {
-    name = "NULL";
-  }
-
-  nr_txn_set_path(NULL, transaction, name, NR_PATH_TYPE_ACTION,
-                  NR_OK_TO_OVERWRITE);
-
-  nr_attribute_config_destroy(&attribute_config);
-  nr_free(options);
-
-  if (is_web_transaction) {
-    nr_txn_set_as_web_transaction(transaction, 0);
-    nrl_verbose(NRL_INSTRUMENT, "starting web transaction \"%s\"", name);
-  } else {
-    nr_txn_set_as_background_job(transaction, 0);
-    nrl_verbose(NRL_INSTRUMENT, "starting non-web transaction \"%s\"", name);
-  }
-
-  return transaction;
+  return true;
 }
 
 newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
@@ -293,10 +257,10 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
   return newrelic_start_transaction(app, name, false);
 }
 
-void newrelic_end_transaction(newrelic_txn_t** transaction) {
+bool newrelic_end_transaction(newrelic_txn_t** transaction) {
   if ((NULL == transaction) || (NULL == *transaction)) {
     nrl_error(NRL_INSTRUMENT, "unable to end a NULL transaction");
-    return;
+    return false;
   }
 
   nr_txn_end(*transaction);
@@ -314,31 +278,11 @@ void newrelic_end_transaction(newrelic_txn_t** transaction) {
   if (0 == (*transaction)->status.ignore) {
     if (NR_FAILURE == nr_cmd_txndata_tx(nr_get_daemon_fd(), *transaction)) {
       nrl_error(NRL_INSTRUMENT, "failed to send transaction");
+      return false;
     }
   }
 
   nr_txn_destroy(transaction);
-
-  return;
-}
-
-bool newrelic_add_attribute(newrelic_txn_t* transaction,
-                            const char* key,
-                            nrobj_t* obj) {
-  if (NULL == transaction) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute for a NULL transaction");
-    return false;
-  }
-
-  if (NULL == key) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL key");
-    return false;
-  }
-
-  if (NR_FAILURE == nr_txn_add_user_custom_parameter(transaction, key, obj)) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute for key=\"%s\"", key);
-    return false;
-  }
 
   return true;
 }
