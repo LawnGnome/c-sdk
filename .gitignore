@@ -17,9 +17,10 @@ releases
 vendor/cmocka/build
 
 #
-# Names of all unit-test executables in tests/
+# All unit-test executables, but not .c files, in tests/
 #
-tests/test_config
+tests/test_*
+!tests/test_*.c
 
 #
 # Byproducts from building and running the test_app

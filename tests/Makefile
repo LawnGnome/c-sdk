@@ -16,7 +16,6 @@ TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
 TEST_CFLAGS += -Wextra
-TEST_CFLAGS += -Wbad-function-cast
 TEST_CFLAGS += -Wcast-qual
 TEST_CFLAGS += -Wdeclaration-after-statement
 TEST_CFLAGS += -Wimplicit-function-declaration
@@ -45,7 +44,7 @@ endif
 
 TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom $(CMOCKA_LIB)
+TEST_LDLIBS := -L.. -lnewrelic $(CMOCKA_LIB)
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
@@ -96,6 +95,7 @@ TESTS := \
 	test_config \
 	test_destroy \
 	test_end_transaction \
+	test_txn \
 
 #
 # The list of tests to skip and tests to run.
@@ -119,10 +119,11 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 tests: $(TESTS)
 
 #
-# All test binaries depend on libnewrelic.a, libtlib.a, and assume that libaxiom.a exists
+# All test binaries depend on libnewrelic.a.
+# See tools/object-to-linker.bash for details on the shell script embedded in this rule.
 #
-test_%: test_%.o ../libnewrelic.a ../php_agent/axiom/libaxiom.a Makefile .deps/link_flags
-	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS)
+test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
+	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')
 
 #
 # The top level rule to run the tests.
