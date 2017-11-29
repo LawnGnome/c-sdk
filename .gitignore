@@ -12,11 +12,21 @@ releases
 .DS_Store
 
 #
+# Byproducts from building cmocka
+#
+vendor/cmocka/build
+
+#
+# All unit-test executables, but not .c files, in tests/
+#
+tests/test_*
+!tests/test_*.c
+
+#
 # Byproducts from building and running the test_app
 #
 test_app
 c-agent.log
-c_agent.log
 
 #
 # Byproducts from make all

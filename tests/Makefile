@@ -11,12 +11,11 @@ include ../php_agent/make/config.mk
 
 # These flags that are required to build the tests, and should be unioned with
 # any flags inherited from the environment.
-TEST_CFLAGS := -std=gnu99 -pthread
+TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
 
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
 TEST_CFLAGS += -Wextra
-TEST_CFLAGS += -Wbad-function-cast
 TEST_CFLAGS += -Wcast-qual
 TEST_CFLAGS += -Wdeclaration-after-statement
 TEST_CFLAGS += -Wimplicit-function-declaration
@@ -45,7 +44,7 @@ endif
 
 TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic -L../php_agent/axiom/tests/ -L../php_agent/axiom/ -laxiom -lcmocka
+TEST_LDLIBS := -L.. -lnewrelic $(CMOCKA_LIB)
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
@@ -94,6 +93,9 @@ all: tests
 #
 TESTS := \
 	test_config \
+	test_destroy \
+	test_end_transaction \
+	test_txn \
 
 #
 # The list of tests to skip and tests to run.
@@ -117,10 +119,25 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 tests: $(TESTS)
 
 #
-# All test binaries depend on libnewrelic.a, libtlib.a, and assume that libaxiom.a exists
+# All test binaries depend on libnewrelic.a.
 #
-test_%: test_%.o ../libnewrelic.a ../php_agent/axiom/libaxiom.a Makefile .deps/link_flags
-	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS)
+# The shell portion of this pattern rule does the following:
+# 1) extracts all symbols from the object file that begin with `__wrap`;
+# 2) transforms the symbols to strings representing the gcc linker options necessary to link with libcmocka.
+#
+# For example, suppose the following object file has the following symbols:
+#
+# $ nm test_example.o | grep -o "__wrap\w*"
+# __wrap_foo
+# __wrap_bar
+#
+# These symbols would be transformed into these linker optioms:
+#
+# -Wl,--wrap=foo -Wl,--wrap=bar
+#
+#
+test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
+	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')
 
 #
 # The top level rule to run the tests.

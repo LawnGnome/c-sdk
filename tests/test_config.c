@@ -12,7 +12,7 @@
 #define LICENSE_KEY ("Thisisafortycharacterkeyabcdefghijklmnop")
 #define TOO_SHORT_LICENSE_KEY ("abc123def456")
 
-static void test_setup(void** state NRUNUSED) {
+static void test_config_setup(void** state NRUNUSED) {
   assert_false(0);
 }
 
@@ -53,7 +53,7 @@ static void test_config_justright_license_key(void** state NRUNUSED) {
 
 int main(void) {
   const struct CMUnitTest license_tests[] = {
-      cmocka_unit_test(test_setup),
+      cmocka_unit_test(test_config_setup),
       cmocka_unit_test(test_config_null_app_name),
       cmocka_unit_test(test_config_null_license_key),
       cmocka_unit_test(test_config_short_license_key),
