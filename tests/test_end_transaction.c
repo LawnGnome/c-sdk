@@ -7,8 +7,23 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
-#include "nr_txn.h"
 #include "test.h"
+#include "nr_txn.h"
+#include "util_memory.h"
+
+/* Declare prototypes for mocks */
+nr_status_t __wrap_nr_cmd_txndata_tx(int daemon_fd, const nrtxn_t* txn);
+
+/**
+ * Purpose: Mock to catch transaction calls to the daemon.  The mock()
+ * function used inside this function returns a queued value.
+ * The testing programmer (us!) uses the will_return function
+ * to queue values (see tests below)
+ */
+nr_status_t __wrap_nr_cmd_txndata_tx(int daemon_fd NRUNUSED,
+                                     const nrtxn_t* txn NRUNUSED) {
+  return (nr_status_t)mock();
+}
 
 static void test_end_transaction_null(void** state NRUNUSED) {
   bool ret = true;
@@ -23,30 +38,44 @@ static void test_end_transaction_null_transaction(void** state NRUNUSED) {
   assert_false(ret);
 }
 
-static void test_end_transaction_ignored(void** state NRUNUSED) {
+static void test_end_transaction_ignored_fail(void** state NRUNUSED) {
   bool ret;
-  newrelic_txn_t* txn;
-  txn = (newrelic_txn_t*)malloc(sizeof(newrelic_txn_t));
+  newrelic_txn_t* txn = 0;
+  txn = (newrelic_txn_t*)nr_zalloc(sizeof(newrelic_txn_t));
   txn->status.ignore = 0;
+  will_return(__wrap_nr_cmd_txndata_tx, NR_FAILURE);
   ret = newrelic_end_transaction(&txn);
   assert_false(ret);
-  free(txn);
+  nr_free(txn);
+}
+
+static void test_end_transaction_ignored_success(void** state NRUNUSED) {
+  bool ret;
+  newrelic_txn_t* txn = 0;
+  txn = (newrelic_txn_t*)nr_zalloc(sizeof(newrelic_txn_t));
+  txn->status.ignore = 0;
+  will_return(__wrap_nr_cmd_txndata_tx, NR_SUCCESS);
+  ret = newrelic_end_transaction(&txn);
+  assert_true(ret);
+  nr_free(txn);
 }
 
 static void test_end_transaction_valid(void** state NRUNUSED) {
   bool ret;
-  newrelic_txn_t* txn;
-  txn = (newrelic_txn_t*)malloc(sizeof(newrelic_txn_t));
+  newrelic_txn_t* txn = 0;
+  txn = (newrelic_txn_t*)nr_zalloc(sizeof(newrelic_txn_t));
   txn->status.ignore = 1;
   ret = newrelic_end_transaction(&txn);
   assert_true(ret);
+  nr_free(txn);
 }
 
 int main(void) {
   const struct CMUnitTest transaction_tests[] = {
       cmocka_unit_test(test_end_transaction_null),
       cmocka_unit_test(test_end_transaction_null_transaction),
-      cmocka_unit_test(test_end_transaction_ignored),
+      cmocka_unit_test(test_end_transaction_ignored_fail),
+      cmocka_unit_test(test_end_transaction_ignored_success),
       cmocka_unit_test(test_end_transaction_valid),
   };
 

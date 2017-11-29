@@ -97,7 +97,8 @@ TESTS := \
 	test_end_transaction \
 	test_txn \
 	test_newrelic_create_app \
-	
+	test_add_attribute \
+
 #
 # The list of tests to skip and tests to run.
 #
