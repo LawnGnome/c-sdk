@@ -55,12 +55,8 @@ __wrap_nrl_send_log_message (nrloglev_t level NRUNUSED, const char *fmt NRUNUSED
 static int group_setup(void **state)
 {
   newrelic_app_t *appWithInfo;
-  int *answer;
   
   appWithInfo = (newrelic_app_t *) nr_zalloc (sizeof (newrelic_app_t));
-  answer = malloc(sizeof(int));
-  
-  assert_non_null(answer);
 
   *state = appWithInfo;
   return 0;   //tells cmocka setup completed, 0==OK
