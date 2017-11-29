@@ -9,18 +9,19 @@
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
 #include "test.h"
-#include "php_agent/axiom/util_memory.h"
-#include "php_agent/axiom/util_logging.h"
-#include "php_agent/axiom/util_strings.h"
+#include "util_memory.h"
+#include "util_logging.h"
+#include "util_strings.h"
+
+nr_status_t __wrap_nrl_send_log_message (nrloglev_t level NRUNUSED, const char *fmt, ...);
 
 /**
  * Purpose: Mock to catch calls to the logger so we don't spew information
  * during the test runs
  */
 nr_status_t
-__wrap_nrl_send_log_message (nrloglev_t level, const char *fmt, ...)
+__wrap_nrl_send_log_message (nrloglev_t level NRUNUSED, const char *fmt NRUNUSED, ...)
 {
-    printf("\n\n%s\n\n", fmt); 
     return NR_SUCCESS;    
 }
 
@@ -95,12 +96,27 @@ static void test_invalid_log_level(void** state NRUNUSED) {
   
 }
 
+static void test_newrelic_connect_app_returns_failure(void** state NRUNUSED) {
+  assert_null("Implement Me pls");
+}
+
+static void test_newrelic_init_returns_null(void** state NRUNUSED) {
+  assert_null("Implement Me pls");
+}
+
+static void test_newrelic_app_correctly_populated(void** state NRUNUSED) {
+  assert_null("Implement Me pls");
+}
+
 int main(void) {
   const struct CMUnitTest tests[] = {
       cmocka_unit_test(test_null_config),
       cmocka_unit_test(test_empty_appname),      
       cmocka_unit_test(test_licence_key_lengths),      
       cmocka_unit_test(test_invalid_log_level),            
+      cmocka_unit_test(test_newrelic_connect_app_returns_failure),   
+      cmocka_unit_test(test_newrelic_init_returns_null),   
+      cmocka_unit_test(test_newrelic_app_correctly_populated),   
   };
 
   return cmocka_run_group_tests(tests, setup, teardown);
