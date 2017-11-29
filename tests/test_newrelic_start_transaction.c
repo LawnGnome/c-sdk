@@ -6,13 +6,10 @@
 #include "libnewrelic_internal.h"
 #include "nr_txn.h"
 #include "util_memory.h"
-#include "util_logging.h"
 
 
 void __wrap_nr_txn_set_as_web_transaction (nrtxn_t *txn, const char *reason);
 void __wrap_nr_txn_set_as_background_job (nrtxn_t *txn, const char *reason);
-nr_status_t __wrap_nrl_send_log_message (nrloglev_t level, const char *fmt, ...);
-
 
 /**
  * Purpose: Mock to ensure the nr_txn_set_as_web_transaction 
@@ -32,16 +29,6 @@ void
 __wrap_nr_txn_set_as_background_job (nrtxn_t *txn, const char *reason NRUNUSED)
 {
     check_expected(txn);    
-}
-
-/**
- * Purpose: Mock to catch calls to the logger so we don'test_null_app
- * actually try to log during a test run
- */
-nr_status_t
-__wrap_nrl_send_log_message (nrloglev_t level NRUNUSED, const char *fmt NRUNUSED, ...)
-{
-    return NR_SUCCESS;    
 }
 
 /*
