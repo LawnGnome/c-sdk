@@ -96,6 +96,7 @@ TESTS := \
 	test_destroy \
 	test_end_transaction \
 	test_txn \
+	test_add_attribute \
 
 #
 # The list of tests to skip and tests to run.
