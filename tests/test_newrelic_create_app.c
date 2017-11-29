@@ -58,7 +58,6 @@ static void test_empty_appname(void** state NRUNUSED) {
   
   nr_strxcpy(config->app_name, "", nr_strlen(""));
   
-  // printf("\nHello World\n\n%i\n\n", nr_strlen(config->log_filename));  
   app = newrelic_create_app(config, 1000);  
   assert_null(app);
 }
@@ -82,7 +81,7 @@ static void test_licence_key_lengths(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_invalid_log_level(void** state NRUNUSED) {
+static void test_invalid_log_level(void** state) {
   newrelic_config_t* config;
   newrelic_app_t* app;
   config = (newrelic_config_t*) *state;
