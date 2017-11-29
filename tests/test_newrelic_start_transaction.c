@@ -4,11 +4,14 @@
 #include <cmocka.h>
 #include "libnewrelic.h"  
 #include "libnewrelic_internal.h"
-#include "php_agent/axiom/nr_txn.h"
-#include "php_agent/axiom/util_memory.h"
-#include "php_agent/axiom/util_logging.h"
+#include "nr_txn.h"
+#include "util_memory.h"
+#include "util_logging.h"
 
 
+void __wrap_nr_txn_set_as_web_transaction (nrtxn_t *txn, const char *reason);
+void __wrap_nr_txn_set_as_background_job (nrtxn_t *txn, const char *reason);
+nr_status_t __wrap_nrl_send_log_message (nrloglev_t level, const char *fmt, ...);
 
 
 /**
@@ -16,7 +19,7 @@
  * gets called for web transactions
  */
 void
-__wrap_nr_txn_set_as_web_transaction (nrtxn_t *txn, const char *reason)
+__wrap_nr_txn_set_as_web_transaction (nrtxn_t *txn, const char *reason NRUNUSED)
 {
     check_expected(txn);    
 }
@@ -26,7 +29,7 @@ __wrap_nr_txn_set_as_web_transaction (nrtxn_t *txn, const char *reason)
  * gets called for non-web transactions
  */
 void
-__wrap_nr_txn_set_as_background_job (nrtxn_t *txn, const char *reason)
+__wrap_nr_txn_set_as_background_job (nrtxn_t *txn, const char *reason NRUNUSED)
 {
     check_expected(txn);    
 }
@@ -36,7 +39,7 @@ __wrap_nr_txn_set_as_background_job (nrtxn_t *txn, const char *reason)
  * actually try to log during a test run
  */
 nr_status_t
-__wrap_nrl_send_log_message (nrloglev_t level, const char *fmt, ...)
+__wrap_nrl_send_log_message (nrloglev_t level NRUNUSED, const char *fmt NRUNUSED, ...)
 {
     return NR_SUCCESS;    
 }
@@ -52,9 +55,11 @@ __wrap_nrl_send_log_message (nrloglev_t level, const char *fmt, ...)
 static int group_setup(void **state)
 {
   newrelic_app_t *appWithInfo;
-  appWithInfo = (newrelic_app_t *) nr_zalloc (sizeof (newrelic_app_t));
+  int *answer;
   
-  int *answer = malloc(sizeof(int));
+  appWithInfo = (newrelic_app_t *) nr_zalloc (sizeof (newrelic_app_t));
+  answer = malloc(sizeof(int));
+  
   assert_non_null(answer);
 
   *state = appWithInfo;
@@ -80,7 +85,7 @@ static int group_teardown(void **state)
 /*
  * Purpose: Tests that function can survive a null app being passed
  */
-static void test_null_app(void ** state) {
+static void test_null_app(void ** state NRUNUSED) {
   newrelic_app_t *app = NULL;
   newrelic_txn_t *txn = NULL;    
 
@@ -95,7 +100,7 @@ static void test_null_app(void ** state) {
  * Purpose: Tests that function can survive a null name
  */
 static void test_null_name(void ** state) {
-  nrapp_t *app;    
+  //nrapp_t *app;    
   newrelic_txn_t *txn;  
 
   //fetch our fixture value from the state
@@ -117,7 +122,7 @@ static void test_null_name(void ** state) {
  * Purpose: Tests that function works with a real string transaction name
  */
 static void test_string_name(void ** state) {
-  nrapp_t *app;    
+  // nrapp_t *app;    
   newrelic_txn_t *txn;  
 
   //fetch our fixture value from the state
