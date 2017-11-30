@@ -98,21 +98,6 @@ static void test_licence_key_lengths(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_invalid_log_level(void** state) {
-  newrelic_config_t* config;
-  newrelic_app_t* app;
-  config = (newrelic_config_t*)*state;
-
-  app = NULL;
-  nr_strxcpy(config->app_name, "valid app name", nr_strlen("valid app name"));
-
-  nr_strxcpy(config->license_key, "0123456789012345678901234567890123456789",
-             40);
-
-  app = newrelic_create_app(config, 1000);
-  assert_null(app);
-}
-
 static void test_newrelic_connect_app_returns_failure(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* appForMock;
