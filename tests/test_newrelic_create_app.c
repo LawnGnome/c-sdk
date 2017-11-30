@@ -13,33 +13,19 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
-nr_status_t __wrap_nrl_send_log_message(nrloglev_t level, const char* fmt, ...);
-
 nrapplist_t* __wrap_newrelic_init(const char* daemon_socket);
 
 nr_status_t __wrap_newrelic_connect_app(newrelic_app_t* app,
                                         nrapplist_t* context,
                                         unsigned short timeout_ms);
-/**
- * Purpose: Mock to catch calls to the logger so we don't spew information
- * during the test runs
- */
-nr_status_t __wrap_nrl_send_log_message(nrloglev_t level NRUNUSED,
-                                        const char* fmt,
-                                        ...) {
-  printf("LOG: %s", fmt);
-  return NR_SUCCESS;
-}
 
 nrapplist_t* __wrap_newrelic_init(const char* daemon_socket NRUNUSED) {
-  // printf("\n\n__wrap_newrelic_init\n\n");
   return (nrapplist_t*)mock();
 }
 
 nr_status_t __wrap_newrelic_connect_app(newrelic_app_t* app NRUNUSED,
                                         nrapplist_t* context NRUNUSED,
                                         unsigned short timeout_ms NRUNUSED) {
-  // printf("\n\n__wrap_newrelic_connect_app\n\n");
   return (nr_status_t)mock();
 }
 
