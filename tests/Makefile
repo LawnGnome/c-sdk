@@ -99,7 +99,6 @@ TESTS := \
 	test_start_transaction \
 	test_newrelic_create_app \
 	test_add_attribute \
-  test_example
   
 #
 # The list of tests to skip and tests to run.
