@@ -156,7 +156,7 @@ int main(void) {
   // to run tests we pass cmocka_run_group_tests an
   // array of unit tests.  A unit tests is a named function
   // passed into cmocka_unit_test
-  const struct CMUnitTest license_tests[] = {
+  const struct CMUnitTest tests[] = {
       cmocka_unit_test(test_null_app_web_transaction),
       cmocka_unit_test(test_null_app_background_transaction),
       cmocka_unit_test(test_null_name_web_transaction),
@@ -165,7 +165,7 @@ int main(void) {
       cmocka_unit_test(test_string_name_background_transaction),
   };
 
-  return cmocka_run_group_tests(license_tests,  // our tests
+  return cmocka_run_group_tests(tests,  // our tests
                                 group_setup,    // setup fixture
                                 group_teardown  // teardown fixtures
   );
