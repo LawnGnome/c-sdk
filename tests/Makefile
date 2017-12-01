@@ -97,6 +97,7 @@ TESTS := \
 	test_destroy \
 	test_end_transaction \
 	test_get_default_options \
+	test_newrelic_create_app \
 	test_txn \
 
 #
