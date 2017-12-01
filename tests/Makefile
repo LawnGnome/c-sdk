@@ -92,11 +92,12 @@ all: tests
 # file name must start with test_.
 #
 TESTS := \
+	test_add_attribute \
 	test_config \
 	test_destroy \
 	test_end_transaction \
+	test_get_default_options \
 	test_txn \
-	test_add_attribute \
 
 #
 # The list of tests to skip and tests to run.
