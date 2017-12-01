@@ -89,6 +89,10 @@ nrapplist_t* newrelic_init(const char* daemon_socket) {
 }
 
 bool newrelic_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2) {
+  if (o1 == o2)
+  	return true;
+  if (o1==NULL || o2==NULL)
+    return false;
   if (o1->analytics_events_enabled != o2->analytics_events_enabled)
     return false;
   if (o1->custom_events_enabled != o2->custom_events_enabled)
