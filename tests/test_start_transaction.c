@@ -63,7 +63,7 @@ static int group_teardown(void** state) {
 /*
  * Purpose: Tests that function can survive a null app being passed
  */
-static void test_null_app_web_transaction(void** state NRUNUSED) {
+static void test_start_transaction_null_app_web(void** state NRUNUSED) {
   newrelic_app_t* app = NULL;
   newrelic_txn_t* txn = NULL;
 
@@ -74,7 +74,7 @@ static void test_null_app_web_transaction(void** state NRUNUSED) {
 /*
  * Purpose: Tests that function can survive a null app being passed
  */
-static void test_null_app_background_transaction(void** state NRUNUSED) {
+static void test_start_transaction_null_app_background(void** state NRUNUSED) {
   newrelic_app_t* app = NULL;
   newrelic_txn_t* txn = NULL;
 
@@ -85,7 +85,7 @@ static void test_null_app_background_transaction(void** state NRUNUSED) {
 /*
  * Purpose: Tests that function can survive a null name
  */
-static void test_null_name_web_transaction(void** state) {
+static void test_start_transaction_null_name_web(void** state) {
   // nrapp_t *app;
   newrelic_txn_t* txn;
 
@@ -102,7 +102,7 @@ static void test_null_name_web_transaction(void** state) {
 /*
  * Purpose: Tests that function can survive a null name
  */
-static void test_null_name_background_transaction(void** state) {
+static void test_start_transaction_null_name_background(void** state) {
   // nrapp_t *app;
   newrelic_txn_t* txn;
 
@@ -119,7 +119,7 @@ static void test_null_name_background_transaction(void** state) {
 /*
  * Purpose: Tests that function works with a real string transaction name
  */
-static void test_string_name_web_transaction(void** state) {
+static void test_start_transaction_string_name_web(void** state) {
   // nrapp_t *app;
   newrelic_txn_t* txn;
 
@@ -136,7 +136,7 @@ static void test_string_name_web_transaction(void** state) {
 /*
  * Purpose: Tests that function works with a real string transaction name
  */
-static void test_string_name_background_transaction(void** state) {
+static void test_start_transaction_string_name_background(void** state) {
   // nrapp_t *app;
   newrelic_txn_t* txn;
 
@@ -157,12 +157,12 @@ int main(void) {
   // array of unit tests.  A unit tests is a named function
   // passed into cmocka_unit_test
   const struct CMUnitTest tests[] = {
-      cmocka_unit_test(test_null_app_web_transaction),
-      cmocka_unit_test(test_null_app_background_transaction),
-      cmocka_unit_test(test_null_name_web_transaction),
-      cmocka_unit_test(test_null_name_background_transaction),
-      cmocka_unit_test(test_string_name_web_transaction),
-      cmocka_unit_test(test_string_name_background_transaction),
+      cmocka_unit_test(test_start_transaction_null_app_web),
+      cmocka_unit_test(test_start_transaction_null_app_background),
+      cmocka_unit_test(test_start_transaction_null_name_web),
+      cmocka_unit_test(test_start_transaction_null_name_background),
+      cmocka_unit_test(test_start_transaction_string_name_web),
+      cmocka_unit_test(test_start_transaction_string_name_background),
   };
 
   return cmocka_run_group_tests(tests,  // our tests

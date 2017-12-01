@@ -96,10 +96,11 @@ TESTS := \
 	test_destroy \
 	test_end_transaction \
 	test_txn \
-	test_newrelic_start_transaction \
+	test_start_transaction \
 	test_newrelic_create_app \
 	test_add_attribute \
-
+  test_example
+  
 #
 # The list of tests to skip and tests to run.
 #
