@@ -94,10 +94,11 @@ all: tests
 TESTS := \
 	test_add_attribute \
 	test_config \
+	test_create_app \
 	test_destroy \
 	test_end_transaction \
 	test_get_default_options \
-	test_newrelic_create_app \
+	test_start_transaction \
 	test_txn \
 
 #

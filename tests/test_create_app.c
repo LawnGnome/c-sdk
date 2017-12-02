@@ -43,7 +43,7 @@ static int teardown(void** state) {
   return 0;  // tells cmocka teardown completed, 0==OK
 }
 
-static void test_null_config(void** state NRUNUSED) {
+static void test_create_app_null_config(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* app;
   config = NULL;
@@ -52,7 +52,7 @@ static void test_null_config(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_empty_appname(void** state NRUNUSED) {
+static void test_create_app_empty_appname(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* app;
   config = (newrelic_config_t*)*state;
@@ -64,7 +64,7 @@ static void test_empty_appname(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_licence_key_lengths(void** state NRUNUSED) {
+static void test_create_app_license_key_lengths(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* app;
   config = (newrelic_config_t*)*state;
@@ -84,7 +84,7 @@ static void test_licence_key_lengths(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_newrelic_connect_app_returns_failure(void** state NRUNUSED) {
+static void test_create_app_newrelic_connect_app_returns_failure(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* appForMock;
   newrelic_app_t* app;
@@ -106,7 +106,7 @@ static void test_newrelic_connect_app_returns_failure(void** state NRUNUSED) {
   nr_free(app);
 }
 
-static void test_newrelic_init_returns_null(void** state NRUNUSED) {
+static void test_create_app_newrelic_init_returns_null(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* app;
   config = (newrelic_config_t*)*state;
@@ -122,7 +122,7 @@ static void test_newrelic_init_returns_null(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_newrelic_app_correctly_populated(void** state NRUNUSED) {
+static void test_create_app_newrelic_app_correctly_populated(void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* appForMock;
   newrelic_app_t* app;
@@ -146,12 +146,12 @@ static void test_newrelic_app_correctly_populated(void** state NRUNUSED) {
 
 int main(void) {
   const struct CMUnitTest tests[] = {
-      cmocka_unit_test(test_null_config),
-      cmocka_unit_test(test_empty_appname),
-      cmocka_unit_test(test_licence_key_lengths),
-      cmocka_unit_test(test_newrelic_connect_app_returns_failure),
-      cmocka_unit_test(test_newrelic_init_returns_null),
-      cmocka_unit_test(test_newrelic_app_correctly_populated),
+      cmocka_unit_test(test_create_app_null_config),
+      cmocka_unit_test(test_create_app_empty_appname),
+      cmocka_unit_test(test_create_app_license_key_lengths),
+      cmocka_unit_test(test_create_app_newrelic_connect_app_returns_failure),
+      cmocka_unit_test(test_create_app_newrelic_init_returns_null),
+      cmocka_unit_test(test_create_app_newrelic_app_correctly_populated),
   };
 
   return cmocka_run_group_tests(tests, setup, teardown);
