@@ -37,7 +37,7 @@ static int teardown(void** state NRUNUSED) {
 static void test_connect_app_null_inputs(void** state NRUNUSED) {
   nr_status_t result;
   result = newrelic_connect_app(NULL, NULL, 1);
-  assert_true(result == NR_FAILURE);
+  assert_true(NR_FAILURE == result);
 }
 
 static void test_connect_app_nrapp_is_null(void** state NRUNUSED) {
@@ -52,7 +52,7 @@ static void test_connect_app_nrapp_is_null(void** state NRUNUSED) {
   will_return(__wrap_nr_agent_find_or_add_app, nrapp);
 
   result = newrelic_connect_app(app, context, 0);
-  assert_true(result == NR_FAILURE);
+  assert_true(NR_FAILURE == result);
 
   newrelic_destroy_app(&app);
   nr_free(context);
@@ -71,7 +71,7 @@ static void test_connect_app_null_app_info(void** state NRUNUSED) {
   will_return(__wrap_nr_agent_find_or_add_app, nrapp);
 
   result = newrelic_connect_app(app, context, 0);
-  assert_true(result == NR_FAILURE);
+  assert_true(NR_FAILURE == result);
 
   newrelic_destroy_app(&app);
   nr_free(context);
@@ -95,7 +95,7 @@ static void test_connect_app_successful_connect(void** state NRUNUSED) {
   will_return(__wrap_nr_agent_find_or_add_app, nrapp);
 
   result = newrelic_connect_app(app, context, 0);
-  assert_true(result == NR_SUCCESS);
+  assert_true(NR_SUCCESS == result);
 
   // newrelic_destroy_app also cleans up app_info
   newrelic_destroy_app(&app);
