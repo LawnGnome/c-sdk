@@ -15,6 +15,7 @@ bool newrelic_add_attribute(newrelic_txn_t* transaction,
                             nrobj_t* obj);
 nrtxnopt_t* newrelic_get_default_options(void);
 nrapplist_t* newrelic_init(const char* daemon_socket);
+bool newrelic_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2);
 nr_status_t newrelic_connect_app(newrelic_app_t* app,
                                  nrapplist_t* context,
                                  unsigned short timeout_ms);
