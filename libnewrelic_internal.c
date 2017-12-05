@@ -93,6 +93,54 @@ nrapplist_t* newrelic_init(const char* daemon_socket) {
   return context;
 }
 
+bool newrelic_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2) {
+  if (o1 == o2)
+    return true;
+  if (o1 == NULL || o2 == NULL)
+    return false;
+  if (o1->analytics_events_enabled != o2->analytics_events_enabled)
+    return false;
+  if (o1->custom_events_enabled != o2->custom_events_enabled)
+    return false;
+  if (o1->synthetics_enabled != o2->synthetics_enabled)
+    return false;
+  if (o1->instance_reporting_enabled != o2->instance_reporting_enabled)
+    return false;
+  if (o1->database_name_reporting_enabled !=
+      o2->database_name_reporting_enabled)
+    return false;
+  if (o1->err_enabled != o2->err_enabled)
+    return false;
+  if (o1->request_params_enabled != o2->request_params_enabled)
+    return false;
+  if (o1->autorum_enabled != o2->autorum_enabled)
+    return false;
+  if (o1->error_events_enabled != o2->error_events_enabled)
+    return false;
+  if (o1->tt_enabled != o2->tt_enabled)
+    return false;
+  if (o1->ep_enabled != o2->ep_enabled)
+    return false;
+  if (o1->tt_recordsql != o2->tt_recordsql)
+    return false;
+  if (o1->tt_slowsql != o2->tt_slowsql)
+    return false;
+  if (o1->apdex_t != o2->apdex_t)
+    return false;
+  if (o1->tt_threshold != o2->tt_threshold)
+    return false;
+  if (o1->ep_threshold != o2->ep_threshold)
+    return false;
+  if (o1->ss_threshold != o2->ss_threshold)
+    return false;
+  if (o1->cross_process_enabled != o2->cross_process_enabled)
+    return false;
+  if (o1->tt_is_apdex_f != o2->tt_is_apdex_f)
+    return false;
+
+  return true;
+}
+
 nr_status_t newrelic_connect_app(newrelic_app_t* app,
                                  nrapplist_t* context,
                                  unsigned short timeout_ms) {
