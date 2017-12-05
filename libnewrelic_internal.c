@@ -123,6 +123,11 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
     return NR_FAILURE;
   }
 
+  if (NULL == app->app_info) {
+    nrl_error(NRL_INSTRUMENT, "application with invalid information");
+    return NR_FAILURE;  
+  }
+  
   app->app = nrapp;
   nrt_mutex_unlock(&app->app->app_lock);
   nrl_info(NRL_INSTRUMENT, "application %s connected",

@@ -95,6 +95,7 @@ TESTS := \
 	test_add_attribute \
 	test_config \
 	test_create_app \
+	test_connect_app \
 	test_destroy \
 	test_end_transaction \
 	test_start_transaction \
