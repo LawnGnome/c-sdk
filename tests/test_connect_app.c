@@ -12,7 +12,6 @@
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_time.h"
-// #include "util_strings.h"
 
 nrapp_t* __wrap_nr_agent_find_or_add_app(
     nrapplist_t* applist,
