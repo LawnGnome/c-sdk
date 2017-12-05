@@ -25,14 +25,6 @@ nrapp_t* __wrap_nr_agent_find_or_add_app(nrapplist_t* applist NRUNUSED,
   return (nrapp_t*)mock();
 }
 
-static int setup(void** state NRUNUSED) {
-  return 0;  // tells cmocka setup completed, 0==OK
-}
-
-static int teardown(void** state NRUNUSED) {
-  return 0;  // tells cmocka teardown completed, 0==OK
-}
-
 static void test_connect_app_null_inputs(void** state NRUNUSED) {
   nr_status_t result;
   result = newrelic_connect_app(NULL, NULL, 1);
@@ -110,5 +102,5 @@ int main(void) {
       cmocka_unit_test(test_connect_app_successful_connect),
   };
 
-  return cmocka_run_group_tests(tests, setup, teardown);
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }
