@@ -67,6 +67,11 @@ nrtxnopt_t* newrelic_get_default_options(void) {
 nrapplist_t* newrelic_init(const char* daemon_socket) {
   nrapplist_t* context = nr_applist_create();
 
+  if (NULL == daemon_socket) {
+    nrl_error(NRL_INSTRUMENT, "daemon socket is NULL");
+    return NULL;
+  }
+
   if (NULL == context) {
     nrl_error(NRL_INSTRUMENT, "failed to initialize newrelic");
     return NULL;
