@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "nr_attributes.h"
 #include "nr_attributes_private.h"
@@ -205,6 +206,38 @@ test_key_txns_fn (
   nr_segment_terms_destroy (&app->segment_terms);
   nrt_mutex_destroy (&app->app_lock);
 }
+
+static void
+test_txn_cmp_options (void) {
+
+  nrtxnopt_t o1 = { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  nrtxnopt_t o2 = { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+  bool rv = false;
+
+  rv = nr_txn_cmp_options (NULL, NULL);
+  tlib_pass_if_true ("NULL pointers are equal", rv, "rv=%d", (int)rv);
+
+  rv = nr_txn_cmp_options (&o1, &o1);
+  tlib_pass_if_true ("Equal pointers are equal", rv, "rv=%d", (int)rv);
+
+  rv = nr_txn_cmp_options (&o1, &o2);
+  tlib_pass_if_true ("Equal fields are equal", rv, "rv=%d", (int)rv);
+
+
+  o2.custom_events_enabled = 0;
+
+  rv = nr_txn_cmp_options (NULL, &o1);
+  tlib_pass_if_false ("NULL and other are not equal", rv, "rv=%d", (int)rv);
+
+  rv = nr_txn_cmp_options (&o1, NULL);
+  tlib_pass_if_false ("Other and null are not equal", rv, "rv=%d", (int)rv);
+
+  rv = nr_txn_cmp_options (&o1, &o2);
+  tlib_pass_if_false ("Inequal fields are not equal", rv, "rv=%d", (int)rv);
+
+}
+
 
 const char test_rules[] = "{\"url_rules\":[{\"match_expression\":\"what\",        \"replacement\":\"txn\"}," \
                                           "{\"match_expression\":\"ignore_path\", \"ignore\":true}]," \
@@ -3973,6 +4006,7 @@ tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = siz
 void
 test_main (void *p NRUNUSED)
 {
+  test_txn_cmp_options ();
   test_freeze_name_update_apdex ();
   test_create_apdex_metrics ();
   test_create_error_metrics ();

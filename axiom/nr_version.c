@@ -89,8 +89,9 @@
  *   uhlenbeck               26Jun2017 (7.4) (Erika)
  *   vaughan                 05Jul2017 (7.5) (Tanya)
  *   weber                   06Sep2017 (7.6) (Erika)
+ *   yershova                20Nov2017 (7.7) (Tanya)
  */
-#define NR_CODENAME "weber"
+#define NR_CODENAME "yershova"
 
 const char *
 nr_version (void)

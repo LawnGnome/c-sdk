@@ -228,6 +228,22 @@ nr_txn_recording (const nrtxn_t *txn)
 }
 
 /*
+ * Purpose : Compare two structs of type nrtxnopt_t.
+ *
+ * Params  : 1. o1, a ptr to the first struct for comparison.
+ *           2. o2, a ptr to the second struct for comparison.
+ *
+ * Returns : true if
+ *           - o1 and o2 are equal.  
+ *           - All fields of o1 and o2 are equal.
+ *           and false otherwise.
+ *
+ * Notes   : Defined for testing purposes, to test whether a generated
+ *           set of options are initialized as expected.
+ */
+bool nr_txn_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2);
+
+/*
  * Purpose : Start a new transaction belonging to the given application.
  *
  * Params  : 1. The relevant application.  This application is assumed

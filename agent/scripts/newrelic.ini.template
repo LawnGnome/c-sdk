@@ -336,6 +336,16 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ;          limit of 250 applications. Allowed units are "ns", "us", "ms", "s",
 ;          "m", and "h".
 ;
+;          A value of 0 is interpreted as "no timeout". New applications with
+;          this setting count toward the 250 application limit. In addition, with
+;          a 0-value setting, the agent's daemon process cannot release a small
+;          amount of memory per application back to the operating system.
+;
+;          We do not recommend using a 0-value setting except under the guidance
+;          of technical support; instead, for occasional background transactions,
+;          we suggest using a value of twice the interval (so, for an hourly
+;          background job, set the timeout to 2 hours).
+
 ;newrelic.daemon.app_timeout = 10m
 
 ; Setting: newrelic.error_collector.enabled
