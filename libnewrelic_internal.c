@@ -155,6 +155,11 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
     return NR_FAILURE;
   }
 
+  if (NULL == app->app_info) {
+    nrl_error(NRL_INSTRUMENT, "application with invalid information");
+    return NR_FAILURE;
+  }
+  
   /* Setting this global is necessary for transaction naming to work. */
   nr_agent_applist = context;
 
@@ -173,11 +178,6 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
 
   if (NULL == nrapp) {
     nrl_error(NRL_INSTRUMENT, "application was unable to connect");
-    return NR_FAILURE;
-  }
-
-  if (NULL == app->app_info) {
-    nrl_error(NRL_INSTRUMENT, "application with invalid information");
     return NR_FAILURE;
   }
 
