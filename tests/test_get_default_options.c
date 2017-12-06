@@ -22,7 +22,7 @@ static void test_get_default_options(void** state NRUNUSED) {
 
   /* Assert that the true portion of the default options were set accordingly.
    */
-  assert_true(newrelic_cmp_options(options, correct));
+  assert_true(nr_txn_cmp_options(options, correct));
 }
 
 /*
