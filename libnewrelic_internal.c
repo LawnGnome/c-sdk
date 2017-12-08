@@ -30,6 +30,11 @@ bool newrelic_add_attribute(newrelic_txn_t* transaction,
     return false;
   }
 
+  if (NULL == obj) {
+    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL value");
+    return false;
+  }
+
   if (NR_FAILURE == nr_txn_add_user_custom_parameter(transaction, key, obj)) {
     nrl_error(NRL_INSTRUMENT, "unable to add attribute for key=\"%s\"", key);
     return false;

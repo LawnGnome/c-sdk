@@ -79,6 +79,14 @@ static void test_add_attribute_null_key(void** state) {
   assert_false(ret);
 }
 
+static void test_add_attribute_null_obj(void** state) {
+  bool ret = true;
+  newrelic_txn_t* txn;
+  txn = (newrelic_txn_t*)*state;
+  ret = newrelic_add_attribute(txn, "key", NULL);
+  assert_false(ret);
+}
+
 static void test_add_attribute_failure(void** state) {
   bool ret = true;
   newrelic_txn_t* txn;
@@ -113,6 +121,7 @@ int main(void) {
   const struct CMUnitTest attribute_tests[] = {
       cmocka_unit_test(test_add_attribute_null_txn),
       cmocka_unit_test(test_add_attribute_null_key),
+      cmocka_unit_test(test_add_attribute_null_obj),
       cmocka_unit_test(test_add_attribute_failure),
       cmocka_unit_test(test_add_attribute_success),
       cmocka_unit_test(test_add_attribute_string_null_value),
