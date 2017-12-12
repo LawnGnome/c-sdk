@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#clean previous builds (does this belong here?)
+#clean previous builds (does this belong here?
 rm -rf libnewrelic/
-rm libnewrelic.tar.gz
+rm libnewrelic*.tar.gz
 
 #create folder structure for tarball
 mkdir -p libnewrelic/bin
@@ -17,5 +17,5 @@ mv GUIDE.md libnewrelic/
 mv LICENSE.txt libnewrelic/
 
 #archive and gzip teh project
-tar -cvf libnewrelic.tar libnewrelic 
-gzip libnewrelic.tar
+tar -cvf libnewrelic.${VERSION}.tar libnewrelic 
+gzip libnewrelic.${VERSION}.tar

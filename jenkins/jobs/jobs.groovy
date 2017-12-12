@@ -24,5 +24,32 @@ use(extensions) {
   }
 
   //configuration for the actual build jobs and multi-jobs below this comment
+  baseJob("wip-archive-cagent") {      
+    repo "c-agent/c-agent"
+    branch "master"
 
+    configure {
+
+        parameters {
+          stringParam('VERSION', 'X.X')      
+        }
+
+        publishers {    
+            archiveArtifacts {
+                pattern('libnewrelic*.tar.gz')        
+                onlyIfSuccessful()
+            }      
+        }
+
+        steps {
+            copyArtifacts('c-agent-master') {                
+                buildSelector {
+                    latestSuccessful(true)
+                }
+            }
+
+            shell('./jenkins/build/archive-artifacts.sh')
+        }    
+    }
+  }
 }
