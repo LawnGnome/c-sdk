@@ -108,7 +108,9 @@ use(extensions) {
     }
   }
   
-  baseJob("$project-release-tarball") {    
+  baseJob("$project-release-tarball") {   
+    repo _repo
+    branch _branch     
     label "master"
 
     configure {
