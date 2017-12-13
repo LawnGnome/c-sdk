@@ -103,4 +103,31 @@ use(extensions) {
       }
     }
   }
+
+  baseJob("$project-release-branch") {    
+    label "master"
+
+    configure {
+      parameters {
+        stringParam('VERSION', '')    
+      }
+
+      publishers {  
+        archiveArtifacts {
+          pattern('libnewrelic*.tar.gz')      
+          onlyIfSuccessful()
+        }    
+      }
+
+      steps {
+        copyArtifacts("$project-release-build") {        
+          buildSelector {
+            latestSuccessful(true)
+          }
+        }
+
+        shell('./jenkins/build/archive-artifacts.sh')
+      }  
+    }
+  }  
 }
