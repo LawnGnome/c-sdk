@@ -6,6 +6,7 @@ use(extensions) {
   def project = 'c-agent'
   def _repo = 'c-agent/c-agent'
   def _branch = 'master'
+  def host = 'source.datanerd.us'
   def executeOn = 'ec2-linux'
 
   //A jenkins user will create the initial version of this reseed 
@@ -27,6 +28,9 @@ use(extensions) {
 
   //configuration for the actual build jobs and multi-jobs below this comment
 
+  // "Cutting a release" is a multijob that calls all of the necessary base jobs
+  // to take what is on the master branch, build and test, create a release branch, and upload
+  // to the appropriate S3 bucket.
   multiJob("$project-cut-a-release") {
     parameters {
       stringParam('VERSION', '', 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0')
@@ -36,9 +40,14 @@ use(extensions) {
       phase("Build Agent", 'SUCCESSFUL') {
         job("$project-release-build")
       }
+
+      phase("Create a release branch", 'SUCCESSFUL') {
+        job("$project-release-branch")
+      }
     }
   }
 
+  // Builds the agent on the master branch and stores the artifacts for downstream jobs to consume
   baseJob("$project-release-build") {
     repo _repo
     branch _branch
@@ -61,6 +70,37 @@ use(extensions) {
       }
 
       buildInDockerImage('./jenkins/docker')
+    }
+  }
+
+  // Creates a release branch on the master repo by taking what is currently at HEAD
+  // on the master branch and pushing the contents to a branch named R$VERSION, where
+  // $VERSION is the input parameter to this job.
+  baseJob("$project-release-branch") {
+    label "master"
+
+    configure {
+
+      parameters {
+        stringParam('VERSION', '', 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0')
+      }
+
+      scm {
+        git {
+          remote {
+            url("git@" + host + ":" + _repo + ".git")
+            credentials("artifactory-jenkins-build-bot")
+          }
+          branch(_branch)
+          localBranch('R$VERSION')
+        }
+      }
+
+      publishers {
+        git {
+          branch('origin', 'R$VERSION')
+        }
+      }
     }
   }
 }
