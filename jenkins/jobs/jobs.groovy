@@ -103,8 +103,8 @@ use(extensions) {
       }
     }
   }
-
-  baseJob("$project-release-branch") {    
+  
+  baseJob("$project-release-tarball") {    
     label "master"
 
     configure {
