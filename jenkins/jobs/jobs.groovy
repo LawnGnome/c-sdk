@@ -44,6 +44,10 @@ use(extensions) {
       phase("Create a release branch", 'SUCCESSFUL') {
         job("$project-release-branch")
       }
+
+      phase("Create a release tarball", 'SUCCESSFUL') {
+        job("$project-release-tarball")
+      }      
     }
   }
 
