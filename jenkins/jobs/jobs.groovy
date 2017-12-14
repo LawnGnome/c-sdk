@@ -21,13 +21,15 @@ use(extensions) {
     label "master"
 
     configure {
+      description('Take all of the groovy files found in jenkins/jobs/*.groovy and reseed them.')
+
       steps {
         reseedFrom('jenkins/jobs/*.groovy')
       }
     }
   }
 
-  // configuration for the actual build jobs and multi-jobs below this comment
+  // Configuration for the actual build jobs and multi-jobs below this comment
 
   // "Cutting a release" is a multijob that calls all of the necessary base jobs
   // to take what is on the master branch, build and test, create a release branch, and upload
@@ -59,6 +61,7 @@ use(extensions) {
     label executeOn
 
     configure {
+      description('Build the agent on the master branch and store the artifacts for downstream jobs to consume.')
 
       steps {
         shell('./jenkins/build/make.sh')
@@ -85,6 +88,7 @@ use(extensions) {
     label "master"
 
     configure {
+      description('Create a release branch on the master repository that represents what is currently at HEAD.  Branch will be named R$VERSION.')
 
       parameters {
         stringParam('VERSION', '', versionDescription)
@@ -109,7 +113,7 @@ use(extensions) {
     }
   }
   
-  // creates a tarball from 
+  // Creates a tarball from 
   // 1. Files from the previously successful build steps
   // 2. Checking out the previously created release branch
   baseJob("$project-release-tarball") {   
@@ -118,7 +122,8 @@ use(extensions) {
     label executeOn
     
     configure {
-      description('Creates a release tar.gz archive from previous build and release branch files.')   
+      description('Creates a release tar.gz archive from previous build and release branch files.')
+
       parameters {
         stringParam('VERSION', '', versionDescription)    
       }
