@@ -3,6 +3,14 @@
 #bail if anything goes wrong
 set -e
 
+#Create a base file name, using defaults if
+#we're not getting the variables from jenkins
+VERSION=${VERSION:-X.X.X}
+LEVEL=${LEVEL:-alpha}
+ARCHITECTURE=${ARCHITECTURE:-x86_64}
+PLATFORM=${PLATFORM:-linux} 
+BASE_FILE_NAME=libnewrelic-cagent-v${VERSION}-$LEVEL-$ARCHITECTURE-$PLATFORM
+
 #clean previous builds
 rm -rf libnewrelic/
 rm -f libnewrelic*.tar.gz
@@ -20,7 +28,6 @@ mv GUIDE.md libnewrelic/
 mv LICENSE.txt libnewrelic/
 
 #archive and gzip the project
-
-FULL_FILE_NAME=libnewrelic-v${VERSION}-alpha-x86_64-linux.tar
-tar -cvf ${FULL_FILE_NAME} libnewrelic 
-gzip ${FULL_FILE_NAME}
+tar -cvf ${BASE_FILE_NAME}.tar libnewrelic 
+gzip ${BASE_FILE_NAME}.tar
+mv ${BASE_FILE_NAME}.tar.gz ${BASE_FILE_NAME}.tgz

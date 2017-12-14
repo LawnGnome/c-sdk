@@ -125,7 +125,7 @@ use(extensions) {
 
       publishers {  
         archiveArtifacts {
-          pattern('libnewrelic*.tar.gz')      
+          pattern('libnewrelic*.tgz')      
           onlyIfSuccessful()
         }    
       }
