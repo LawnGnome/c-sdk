@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#clean previous builds (does this belong here?
+#clean previous builds
 rm -rf libnewrelic/
-rm libnewrelic*.tar.gz
+rm -f libnewrelic*.tar.gz
 
 #create folder structure for tarball
 mkdir -p libnewrelic/bin
