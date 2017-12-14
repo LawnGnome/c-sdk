@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#bail if anything goes wrong
+set -e
+
 #clean previous builds
 rm -rf libnewrelic/
 rm -f libnewrelic*.tar.gz

@@ -110,7 +110,7 @@ use(extensions) {
   
   baseJob("$project-release-tarball") {   
     repo _repo
-    branch _branch     
+    branch R$VERSION     
     label "master"
 
     configure {
