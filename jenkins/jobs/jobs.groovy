@@ -111,7 +111,7 @@ use(extensions) {
   baseJob("$project-release-tarball") {   
     repo _repo
     branch 'R$VERSION'     
-    label "master"
+    label executeOn
 
     configure {
       parameters {
