@@ -108,12 +108,16 @@ use(extensions) {
     }
   }
   
+  //creates a tarball from 
+  //   1. Files from the previously successful build steps
+  //   2. Checking out the previously created release branch
   baseJob("$project-release-tarball") {   
     repo _repo
     branch 'R$VERSION'     
     label executeOn
-
+    
     configure {
+      description('Creates a release tar.gz archive from previous build and release branch files.')   
       parameters {
         stringParam('VERSION', '')    
       }
