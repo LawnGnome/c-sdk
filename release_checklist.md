@@ -1,21 +1,22 @@
 # C Agent Release Checklist
 
-## Creating a Release Build and Promoting to Test
+1. Make a release commit
 
-- Create a Release Branch
-    - @TODO: How to create branch and/or tags
-    - @TODO: Or do we just go with master?    
-    
-- Update Jenkins Jobs to Point to new release branch
-    - @TODO: How will this work
-    - @TODO: How do we create/configure a version number for public consumption (i.e. C-Agent: 1.0.5)
-- Run Jenkins Jobs
-    - @TODO: Which jobs do we need to run?
-    - @TODO: Do we run from UI? Via a shell script?  Via detecting a release branch ala the PHP Agent?    
+- Update [VERSION](https://source.datanerd.us/c-agent/c-agent/blob/master/VERSION) file to the current release
+- Update [CHANGELOG.md](https://source.datanerd.us/c-agent/c-agent/blob/master/CHANGELOG.md)
 
-## Promoting a Build from Test to Production
+2. Kick off Jenkins
 
-- Examine artifacts from *Creating a Release Build and Promoting to Test* and confirm they're ready for Release
-    - @TODO: What additional testing do we need to do here?
+- Start the process by building [c-agent-cut-a-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-cut-a-release/build?delay=0sec) with the `VERSION` number found in the VERSION file.  The downstream jobs will perform the following actions
 
-- @TODO: What's involved in taking the build from test and marking it live?
+    - [Build the C-agent](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-release-build/)
+    - @TODO: Test the C-agent (Break into mutliple lines?  Example: `C unit tests`, `Axiom unit tests`, etc)
+    - [Create a release branch](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-release-branch/) on the master repository with a name of R`VERSION`.  Example:  R1.0.0
+    - [Package the C-agent](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-release-tarball/) as a tarball
+    - @TODO Upload tarball to testing server (In the future the multiJob will probably have a parameter to select `testing` or `production`)
+
+3. Are all the [Jenkins CI jobs](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-cut-a-release/) blue?
+
+4. [For production only] Send an email to `agent-releases@newrelic.com` with the release notes
+
+5. [For production only] Are there new docs staged?  If so tell the `#documentation` `@hero` to release the docs!
