@@ -19,6 +19,8 @@ mv libnewrelic.h libnewrelic/
 mv GUIDE.md libnewrelic/
 mv LICENSE.txt libnewrelic/
 
-#archive and gzip teh project
-tar -cvf libnewrelic.${VERSION}.tar libnewrelic 
-gzip libnewrelic.${VERSION}.tar
+#archive and gzip the project
+
+FULL_FILE_NAME=libnewrelic-v${VERSION}-alpha-x86_64-linux.tar
+tar -cvf ${FULL_FILE_NAME} libnewrelic 
+gzip ${FULL_FILE_NAME}
