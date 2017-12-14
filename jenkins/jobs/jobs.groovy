@@ -8,12 +8,13 @@ use(extensions) {
   def _branch = 'master'
   def host = 'source.datanerd.us'
   def executeOn = 'ec2-linux'
-
-  //A jenkins user will create the initial version of this reseed 
-  //job manually via the Jenkins UI.  Running that jobs the first
-  //time will create the "$project-reseed-build" job.  Running
-  //is subsequent times will update the "$project-reseed-build" 
-  //jobs with any changes made to the baseJob configuration below
+  def versionDescription = 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0'
+  
+  // A jenkins user will create the initial version of this reseed 
+  // job manually via the Jenkins UI.  Running that jobs the first
+  // time will create the "$project-reseed-build" job.  Running
+  // is subsequent times will update the "$project-reseed-build" 
+  // jobs with any changes made to the baseJob configuration below
   baseJob("$project-reseed-build") {
     repo _repo
     branch _branch
@@ -26,14 +27,14 @@ use(extensions) {
     }
   }
 
-  //configuration for the actual build jobs and multi-jobs below this comment
+  // configuration for the actual build jobs and multi-jobs below this comment
 
   // "Cutting a release" is a multijob that calls all of the necessary base jobs
   // to take what is on the master branch, build and test, create a release branch, and upload
   // to the appropriate S3 bucket.
   multiJob("$project-cut-a-release") {
     parameters {
-      stringParam('VERSION', '', 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0')
+      stringParam('VERSION', '', versionDescription)
     }
 
     steps {
@@ -44,6 +45,10 @@ use(extensions) {
       phase("Create a release branch", 'SUCCESSFUL') {
         job("$project-release-branch")
       }
+
+      phase("Create a release tarball", 'SUCCESSFUL') {
+        job("$project-release-tarball")
+      }      
     }
   }
 
@@ -82,7 +87,7 @@ use(extensions) {
     configure {
 
       parameters {
-        stringParam('VERSION', '', 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0')
+        stringParam('VERSION', '', versionDescription)
       }
 
       scm {
@@ -103,4 +108,37 @@ use(extensions) {
       }
     }
   }
+  
+  // creates a tarball from 
+  // 1. Files from the previously successful build steps
+  // 2. Checking out the previously created release branch
+  baseJob("$project-release-tarball") {   
+    repo _repo
+    branch 'R$VERSION'     
+    label executeOn
+    
+    configure {
+      description('Creates a release tar.gz archive from previous build and release branch files.')   
+      parameters {
+        stringParam('VERSION', '', versionDescription)    
+      }
+
+      publishers {  
+        archiveArtifacts {
+          pattern('libnewrelic*.tgz')      
+          onlyIfSuccessful()
+        }    
+      }
+
+      steps {
+        copyArtifacts("$project-release-build") {        
+          buildSelector {
+            latestSuccessful(true)
+          }
+        }
+
+        shell('./jenkins/build/archive-artifacts.sh')
+      }  
+    }
+  }  
 }
