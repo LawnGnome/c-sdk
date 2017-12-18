@@ -11,4 +11,8 @@ RUN bash /tmp/build-pcre.sh && rm -f /tmp/build-pcre.sh
 # string.
 RUN yum -y install git
 
+# Valgrind
+ADD build-valgrind.sh /tmp
+RUN bash /tmp/build-valgrind.sh && rm -f /tmp/build-valgrind.sh
+
 CMD ["/hbb_shlib/activate-exec", "/bin/bash"]

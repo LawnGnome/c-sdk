@@ -1,5 +1,6 @@
 import newrelic.jenkins.extensions
 // Note:  Requires the Multijob plugin.  For this groovy file we are using Version 1.23
+// https://plugins.jenkins.io/jenkins-multijob-plugin
 
 use(extensions) {
   def org = 'c-agent'
@@ -9,11 +10,11 @@ use(extensions) {
   def host = 'source.datanerd.us'
   def executeOn = 'ec2-linux'
   def versionDescription = 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0'
-  
-  // A jenkins user will create the initial version of this reseed 
+
+  // A jenkins user will create the initial version of this reseed
   // job manually via the Jenkins UI.  Running that jobs the first
   // time will create the "$project-reseed-build" job.  Running
-  // is subsequent times will update the "$project-reseed-build" 
+  // is subsequent times will update the "$project-reseed-build"
   // jobs with any changes made to the baseJob configuration below
   baseJob("$project-reseed-build") {
     repo _repo
@@ -40,6 +41,13 @@ use(extensions) {
     }
 
     steps {
+      phase("Test Agent", 'SUCCESSFUL') {
+        job("$project-release-tests-cmocka")
+        job("$project-release-tests-axiom")
+        job("$project-release-tests-axiom-valgrind")
+        job("$project-release-tests-daemon-tests")
+      }
+
       phase("Build Agent", 'SUCCESSFUL') {
         job("$project-release-build")
       }
@@ -50,7 +58,7 @@ use(extensions) {
 
       phase("Create a release tarball", 'SUCCESSFUL') {
         job("$project-release-tarball")
-      }      
+      }
     }
   }
 
@@ -112,38 +120,118 @@ use(extensions) {
       }
     }
   }
-  
-  // Creates a tarball from 
+
+  // Creates a tarball from
   // 1. Files from the previously successful build steps
   // 2. Checking out the previously created release branch
-  baseJob("$project-release-tarball") {   
+  baseJob("$project-release-tarball") {
     repo _repo
-    branch 'R$VERSION'     
+    branch 'R$VERSION'
     label executeOn
-    
+
     configure {
       description('Creates a release tar.gz archive from previous build and release branch files.')
 
       parameters {
-        stringParam('VERSION', '', versionDescription)    
+        stringParam('VERSION', '', versionDescription)
       }
 
-      publishers {  
+      publishers {
         archiveArtifacts {
-          pattern('libnewrelic*.tgz')      
+          pattern('libnewrelic*.tgz')
           onlyIfSuccessful()
-        }    
+        }
       }
 
       steps {
-        copyArtifacts("$project-release-build") {        
+        copyArtifacts("$project-release-build") {
           buildSelector {
             latestSuccessful(true)
           }
         }
 
         shell('./jenkins/build/archive-artifacts.sh')
-      }  
+      }
     }
-  }  
+  }
+
+  baseJob("$project-release-tests-cmocka") {
+    repo _repo
+    branch _branch
+    label executeOn
+
+    configure {
+      description('Run the cmocka test suite in the HBB container.')
+
+      steps {
+        shell("pushd ."                           + "\n" +
+              "source ./jenkins/build/shared.sh"  + "\n" +
+              "popd"                              + "\n" +
+              "make clean" + "\n"                 +
+              "make run_tests")
+      }
+
+      buildInDockerImage('./jenkins/docker')
+    }
+  }
+
+  baseJob("$project-release-tests-axiom") {
+    repo _repo
+    branch _branch
+    label executeOn
+
+    configure {
+      description('Run the axiom test suite in the HBB container.')
+
+      steps {
+        shell("pushd ."                           + "\n" +
+              "source ./jenkins/build/shared.sh"  + "\n" +
+              "popd"                              + "\n" +
+              "make clean" + "\n"                 +
+              "make -C php_agent axiom-run-tests")
+      }
+
+      buildInDockerImage('./jenkins/docker')
+    }
+  }
+
+  baseJob("$project-release-tests-axiom-valgrind") {
+    repo _repo
+    branch _branch
+    label executeOn
+
+    configure {
+      description('Run the axiom test suite under valgrind in the HBB container.')
+
+      steps {
+        shell("pushd ."                           + "\n" +
+              "source ./jenkins/build/shared.sh"  + "\n" +
+              "popd"                              + "\n" +
+              "make clean" + "\n"                 +
+              "make -C php_agent axiom-valgrind")
+      }
+
+      buildInDockerImage('./jenkins/docker')
+    }
+  }
+
+  baseJob("$project-release-tests-daemon-tests") {
+    repo _repo
+    branch _branch
+    label executeOn
+
+    configure {
+      description('Run the daemon go tests in the HBB container.')
+
+      steps {
+        shell("pushd ."                           + "\n" +
+              "source ./jenkins/build/shared.sh"  + "\n" +
+              "popd"                              + "\n" +
+              "make clean" + "\n"                 +
+              "make -C php_agent/ daemon_integration")
+      }
+
+      buildInDockerImage('./jenkins/docker')
+    }
+  }
 }

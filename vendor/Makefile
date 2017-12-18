@@ -11,7 +11,7 @@ CMOCKA_CMAKE_OPTIONS = -DWITH_STATIC_LIB=true
 cmocka:	$(CMOCKA_LIB)
 
 $(CMOCKA_LIB):	vendor/cmocka/build/Makefile
-	$(MAKE) -C cmocka/build
+	$(MAKE) -C cmocka/build cmocka_static
 
 vendor/cmocka/build/Makefile:
 	mkdir -p cmocka/build
