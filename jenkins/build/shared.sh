@@ -9,9 +9,6 @@ export PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/
 # Activate the Holy Build Box in its shared library version.
 source /hbb_shlib/activate
 
-# Set the working directory to the base of the repository.
-cd "$(dirname "$0")/../.."
-
 # Shim nproc, since Holy Build Box doesn't provide it.
 nproc () {
   cat /proc/cpuinfo | grep processor | wc -l

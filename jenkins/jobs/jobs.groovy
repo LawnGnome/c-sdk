@@ -99,7 +99,9 @@ use(extensions) {
       description('Build the agent on the master branch and store the artifacts for downstream jobs to consume.')
 
       steps {
-        shell('./jenkins/build/make.sh')
+        shell("source ./jenkins/build/shared.sh"  + "\n" +
+              "make clean" + "\n"                 +
+              "make -j\$(nproc) all daemon")
       }
 
       publishers {
@@ -191,9 +193,7 @@ use(extensions) {
       description('Run the cmocka test suite in the HBB container.')
 
       steps {
-        shell("pushd ."                           + "\n" +
-              "source ./jenkins/build/shared.sh"  + "\n" +
-              "popd"                              + "\n" +
+        shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
               "make run_tests")
       }
@@ -211,9 +211,7 @@ use(extensions) {
       description('Run the axiom test suite in the HBB container.')
 
       steps {
-        shell("pushd ."                           + "\n" +
-              "source ./jenkins/build/shared.sh"  + "\n" +
-              "popd"                              + "\n" +
+        shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
               "make -C php_agent axiom-run-tests")
       }
@@ -231,9 +229,7 @@ use(extensions) {
       description('Run the axiom test suite under valgrind in the HBB container.')
 
       steps {
-        shell("pushd ."                           + "\n" +
-              "source ./jenkins/build/shared.sh"  + "\n" +
-              "popd"                              + "\n" +
+        shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
               "make -C php_agent axiom-valgrind")
       }
@@ -251,9 +247,7 @@ use(extensions) {
       description('Run the daemon go tests in the HBB container.')
 
       steps {
-        shell("pushd ."                           + "\n" +
-              "source ./jenkins/build/shared.sh"  + "\n" +
-              "popd"                              + "\n" +
+        shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
               "make -C php_agent/ daemon_integration")
       }
