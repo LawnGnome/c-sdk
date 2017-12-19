@@ -41,15 +41,12 @@ use(extensions) {
     }
 
     steps {
-      phase("Test Agent", 'SUCCESSFUL') {
+      phase("Build and test agent", 'SUCCESSFUL') {
+        job("$project-release-build")
         job("$project-release-tests-cmocka")
         job("$project-release-tests-axiom")
         job("$project-release-tests-axiom-valgrind")
         job("$project-release-tests-daemon-tests")
-      }
-
-      phase("Build Agent", 'SUCCESSFUL') {
-        job("$project-release-build")
       }
 
       phase("Create a release branch", 'SUCCESSFUL') {
