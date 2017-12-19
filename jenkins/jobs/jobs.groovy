@@ -62,6 +62,33 @@ use(extensions) {
     }
   }
 
+  // The PR multijob calls all of the testing base jobs required to identify
+  // this commit as clean and valid.
+  multiJob("$project-pullrequest") {
+    description('When the PR trigger is exercised test the agent by running the below jobs.')
+
+    repositoryPR(_repo)
+
+    triggers {
+      pullRequest {
+        admins(['aharvey', 'rvanderwal', 'rlewis', 'tcrenshaw', 'astorm'])
+        orgWhitelist(org)
+        triggerPhrase("\\Qok jenkins\\E")
+        permitAll()
+        useGitHubHooks()
+      }
+    }
+
+    steps {
+      phase("Test Agent", 'SUCCESSFUL') {
+        job("$project-release-tests-cmocka")
+        job("$project-release-tests-axiom")
+        job("$project-release-tests-axiom-valgrind")
+        job("$project-release-tests-daemon-tests")
+      }
+    }
+  }
+
   // Builds the agent on the master branch and stores the artifacts for downstream jobs to consume
   baseJob("$project-release-build") {
     repo _repo
