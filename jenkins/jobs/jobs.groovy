@@ -46,6 +46,7 @@ use(extensions) {
 
     steps {
       phase("Build and test agent", 'SUCCESSFUL') {
+        job("$project-compare-version")
         job("$project-release-build")
         job("$project-release-tests-cmocka")
         job("$project-release-tests-axiom")
@@ -119,6 +120,25 @@ use(extensions) {
         }
 
         buildInDockerImage('./docker')
+    }
+  }
+
+  // Compare the input parameter `VERSION` with the value inside the VERSION folder.  A sanity check job.
+  baseJob("$project-compare-version") {
+    repo _repo
+    branch _branch
+    label executeOn
+
+    configure {
+      description('Compare the input parameter $VERSION with the value inside the VERSION folder.  A sanity check job.')
+
+      parameters {
+        stringParam('VERSION', '', versionDescription)
+      }
+
+      steps {
+        shell('[[ "x${VERSION}" = "x$(cat VERSION)" ]]')
+      }
     }
   }
 
