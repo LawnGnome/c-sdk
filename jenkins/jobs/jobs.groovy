@@ -99,6 +99,28 @@ use(extensions) {
     }
   }
 
+  //not part of the multijob -- accepts URL as paramater and
+  //then runs a quick sanity check on the contents
+  baseJob("$project-check-archive") {
+    repo _repo
+    branch _branch
+    label executeOn
+
+    configure {
+        description('This job accepts a URL to a C-Agent release tgz as a parameter.  It then downloads the tgz, unpacks it, and builds a small test program against it.  Running the test program also exercises the daemon.')
+
+        parameters {
+          stringParam('URL_AGENT_TGZ', '', "URL pointing to a C-Agent tgz file")
+        }
+
+        steps {
+          shell("./jenkins/build/check-built-and-published-archive.sh")
+        }
+
+        buildInDockerImage('./jenkins/docker-gcc')
+    }
+  }
+
   //gives the s3 buckets index.html files
   baseJob("$project-reindex") {
     repo "astorm/s3-index"
