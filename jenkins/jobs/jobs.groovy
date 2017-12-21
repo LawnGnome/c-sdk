@@ -10,6 +10,9 @@ use(extensions) {
   def host = 'source.datanerd.us'
   def executeOn = 'ec2-linux'
   def versionDescription = 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0'
+  def actions = [
+    'release-2-testing',
+  ]
 
   // A jenkins user will create the initial version of this reseed
   // job manually via the Jenkins UI.  Running that jobs the first
@@ -38,6 +41,7 @@ use(extensions) {
   multiJob("$project-cut-a-release") {
     parameters {
       stringParam('VERSION', '', versionDescription)
+      choiceParam('ACTION', actions, 'Required -- where to publish the tarball.')
     }
 
     steps {
@@ -55,6 +59,14 @@ use(extensions) {
 
       phase("Create a release tarball", 'SUCCESSFUL') {
         job("$project-release-tarball")
+      }
+
+      phase("Publish archive to S3", 'SUCCESSFUL') {
+        job("$project-publish")
+      }
+
+      phase("Reindex S3 Bucket", 'SUCCESSFUL') {
+        job("$project-reindex")
       }
     }
   }
@@ -83,6 +95,30 @@ use(extensions) {
         job("$project-release-tests-axiom-valgrind")
         job("$project-release-tests-daemon-tests")
       }
+    }
+  }
+
+  //gives the s3 buckets index.html files
+  baseJob("$project-reindex") {
+    repo "astorm/s3-index"
+    branch "master"
+    label executeOn
+
+    configure {
+        description('Reindex the S3 bucket so new build files show up on index.html files')
+
+        environmentVariables {
+          env('AWS_DEFAULT_REGION', 'us-east-1')
+          env('AWS_ACCESS_KEY_ID', '$PHP_DEPLOY_ACCESS_KEY_ID')
+          env('AWS_SECRET_ACCESS_KEY', '$PHP_DEPLOY_SECRET_ACCESS_KEY')
+        }
+
+        steps {
+          shell("GOPATH=\$( pwd ) /usr/local/go/bin/go get github.com/aws/aws-sdk-go/..." + "\n" +
+                "GOPATH=\$( pwd ) /usr/local/go/bin/go run src/indexer/main.go -bucket nr-downloads-private -prefix 75ac22b116 -upload")
+        }
+
+        buildInDockerImage('./docker')
     }
   }
 
@@ -250,6 +286,58 @@ use(extensions) {
       }
 
       buildInDockerImage('./jenkins/docker')
+    }
+  }
+
+  // Publish the archived build artifacts to the repository indicated by ACTION.
+  baseJob("$project-publish") {
+    repo _repo
+    branch 'R$VERSION'
+
+    label executeOn
+
+    configure {
+      description('Publish a C-Agent release to the testing repository.')
+
+      parameters {
+        stringParam('VERSION', '', versionDescription)
+        choiceParam('ACTION', actions, 'Required -- the action to perform.')
+      }
+
+      environmentVariables {
+        env('AWS_DEFAULT_REGION', 'us-east-1')
+        env('AWS_ACCESS_KEY_ID', '$PHP_DEPLOY_ACCESS_KEY_ID')
+        env('AWS_SECRET_ACCESS_KEY', '$PHP_DEPLOY_SECRET_ACCESS_KEY')
+      }
+
+      steps {
+
+        // Only run this job if the user selected release-2-testing.  Future versions of this
+        // job will see a choice for testing-2-production.
+        conditionalSteps {
+          condition {
+            stringsMatch('${ACTION}', "release-2-testing", true)
+          }
+          runner('DontRun')
+
+          steps {
+
+            // Copy the .tar.gz file from an upstream project.
+            copyArtifacts("$project-release-tarball") {
+              includePatterns('*.tgz')
+              buildSelector {
+                latestSuccessful(true)
+              }
+            }
+
+            shell(  "PATH=/bin:\$PATH" + "\n" +
+                    './jenkins/build/publish.sh --action="$ACTION" --version="$VERSION"')
+
+           }
+
+           buildInDockerImage('./jenkins/docker-cli')
+        }
+      }
     }
   }
 }
