@@ -242,7 +242,7 @@ use(extensions) {
 
       publishers {
         archiveArtifacts {
-          pattern('libnewrelic*.tgz')
+          pattern('libnewrelic-cagent-v$VERSION-alpha-x86_64-linux.tgz')
           onlyIfSuccessful()
         }
       }
@@ -366,7 +366,7 @@ use(extensions) {
 
             // Copy the .tar.gz file from an upstream project.
             copyArtifacts("$project-release-tarball") {
-              includePatterns('*.tgz')
+              includePatterns('libnewrelic-cagent-v$VERSION-alpha-x86_64-linux.tgz')
               buildSelector {
                 latestSuccessful(true)
               }
