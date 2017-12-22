@@ -117,7 +117,7 @@ use(extensions) {
           shell("./jenkins/build/check-built-and-published-archive.sh")
         }
 
-        buildInDockerImage('./jenkins/docker-gcc')
+        buildInDockerImage('./jenkins/docker-files/gcc')
     }
   }
 
@@ -189,7 +189,7 @@ use(extensions) {
         }
       }
 
-      buildInDockerImage('./jenkins/docker')
+      buildInDockerImage('./jenkins/docker-files/hbb')
     }
   }
 
@@ -273,7 +273,7 @@ use(extensions) {
               "make run_tests")
       }
 
-      buildInDockerImage('./jenkins/docker')
+      buildInDockerImage('./jenkins/docker-files/hbb')
     }
   }
 
@@ -291,7 +291,7 @@ use(extensions) {
               "make -C php_agent axiom-run-tests")
       }
 
-      buildInDockerImage('./jenkins/docker')
+      buildInDockerImage('./jenkins/docker-files/hbb')
     }
   }
 
@@ -309,7 +309,7 @@ use(extensions) {
               "make -C php_agent axiom-valgrind")
       }
 
-      buildInDockerImage('./jenkins/docker')
+      buildInDockerImage('./jenkins/docker-files/hbb')
     }
   }
 
@@ -327,7 +327,7 @@ use(extensions) {
               "make -C php_agent/ daemon_integration")
       }
 
-      buildInDockerImage('./jenkins/docker')
+      buildInDockerImage('./jenkins/docker-files/hbb')
     }
   }
 
@@ -377,7 +377,7 @@ use(extensions) {
 
            }
 
-           buildInDockerImage('./jenkins/docker-cli')
+           buildInDockerImage('./jenkins/docker-files/awscli')
         }
       }
     }
