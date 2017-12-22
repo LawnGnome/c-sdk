@@ -1,10 +1,16 @@
 # New Relic C Agent Release Notes #
 
-## Master ##
-
-### End of Life Notices ###
+## Master Branch (In Progress/Current Working Version) ##
 
 ### New Features ###
+
+- ...
+
+### Bug Fixes ###
+
+- ...
+
+### End of Life Notices ###
 
 ### Upgrade Notices ###
 
@@ -15,8 +21,16 @@
 * The function `bool newrelic_destroy_app(newrelic_app_t** app)` has changed its return
   type from void to bool.
 
-### Notes ###
+## 0.0.1-alpha ##
+
+### New Features ###
+
+- Initial Release
 
 ### Bug Fixes ###
- 
+
+- Initial Release, no bug fixes
+
+### Notes ###
+
 ### Internal Changes ###
