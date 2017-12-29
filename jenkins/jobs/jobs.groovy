@@ -123,7 +123,7 @@ use(extensions) {
 
   //gives the s3 buckets index.html files
   baseJob("$project-reindex") {
-    repo "astorm/s3-index"
+    repo "php-agent/s3-index"
     branch "master"
     label executeOn
 
