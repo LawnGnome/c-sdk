@@ -50,12 +50,11 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
   static const char* log_array[] = {"info", "debug", "error", "verbose"};
 
   if (NULL == given_config) {
-      nrl_set_log_file("stderr");
-      nrl_error(NRL_INSTRUMENT, "%s expects a non-null config",
-                __func__);   
-      return NULL;   
+    nrl_set_log_file("stderr");
+    nrl_error(NRL_INSTRUMENT, "%s expects a non-null config", __func__);
+    return NULL;
   }
-  
+
   if (0 < nr_strlen(given_config->log_filename)) {
     if (NR_FAILURE == nrl_set_log_file(given_config->log_filename)) {
       nrl_set_log_file("stderr");
@@ -248,4 +247,52 @@ bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
   nro_delete(obj);
 
   return outcome;
+}
+
+void newrelic_notice_error(newrelic_txn_t* transaction,
+                           int priority,
+                           const char* errmsg,
+                           const char* errclass) {
+  if (NULL == transaction) {
+    nrl_error(NRL_INSTRUMENT, "unable to add error to NULL transaction");
+    return;
+  }
+
+  if (NULL == errmsg || 0 == errmsg[0]) {
+    nrl_error(NRL_INSTRUMENT,
+              "unable to add NULL/empty error message to transaction");
+    return;
+  }
+
+  if (NULL == errclass || 0 == errclass[0]) {
+    nrl_error(NRL_INSTRUMENT,
+              "unable to add NULL/empty error class to transaction");
+    return;
+  }
+
+  if (0 == transaction->options.err_enabled) {
+    nrl_error(NRL_INSTRUMENT,
+              "unable to add error to transaction when errors are disabled");
+    return;
+  }
+
+  if (0 == transaction->status.recording) {
+    nrl_error(NRL_INSTRUMENT,
+              "unable to add error to transaction that is not recording");
+    return;
+  }
+
+  if (0 != transaction->error &&
+      priority < nr_error_priority(transaction->error)) {
+    nrl_error(NRL_INSTRUMENT,
+              "an error with a higher priority already exists on transaction");
+    return;
+  }
+
+  if (NR_FAILURE == nr_txn_record_error_worthy(transaction, priority)) {
+    nrl_error(NRL_INSTRUMENT, "unable to add error to transaction");
+    return;
+  }
+
+  nr_txn_record_error(transaction, priority, errmsg, errclass, "[\"\"]");
 }

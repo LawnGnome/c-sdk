@@ -19,6 +19,7 @@ static void test_get_default_options(void** state NRUNUSED) {
 
   nrtxnopt_t* correct = nr_zalloc(sizeof(nrtxnopt_t));
   correct->analytics_events_enabled = true;
+  correct->err_enabled = true;
 
   /* Assert that the true portion of the default options were set accordingly.
    */

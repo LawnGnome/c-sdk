@@ -51,7 +51,7 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->synthetics_enabled = false;
   opt->instance_reporting_enabled = false;
   opt->database_name_reporting_enabled = false;
-  opt->err_enabled = false;
+  opt->err_enabled = true;
   opt->request_params_enabled = false;
   opt->autorum_enabled = false;
   opt->error_events_enabled = false;
@@ -116,7 +116,7 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
     nrl_error(NRL_INSTRUMENT, "application with invalid information");
     return NR_FAILURE;
   }
-  
+
   /* Setting this global is necessary for transaction naming to work. */
   nr_agent_applist = context;
 

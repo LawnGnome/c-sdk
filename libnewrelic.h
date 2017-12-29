@@ -114,6 +114,18 @@ bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
                                    const char* key,
                                    const char* value);
 
+/*
+ * Error
+ *
+ * Given a transaction, notice_error() will record an error inside of the
+ * provided transaction.
+ *
+ */
+void newrelic_notice_error(newrelic_txn_t* transaction,
+                           int priority,
+                           const char* errmsg,
+                           const char* errclass);
+
 #ifdef __cplusplus
 }
 #endif
