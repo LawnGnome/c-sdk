@@ -58,6 +58,10 @@ use(extensions) {
         job("$project-release-branch")
       }
 
+      phase("Tag release branch", 'SUCCESSFUL') {
+        job("$project-release-tag")
+      }
+
       phase("Create a release tarball", 'SUCCESSFUL') {
         job("$project-release-tarball")
       }
@@ -379,6 +383,28 @@ use(extensions) {
 
            buildInDockerImage('./jenkins/docker-files/awscli')
         }
+      }
+    }
+  }
+
+  // Tag the HEAD of a branch on the master repo as "v$VERSION"
+  baseJob("$project-release-tag") {
+    repo _repo
+    branch 'R$VERSION'
+    label "master"
+
+    configure {
+      description('Tag the HEAD of a branch on the master repo.  Use this to tag C-Agent release branches.')
+
+      parameters {
+        stringParam('VERSION', '', versionDescription)
+      }
+
+      steps {
+        shell('hash=`git rev-parse HEAD`' + '\n' +
+              'git push origin :refs/tags/v${VERSION}' + '\n' +
+              'git tag -fa v${VERSION} -m "release ${VERSION}" $hash' + '\n' +
+              'git push --tags')
       }
     }
   }
