@@ -253,6 +253,8 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            int priority,
                            const char* errmsg,
                            const char* errclass) {
+  char* stacktrace_json;
+
   if (NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "unable to add error to NULL transaction");
     return;
@@ -294,5 +296,7 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
     return;
   }
 
-  nr_txn_record_error(transaction, priority, errmsg, errclass, "[\"\"]");
+  stacktrace_json = newrelic_get_stack_trace_as_json();
+  nr_txn_record_error(transaction, priority, errmsg, errclass, stacktrace_json);
+  nr_free(stacktrace_json);
 }

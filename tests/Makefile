@@ -43,6 +43,10 @@ TEST_CFLAGS += -Wunused-label
 endif
 
 TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
+ifeq (1,$(HAVE_BACKTRACE))
+  TEST_CPPFLAGS += -DHAVE_BACKTRACE=1
+endif
+
 TEST_LDFLAGS :=
 TEST_LDLIBS := -L.. -lnewrelic $(CMOCKA_LIB)
 
@@ -103,6 +107,7 @@ TESTS := \
 	test_notice_error \
 	test_start_transaction \
 	test_txn \
+	test_get_stack_trace_as_json \
 
 #
 # The list of tests to skip and tests to run.

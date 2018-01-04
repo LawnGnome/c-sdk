@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "libnewrelic.h"
+#include "util_object.c"
 
 int main(void) {
   newrelic_app_t* app = 0;
@@ -33,6 +34,8 @@ int main(void) {
                                 "String String String");
 
   sleep(1);
+
+  newrelic_notice_error(txn, 50, "An error happened, oh no!", "ExampleError");
 
   /* End web transaction */
   newrelic_end_transaction(&txn);

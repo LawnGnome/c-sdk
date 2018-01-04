@@ -105,7 +105,7 @@ dynamic: libnewrelic.so
 
 # this can't be run when the .so is present or else it will use it
 test_app: test_app.o libnewrelic.a
-	$(CC) -o test_app test_app.o -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
+	$(CC) -rdynamic -o test_app test_app.o -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 test_app_dynamic: test_app.o libnewrelic.so
 	$(CC) -o test_app test_app.o -L. -lnewrelic
