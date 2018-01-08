@@ -92,3 +92,10 @@
   ...
   fun:tlib_php_require_extension
 }
+
+{
+  <PHP 7.2 ZTS leak: https://bugs.php.net/bug.php?id=75683>
+  Memcheck:Leak
+  ...
+  fun:zend_register_functions
+}

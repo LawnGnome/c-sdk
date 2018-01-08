@@ -160,7 +160,11 @@ func ConnectApplication(args *ConnectArgs) ConnectAttempt {
 
 func (p *Processor) shutdownAppHarvest(id AgentRunID) {
 	if nil != p.harvests[id] {
-		p.harvests[id].Close()
+		// We don't need to wait for this to happen, as long as it happens: the
+		// processor doesn't rely on p.harvests having the agent run ID as a key,
+		// and it's possible for this to deadlock if there's a trigger waiting to
+		// send to the trigger channel while the app is being shut down.
+		go p.harvests[id].Close()
 		delete(p.harvests, id)
 	}
 }

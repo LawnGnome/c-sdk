@@ -45,6 +45,10 @@ func NewAppHarvest(id AgentRunID, app *App, harvest *Harvest, ph chan ProcessorH
 
 func (ah *AppHarvest) Close() error {
 	ah.cancel <- true
+	// Wait for confirmation that the cancellation has been processed before
+	// closing the trigger.
+	<-ah.cancel
+
 	close(ah.trigger)
 	close(ah.cancel)
 	return nil

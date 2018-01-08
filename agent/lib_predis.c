@@ -77,6 +77,22 @@ static NR_PHP_WRAPPER_PROTOTYPE (nr_predis_connection_readResponse);
 static NR_PHP_WRAPPER_PROTOTYPE (nr_predis_connection_writeRequest);
 
 static void
+nr_predis_command_destroy (nrtxntime_t *time)
+{
+  nr_free (time);
+}
+
+static inline nr_hashmap_t *
+nr_predis_get_commands (TSRMLS_D)
+{
+  if (NULL == NRPRG (predis_commands)) {
+    NRPRG (predis_commands) = nr_hashmap_create ((nr_hashmap_dtor_func_t) nr_predis_command_destroy);
+  }
+
+  return NRPRG (predis_commands);
+}
+
+static void
 nr_predis_instrument_connection (zval *conn TSRMLS_DC)
 {
   nr_php_wrap_callable (nr_php_find_class_method (Z_OBJCE_P (conn),
@@ -522,7 +538,7 @@ NR_PHP_WRAPPER (nr_predis_connection_readResponse)
    * hashmap.
    */
   index = (uint64_t) Z_OBJ_HANDLE_P (command);
-  start = nr_hashmap_index_get (NRPRG (predis_commands), index);
+  start = nr_hashmap_index_get (nr_predis_get_commands (TSRMLS_C), index);
   if (NULL == start) {
     nrl_verbosedebug (NRL_INSTRUMENT, "%s: NULL start time", __func__);
     goto end;
@@ -595,7 +611,7 @@ NR_PHP_WRAPPER (nr_predis_connection_writeRequest)
   index = (uint64_t) Z_OBJ_HANDLE_P (command);
   start = (nrtxntime_t *) nr_malloc (sizeof (nrtxntime_t));
   nr_txn_set_time (NRPRG (txn), start);
-  nr_hashmap_index_update (NRPRG (predis_commands), index, start);
+  nr_hashmap_index_update (nr_predis_get_commands (TSRMLS_C), index, start);
 
 end:
   nr_php_arg_release (&command);
@@ -754,19 +770,9 @@ NR_PHP_WRAPPER (nr_predis_webdisconnection_executeCommand)
   nr_php_scope_release (&conn);
 } NR_PHP_WRAPPER_END
 
-static void
-nr_predis_command_destroy (nrtxntime_t *time)
-{
-  nr_free (time);
-}
-
 void
 nr_predis_enable (TSRMLS_D)
 {
-  if (NULL == NRPRG (predis_commands)) {
-    NRPRG (predis_commands) = nr_hashmap_create ((nr_hashmap_dtor_func_t) nr_predis_command_destroy);
-  }
-
   /*
    * Instrument the Client constructor so we can instrument its connection(s).
    */

@@ -11,7 +11,6 @@ import (
 type MockedAppHarvest struct {
 	*App
 	processorHarvestChan chan ProcessorHarvest
-	harvestsPerCycle     int
 	cycleDuration        time.Duration
 	ah                   *AppHarvest
 }
@@ -19,7 +18,7 @@ type MockedAppHarvest struct {
 func (m *MockedAppHarvest) NewMockedAppHarvest() {
 	harvest := NewHarvest(time.Now())
 
-	m.App.HarvestTrigger = createFastEventHarvestTrigger(m.harvestsPerCycle, m.cycleDuration)
+	m.App.HarvestTrigger = triggerBuilder(HarvestAll, time.Duration(m.cycleDuration))
 
 	m.ah = NewAppHarvest(AgentRunID("1234"), m.App, harvest, m.processorHarvestChan)
 }
@@ -28,7 +27,6 @@ func TestAppHarvestMessageTransformation(t *testing.T) {
 	m := &MockedAppHarvest{
 		App:                  &App{},
 		processorHarvestChan: make(chan ProcessorHarvest),
-		harvestsPerCycle:     1,
 		cycleDuration:        1 * time.Minute,
 	}
 
@@ -53,7 +51,6 @@ func TestAppHarvestTrigger(t *testing.T) {
 	m := &MockedAppHarvest{
 		App:                  &App{},
 		processorHarvestChan: make(chan ProcessorHarvest),
-		harvestsPerCycle:     2,
 		cycleDuration:        2 * time.Millisecond,
 	}
 
@@ -72,7 +69,6 @@ func TestAppHarvestClose(t *testing.T) {
 	m := &MockedAppHarvest{
 		App:                  &App{},
 		processorHarvestChan: make(chan ProcessorHarvest),
-		harvestsPerCycle:     1,
 		cycleDuration:        1 * time.Minute,
 	}
 

@@ -302,7 +302,7 @@ axiom-clean:
 
 .PHONY: integration
 integration: Makefile daemon
-	for PHP in $${PHPS:-7.1 7.0 5.6 5.5 5.4 5.3}; do \
+	for PHP in $${PHPS:-7.2 7.1 7.0 5.6 5.5 5.4 5.3}; do \
           echo; echo "# PHP=$${PHP}"; \
 	  env NRLAMP_PHP=$${PHP} bin/integration_runner $(INTEGRATION_ARGS) || exit 1; \
 	  echo "# PHP=$${PHP}"; \

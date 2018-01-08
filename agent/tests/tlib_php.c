@@ -104,13 +104,12 @@ tlib_php_engine_ub_write (const char *str, uint len TSRMLS_DC)
  * created or used: their use causes issues with dynamically loaded extensions
  * due to improper ordering of frees on request shutdown.
  */
-#if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO
-# ifdef PHP7
+#ifdef PHP7
 static zend_string *
 tlib_php_new_interned_string (zend_string *str) {
   return str;
 }
-# else
+#elif ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO
 static const char *
 tlib_php_new_interned_string (const char *key, int len NRUNUSED,
                               int free_src NRUNUSED TSRMLS_DC)
@@ -118,8 +117,9 @@ tlib_php_new_interned_string (const char *key, int len NRUNUSED,
   NR_UNUSED_TSRMLS;
   return key;
 }
-# endif /* PHP7 */
+#endif
 
+#if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO && ZEND_MODULE_API_NO < ZEND_7_2_X_API_NO
 static void
 tlib_php_interned_strings_restore (TSRMLS_D)
 {
@@ -131,7 +131,7 @@ tlib_php_interned_strings_snapshot (TSRMLS_D)
 {
   NR_UNUSED_TSRMLS;
 }
-#endif /* PHP7 */
+#endif /* PHP >= 5.4 && PHP < 7.2 */
 
 /* }}} */
 
@@ -238,6 +238,40 @@ tlib_php_engine_create (const char *extra_ini PTSRMLS_DC)
   tlib_module.php_ini_ignore = 1;
 
   /*
+   * We have to disable interned strings on versions of PHP that use them (5.4
+   * onwards) in order to support dynamic extensions. The Zend Engine makes
+   * assumptions about when interned strings are available that rely heavily on
+   * the lifecycle of the normal SAPIs that users use that don't apply here:
+   * namely, that extensions are either loaded en masse at the very start of
+   * the PHP process, or only via dl() during the only request of the process's
+   * lifetime (since dl() is only allowed in the CLI or CGI SAPIs, and they
+   * never handle more than one request).
+   *
+   * We need to be able to support loading extensions after the engine has
+   * started up, but also support multiple requests in the same process and
+   * support loading extensions outside of requests. The interned string
+   * subsystem is in an inconsistent, and usually unsafe state if you break
+   * those assumptions, hence why we disable it.
+   *
+   * From PHP 7.2 onwards, we have to replace the request storage handler
+   * callback before calling php_module_startup(), as part of the operation of
+   * php_module_startup() involves switching storage handlers to use the
+   * request storage handler. If we haven't done it beforehand, the first
+   * request will use the default storage handler function instead of ours, and
+   * will attempt to write to an uninitialised hash table in the compiler
+   * globals.
+   *
+   * For PHP 5.4-7.1, we need to switch the function pointers after calling
+   * php_module_startup(), as there are hard coded references in the Zend
+   * Engine to the permanent interned string hash table, and changing those
+   * function pointers beforehand means that hash table will never be
+   * initialised.
+   */
+#if ZEND_MODULE_API_NO >= ZEND_7_2_X_API_NO
+  zend_interned_strings_set_request_storage_handler (tlib_php_new_interned_string);
+#endif /* PHP >= 7.2 */
+
+  /*
    * Actually start the Zend Engine.
    */
   if (FAILURE == php_module_startup (&tlib_module, &newrelic_module_entry, 1)) {
@@ -245,14 +279,15 @@ tlib_php_engine_create (const char *extra_ini PTSRMLS_DC)
   }
 
   /*
-   * Replace the interned string callbacks on versions of PHP that use interned
-   * strings.
+   * As noted above, we now replace the interned string callbacks on PHP
+   * 5.4-7.1, inclusive. The effect of these replacements is to disable
+   * interned strings.
    */
-#if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO
+#if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO && ZEND_MODULE_API_NO < ZEND_7_2_X_API_NO
   zend_new_interned_string = tlib_php_new_interned_string;
   zend_interned_strings_restore = tlib_php_interned_strings_restore;
   zend_interned_strings_snapshot = tlib_php_interned_strings_snapshot;
-#endif /* PHP >= 5.4 */
+#endif /* PHP >= 5.4 && PHP < 7.2 */
 
   /*
    * Register the resource type we use to fake resources. We are module 0

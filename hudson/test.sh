@@ -41,6 +41,21 @@ esac
 
 export PATH
 
+# Ensure NRCAMP and NRLAMP provided libraries can be found.
+for LIBDIR in /opt/nr/[cl]amp/lib; do
+  if [ -e "$LIBDIR" ]; then
+   if [ -n "${LD_LIBRARY_PATH-}" ]; then
+     LD_LIBRARY_PATH=$LIBDIR:$LD_LIBRARY_PATH
+   else
+     LD_LIBRARY_PATH=$LIBDIR
+   fi
+  fi
+done
+
+if [ -n "${LD_LIBRARY_PATH-}" ]; then
+  export LD_LIBRARY_PATH
+fi
+
 #
 # Parse args
 #
@@ -82,7 +97,8 @@ if [ "$test_axiom" = 'yes' ]; then
 
   if [ "$(uname)" = 'Linux' ] && [ ! -e /etc/alpine-release ] && [ "$optimize" -eq 0 ]; then
     # shellcheck disable=SC2086
-    make $makeflags OPTIMIZE=0 valgrind
+    make $makeflags OPTIMIZE=0 axiom-valgrind LDFLAGS='-Wl,--no-warn-search-mismatch -Wl,-z,muldefs'
+
   else
     # shellcheck disable=SC2086
     make $makeflags "OPTIMIZE=$optimize" axiom-run-tests
@@ -96,6 +112,11 @@ fi
 # file, INI directory and the extension directory using environment
 # variables. The result is that we can run the tests concurrently
 # from multiple jobs under Jenkins.
+#
+# TODO(aharvey): We should also look at running the agent unit tests, but doing
+# so today is impossible as the build products are only shared libraries out of
+# tree, and the agent unit tests must be built in tree. This may be better
+# served as a downstream job that can spread across a matrix of nodes.
 
 if [ "$test_agent" = 'yes' ]; then
   printf \\n

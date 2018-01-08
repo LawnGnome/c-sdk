@@ -122,12 +122,13 @@ Wait for those jobs to complete before proceeding with the next (likely) step:
 
 ## <a name="release-2-testing"></a>Promoting a Release Build to Testing
 
-#### 1. Verify LSM is not deploying
+#### 1. Verify LSM and .NET Core are not deploying
 
-The PHP and LSM agents conceptually share a global "lock" on the download site
-and the pdx-util replica. There is currently no means that absolutely
-guarantees this exclusivity. If you see LSM deploying while you are trying to deploy the PHP Agent, it is
-best to reach out to that team and coordinate.
+The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the download site and the 
+pdx-util replica. There is currently no means that absolutely guarantees this exclusivity. 
+The Native Agent team is currently the owner of the LSM agent; ask your team members whether
+they are currently deploying LSM. To determine whether the .NET Core agent is deploying, contact 
+their `@hero` on Slack.  
 
 #### 2. Get version number
 
@@ -163,9 +164,8 @@ Find the [Build S3 Index](https://phpagent-build.pdx.vm.datanerd.us/view/All/job
 
 > _Unfortunately, S3 doesn't automatically create directory indices. It doesn't even really understand the concept of directories. We need to put index.html files in place so tarfile customers can find the files they need. The customers using package managers don't need directory indices, so this doesn't affect them._
 
-Verify the result at the [production download site][download-site]. Be sure to
-check the `/php_agent/archive` directory contents too! Make sure the server monitor
-is **not** deleted.
+Depending on whether you are deploying to staging or production, verify your result at the [staging download site](http://nr-downloads-private.s3-website-us-east-1.amazonaws.com/75ac22b116/) or [production download site][download-site].  On the production site, be sure to
+check the `/php_agent/archive` directory contents too! Make sure the server monitor is **not** deleted.
 
 #### 6. Tag the commit with the revision number
 

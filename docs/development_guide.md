@@ -259,7 +259,7 @@ The pull request script does the following:
 1. Build the daemon & run integration tests for daemon
 2. Build axiom & run its tests (on Linux, this is done under Valgrind)
 3. Set up agent integration environment information
-4. Build the no-zts agent for each version of PHP (5.3 to 7.1)
+4. Build the no-zts agent for each version of PHP (5.3 to 7.2)
 5. Run the agent integration tests for each version of PHP
 6. Build the zts agent for each version of PHP
 

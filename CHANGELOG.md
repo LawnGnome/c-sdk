@@ -6,13 +6,30 @@
 
 ### New Features ###
 
+* Support for PHP 7.2 has been added.
+
 ### Upgrade Notices ###
 
 ### Notes ###
 
 ### Bug Fixes ###
 
+* Datastore metrics would not be generated for Predis users who stopped and
+  started the transaction after instantiating a `Predis\Client` object. (This
+  included users using the `newrelic_set_appname()` API.)
+
+  This has been fixed.
+
 ### Internal Changes ###
+
+* Users with feature flags set to allow for fast harvest cycles could
+  experience daemon panics if an application timed out. This has been fixed.
+ 
+* The harvest whitelist has been removed.  Users who were previously on 
+  the whitelist can now request customization of harvest cycle report periods 
+  using feature flags.
+  
+* Updated Docker container ID-matching rules to align with latest metadata specification.
 
 ### Acquia-only Notes ###
 

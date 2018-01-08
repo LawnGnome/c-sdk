@@ -18,47 +18,6 @@ func TestHarvestTriggerGet(t *testing.T) {
 	}
 }
 
-func TestHarvestTriggerCustom(t *testing.T) {
-
-	triggerChannel := make(chan HarvestType)
-	cancelChannel := make(chan bool)
-	customTrigger := createFastEventHarvestTrigger(2, 2*time.Millisecond)
-
-	go customTrigger(triggerChannel, cancelChannel)
-
-	// For a harvest trigger than has more than 1 harvest cycle in a given duration, the trigger
-	// must first issue a HarvestEvents and then a HarvestAll event
-	event1 := (<-triggerChannel)
-	event2 := (<-triggerChannel)
-
-	expectedEvent1 := HarvestAll
-	expectedEvent2 := HarvestTxnEvents
-
-	if event1 != expectedEvent1 {
-		t.Fatal("A HarvestAll harvest trigger event was expected.  Instead:", event1)
-	}
-
-	if event2 != expectedEvent2 {
-		t.Fatal("A HarvestEvents harvest trigger event was expected.  Instead:", event2)
-	}
-
-	cancelChannel <- true
-}
-
-func TestHarvestTriggerLicenseLookup(t *testing.T) {
-
-	defaultTrigger := getCustomLicenseHarvestTrigger("1234")
-	customTrigger := getCustomLicenseHarvestTrigger("62f73a31951ead399a0c7298001d4118bb907aea")
-
-	if defaultTrigger != nil {
-		t.Fatal("Default lookup failed")
-	}
-
-	if customTrigger == nil {
-		t.Fatal("Custom lookup failed")
-	}
-}
-
 func TestHarvestTriggerGetCustom(t *testing.T) {
 
 	reply := &ConnectReply{}
@@ -126,4 +85,16 @@ func TestHarvestTriggerCustomBuilder(t *testing.T) {
 
 	cancelChannel <- true
 
+	// PHP-1515: ensure that the cancellation is processed, and that nothing is
+	// sent to the trigger channel after cancellation has been confirmed.
+	<-cancelChannel
+
+	timer := time.NewTimer(time.Duration(2*collector.MinimumReportPeriod) * time.Millisecond)
+	select {
+	case <-timer.C:
+		// Excellent; we didn't receive anything on triggerChannel.
+		break
+	case event := <-triggerChannel:
+		t.Fatal("Unexpected event %v received after triggers were cancelled", event)
+	}
 }

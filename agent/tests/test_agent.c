@@ -144,6 +144,14 @@ test_function_debug_name (TSRMLS_D)
 static void
 setup_inherited_classes (TSRMLS_D)
 {
+  /*
+   * PHP 7 will generate deprecation warnings for the code below because of the
+   * intentional use of class named constructors. We'll quiet those for now,
+   * and we can revisit this when PHP 8 removes support for class named
+   * constructors and we have to decide if this test still makes sense.
+   */
+  tlib_php_request_eval ("$er = error_reporting(E_ALL ^ E_DEPRECATED);" TSRMLS_CC);
+
   tlib_php_request_eval (
     "class A {"
       "public $pub = 'A public';"
@@ -157,6 +165,11 @@ setup_inherited_classes (TSRMLS_D)
     "class C extends B {"
       "function __call($name, $args) {}"
     "}" TSRMLS_CC);
+
+   /*
+    * Reset the error reporting.
+    */
+  tlib_php_request_eval ("error_reporting($er);" TSRMLS_CC);
 }
 
 static void

@@ -11,7 +11,7 @@ reading the comments in the source.
    (used to communicate with RPM).
 2. Only UNIX environments are supported. Windows is not, and is currently
    highly unlikely to be.
-3. We support all versions of PHP from 5.3 to 7.1, inclusive, both with and
+3. We support all versions of PHP from 5.3 to 7.2, inclusive, both with and
    without Zend Thread Safety (ZTS). (We don't trust the ZTS versions, though;
    if you really want to support this it might be worth asking the team.)
 4. Starting with version 3.0, licenses are configured via PHP itself, and can
@@ -276,7 +276,7 @@ itself. The PHP agent does not currently use this facility, although there are
 certain things that would be easier to implement if we did.
 
 There are several versions of PHP in common use. PHP 5.3 is rather old, but we
-have customers running on 5.3 through 7.1. We ship a different extension for
+have customers running on 5.3 through 7.2. We ship a different extension for
 each PHP version, since we have to compile against different sources. The Zend
 engine on top of which PHP is built can itself come in two flavours: with and
 without Zend Thread Safety (ZTS). The PHP and Zend development teams both

@@ -68,12 +68,14 @@ release-scripts: Makefile | releases/$(RELEASE_OS)/scripts/
 # Build the agent sequentially for each version of PHP. This is necessary
 # because the PHP build process only supports in-tree builds.
 release-agent: Makefile | releases/$(RELEASE_OS)/agent/$(RELEASE_ARCH)/
+	$(MAKE) agent-clean; $(MAKE) release-7.2-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.1-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.0-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.6-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.5-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.4-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.3-no-zts
+	$(MAKE) agent-clean; $(MAKE) release-7.2-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.1-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.0-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.6-zts
@@ -103,6 +105,7 @@ release-$1-zts: Makefile agent | releases/$$(RELEASE_OS)/agent/$$(RELEASE_ARCH)/
 
 endef
 
+$(eval $(call RELEASE_AGENT_TARGET,7.2,20170718))
 $(eval $(call RELEASE_AGENT_TARGET,7.1,20160303))
 $(eval $(call RELEASE_AGENT_TARGET,7.0,20151012))
 $(eval $(call RELEASE_AGENT_TARGET,5.6,20131226))

@@ -43,6 +43,7 @@
 #define ZEND_5_6_X_API_NO       20131226
 #define ZEND_7_0_X_API_NO       20151012
 #define ZEND_7_1_X_API_NO       20160303
+#define ZEND_7_2_X_API_NO       20170718
 
 #if ZEND_MODULE_API_NO >= ZEND_5_6_X_API_NO
 #include "Zend/zend_virtual_cwd.h"
