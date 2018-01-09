@@ -135,6 +135,7 @@ newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
  *
  * @param [in] app A pointer to an allocation application
  * @param [in] name The name for the transaction
+ *
  * @return A pointer to the transaction
  */
 newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
