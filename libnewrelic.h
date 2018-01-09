@@ -163,8 +163,8 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction);
  * integer attribute to the transaction
  *
  * @param [in] transaction A previously-started transaction
- * @param [in] name the name of the attribute
- * @param [in] value the integer value of the attribute
+ * @param [in] name The name of the attribute
+ * @param [in] value The integer value of the attribute
  *
  * @return true if successful; false otherwise
  */
@@ -180,8 +180,8 @@ bool newrelic_add_attribute_int(newrelic_txn_t* transaction,
  * long attribute to the transaction
  *
  * @param [in] transaction A previously-started transaction
- * @param [in] name the name of the attribute
- * @param [in] value the long value of the attribute
+ * @param [in] name The name of the attribute
+ * @param [in] value The long value of the attribute
  *
  * @return true if successful; false otherwise
  */
@@ -198,8 +198,8 @@ bool newrelic_add_attribute_long(newrelic_txn_t* transaction,
  * double attribute to the transaction
  *
  * @param [in] transaction A previously-started transaction
- * @param [in] name the name of the attribute
- * @param [in] value the double value of the attribute
+ * @param [in] name The name of the attribute
+ * @param [in] value The double value of the attribute
  *
  * @return true if successful; false otherwise
  */
@@ -215,8 +215,8 @@ bool newrelic_add_attribute_double(newrelic_txn_t* transaction,
  * string attribute to the transaction.
  *
  * @param [in] transaction A previously-started transaction
- * @param [in] name the name of the attribute
- * @param [in] value the string value of the attribute
+ * @param [in] name The name of the attribute
+ * @param [in] value The string value of the attribute
  *
  * @return true if successful; false otherwise
  */
