@@ -62,7 +62,7 @@ typedef struct _newrelic_config_t {
   * @brief Returns a populated agent configuration.
   *
   * Given an application name and license key, this method returns an agent
-  * configuration.  Specifically, it returns a pointer to a newrelic_config_t
+  * configuration. Specifically, it returns a pointer to a newrelic_config_t
   * with initialized app_name and license_key fields along with default values
   * for the remaining fields. The caller should free the configuration after
   * the application has been created.
