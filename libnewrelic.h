@@ -58,7 +58,7 @@ typedef struct _newrelic_config_t {
   newrelic_loglevel_t log_level;
 } newrelic_config_t;
 
- /*
+ /**
   * @brief Returns a populated agent configuration.
   *
   * Given an application name and license key, this method returns an agent
@@ -76,7 +76,7 @@ typedef struct _newrelic_config_t {
 newrelic_config_t* newrelic_new_config(const char* app_name,
                                        const char* license_key);
 
-/*
+/**
  * @brief Create the application
  *
  * Given an agent configuration, newrelic_create_app() returns a pointer to the newly
@@ -96,7 +96,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
 newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
                                     unsigned short timeout_ms);
 
-/*
+/**
  * @brief Destroy the application
  *
  * Given an allocated application, newrelic_destroy_app() closes the logfile
@@ -109,7 +109,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
 bool newrelic_destroy_app(newrelic_app_t** app);
 
 
-/*
+/**
  * @brief Start a web based transaction
  *
  * Given a valid application and transaction name, this function begins timing
@@ -125,7 +125,7 @@ bool newrelic_destroy_app(newrelic_app_t** app);
 newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
                                                const char* name);
 
-/*
+/**
  * @brief Start a non-web based transaction
  *
  * Given a valid application and transaction name, this function begins timing
@@ -141,7 +141,7 @@ newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
 newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
                                                    const char* name);
 
-/*
+/**
  * @brief End a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -155,7 +155,7 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
  */
 bool newrelic_end_transaction(newrelic_txn_t** transaction);
 
-/*
+/**
  * @brief Add a custom integer attribute to a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -172,7 +172,7 @@ bool newrelic_add_attribute_int(newrelic_txn_t* transaction,
                                 const char* key,
                                 const int value);
 
-/*
+/**
  * @brief Add a custom long attribute to a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -190,7 +190,7 @@ bool newrelic_add_attribute_long(newrelic_txn_t* transaction,
                                  const long value);
 
 
-/*
+/**
  * @brief Add a custom double attribute to a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -207,7 +207,7 @@ bool newrelic_add_attribute_double(newrelic_txn_t* transaction,
                                    const char* key,
                                    const double value);
 
-/*
+/**
  * @brief Add a custom string attribute to a transaction.
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -224,7 +224,7 @@ bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
                                    const char* key,
                                    const char* value);
 
-/*
+/**
  * @brief Record an error in a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
