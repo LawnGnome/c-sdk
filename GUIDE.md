@@ -95,7 +95,7 @@ starved, it will handle these writes efficiently.
 
 #### Memory management
 The C Agent's memory use is proportional to the amount of data sent. The libc
-allocator `malloc` (and `free`) is used extensively. The dominant memory cost is
+calls `malloc` and `free` are used extensively. The dominant memory cost is
 user-provided data, including custom attributes, events, and metric names.
 
 #### Elevated privileges (sudo)
