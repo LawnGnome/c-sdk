@@ -20,45 +20,50 @@ typedef enum _newrelic_loglevel_t {
   LOG_VERBOSE
 } newrelic_loglevel_t;
 
-/*
- * Configuration
+/*!
+ * @brief Agent configuration used to describe application name, license key, as well as daemon and logging
+ * configuration
  *
- * Required fields:
- * app_name:      Sets the name of the application that metrics will be reported
- *                into.
- *
- * license_key:   Sets the New Relic license key to use.
- *
- * Optional fields:
- * redirect_collector: This refers to the New Relic provided host. There is very
- *                     little reason to ever change this from the default.
- *
- * daemon_socket: The default is to use a UNIX-domain socket located at
- *                /tmp/.newrelic.sock. If you want to use UNIX domain sockets
- *                then this value must begin with a "/". Setting this to an
- *                integer value in the range 1-65534 will instruct the daemon to
- *                listen on a normal TCP socket on the port specified. On Linux,
- *                an abstract socket can be created by prefixing the socket name
- *                with '@'.
- *
- * log_filename:  Unless you provide a log file name, no logging will occur.
- *
- * log_level:     Sets the level of detail to include in the log file. You
- *                should rarely need to change this from the default LOG_INFO,
- *                and usually only under the guidance of technical support.
- *                Must be one of the following values: LOG_ERROR, LOG_INFO,
- *                LOG_DEBUG, LOG_VERBOSE
  */
 typedef struct _newrelic_config_t {
+  /*! Specifies the name of the application to which data shall be reported.
+   */
   char app_name[255];
+
+  /*! Specifies the New Relic license key to use.
+   */
   char license_key[255];
+
+  /*! Optional.  Specifies the New Relic provided host. There is little reason
+   *  to ever change this from the default.
+   */
   char redirect_collector[100];
+
+  /*! Optional.  Specifies the underlying communication mechanism for the
+   *  agent daemon.   The default is to use a UNIX-domain socket located at
+   *  /tmp/.newrelic.sock. If you want to use UNIX domain sockets then this
+   *  value must begin with a "/". Setting this to an integer value in the
+   *  range 1-65534 will instruct the daemon to listen on a normal TCP socket
+   *  on the port specified. On Linux, an abstract socket can be created by
+   *  prefixing the socket name with '@'.
+   */
   char daemon_socket[512];
+
+  /*! Optional. Specifies the file to be used for agent logs.  If no filename
+   *  is provided, no logging shall occur.
+   */
   char log_filename[512];
+
+  /*! Optional. Specifies the logfile's level of detail. There is little reason
+   *  to change this from the default value except under the guidance of technical
+   *  support.  Must be one of the following values: LOG_ERROR, LOG_INFO (default),
+   *  LOG_DEBUG, LOG_VERBOSE.
+   */
   newrelic_loglevel_t log_level;
+
 } newrelic_config_t;
 
- /**
+ /*!
   * @brief Returns a populated agent configuration.
   *
   * Given an application name and license key, this method returns an agent
@@ -76,7 +81,7 @@ typedef struct _newrelic_config_t {
 newrelic_config_t* newrelic_new_config(const char* app_name,
                                        const char* license_key);
 
-/**
+/*!
  * @brief Create the application
  *
  * Given an agent configuration, newrelic_create_app() returns a pointer to the newly
@@ -84,8 +89,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
  * caller should destroy the application with the supplied newrelic_destroy_app()
  * when finished.
  *
- * @param [in] config An agent configuration describing the app_name, license_key,
- * as well as the behavior of the application and transactions
+ * @param [in] config An agent configuration created by newrelic_create_app().
  * @param [in] timeout_ms Specifies the maximum time to wait for a connection to
  * be established; A value of 0 causes the method to make only one attempt at
  * connecting to the daemon
@@ -96,7 +100,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
 newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
                                     unsigned short timeout_ms);
 
-/**
+/*!
  * @brief Destroy the application
  *
  * Given an allocated application, newrelic_destroy_app() closes the logfile
@@ -109,7 +113,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
 bool newrelic_destroy_app(newrelic_app_t** app);
 
 
-/**
+/*!
  * @brief Start a web based transaction
  *
  * Given a valid application and transaction name, this function begins timing
@@ -125,7 +129,7 @@ bool newrelic_destroy_app(newrelic_app_t** app);
 newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
                                                const char* name);
 
-/**
+/*!
  * @brief Start a non-web based transaction
  *
  * Given a valid application and transaction name, this function begins timing
@@ -141,7 +145,7 @@ newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
 newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
                                                    const char* name);
 
-/**
+/*!
  * @brief End a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -155,7 +159,7 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
  */
 bool newrelic_end_transaction(newrelic_txn_t** transaction);
 
-/**
+/*!
  * @brief Add a custom integer attribute to a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -172,7 +176,7 @@ bool newrelic_add_attribute_int(newrelic_txn_t* transaction,
                                 const char* key,
                                 const int value);
 
-/**
+/*!
  * @brief Add a custom long attribute to a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -190,7 +194,7 @@ bool newrelic_add_attribute_long(newrelic_txn_t* transaction,
                                  const long value);
 
 
-/**
+/*!
  * @brief Add a custom double attribute to a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -207,7 +211,7 @@ bool newrelic_add_attribute_double(newrelic_txn_t* transaction,
                                    const char* key,
                                    const double value);
 
-/**
+/*!
  * @brief Add a custom string attribute to a transaction.
  *
  * Given a transaction started by newrelic_start_web_transaction() or
@@ -224,7 +228,7 @@ bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
                                    const char* key,
                                    const char* value);
 
-/**
+/*!
  * @brief Record an error in a transaction
  *
  * Given a transaction started by newrelic_start_web_transaction() or
