@@ -90,7 +90,8 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
  * be established; A value of 0 causes the method to make only one attempt at
  * connecting to the daemon
  *
- * @return A pointer to an allocated application, or NULL on error
+ * @return A pointer to an allocated application, or NULL on error; any errors
+ * resulting from a badly-formed agent configuration are logged
  */
 newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
                                     unsigned short timeout_ms);
