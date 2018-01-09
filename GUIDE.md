@@ -81,7 +81,24 @@ Run your test application and check the `c-agent.log` file for output.
   * Transaction events
   * Web and non-web transactions
   * Custom attributes
+  * Error instrumentation
 * Logging levels
+
+#### Error instrumentation
+
+The C-Agent provides the function `newrelic_notice_error()` so that customers 
+may record transaction errors that are not automatically handled by the agent.  When
+recording an error in this way, callers must supply four parameters to the function,
+as indicated in `libnewrelic.h`. Among these are `priority` and `errclass`. 
+
+The C-Agent reports only xxx errors.  In the pool of errors collected by the agent, the `priority` of an error indicates 
+which errors should be saved in the event that the error limit of the number of errors 
+reported to New Relic is reached. Higher values take priority over lower values.
+
+Because errors are grouped by class in New Relic's Error Analytics dashboard, the 
+`errclass` parameter gives the caller control over how to filter for errors on the 
+dashboard.
+
 
 ### About
 
