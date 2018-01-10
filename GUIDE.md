@@ -107,8 +107,8 @@ parameters are `priority` and `errclass`.
 
 The agent is capped at reporting 100 errors per minute.  In the pool of errors 
 collected by the agent, the `priority` of an error indicates which errors should 
-be saved in the event that the error limit of the number of errors reported 
-to New Relic is reached. Higher values take priority over lower values.
+be saved in the event that the cap has been exceeded. Higher values take priority 
+over lower values.
 
 Errors are grouped by class in New Relic's Error Analytics dashboard. With that in
 mind, the `errclass` parameter gives the caller control over how to filter for 
