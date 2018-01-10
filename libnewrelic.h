@@ -108,7 +108,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
                                        const char* license_key);
 
 /*!
- * @brief Create the application.
+ * @brief Create an application.
  *
  * Given an agent configuration, newrelic_create_app() returns a pointer to the
  * newly allocated application, or NULL if there was an error. If successful,
