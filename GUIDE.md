@@ -124,7 +124,8 @@ start a transaction, record an error, and end a transaction like so:
  ...
  
  if (err) {
-    newrelic_notice_error(txn, priority, ""Meaningful error message", "Error.class");
+    newrelic_notice_error(txn, priority, ""Meaningful error message", 
+                          "Error.class");
  }
  
  ...
