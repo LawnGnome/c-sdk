@@ -12,6 +12,11 @@ releases
 .DS_Store
 
 #
+# Byproducts from building Doxygen documentation
+#
+html/
+
+#
 # Byproducts from building cmocka
 #
 vendor/cmocka/build
