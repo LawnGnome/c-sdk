@@ -105,7 +105,7 @@ When recording an error using `newrelic_notice_error()`, callers must supply fou
 parameters to the function, as indicated in `libnewrelic.h`. Among these 
 parameters are `priority` and `errclass`. 
 
-The agent is capped at reporting 100 errors per minute.  In the pool of errors 
+The agent is capped at reporting 100 error traces per minute.  In the pool of errors 
 collected by the agent, the `priority` of an error indicates which errors should 
 be saved in the event that the cap has been exceeded. Higher values take priority 
 over lower values.
