@@ -4,7 +4,7 @@
 
 ### New Features ###
 
-- Customers may now use `newrelic_notice_error()` to record  record transaction errors that 
+- Customers may now use `newrelic_notice_error()` to record transaction errors that 
 are not automatically handled by the agent. Errors recorded in this manner are displayed in 
 [error traces] (https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
 and are available to query through 
