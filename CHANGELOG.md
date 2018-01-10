@@ -4,8 +4,8 @@
 
 ### New Features ###
 
-- Customers may now use `newrelic_notice_error()` to record error instrumentation in
-their transactions.  Errors recorded in this manner are displayed in 
+- Customers may now use `newrelic_notice_error()` to record  record transaction errors that 
+are not automatically handled by the agent. Errors recorded in this manner are displayed in 
 [error traces] (https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
 and are available to query through 
 [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  

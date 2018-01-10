@@ -87,9 +87,15 @@ Run your test application and check the `c-agent.log` file for output.
 #### Error instrumentation
 
 The agent provides the function `newrelic_notice_error()` so that customers 
-may record transaction errors that are not automatically handled by the agent.  When
-recording an error in this way, callers must supply four parameters to the function,
-as indicated in `libnewrelic.h`. Among these parameters are `priority` and `errclass`. 
+may record transaction errors that are not automatically handled by the agent.  
+Errors recorded in this manner are displayed in 
+[error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
+at New Relic's Error Analytics dashboard; they are available to query through
+[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
+
+When recording an error using `newrelic_notice_error()`, callers must supply four 
+parameters to the function, as indicated in `libnewrelic.h`. Among these 
+parameters are `priority` and `errclass`. 
 
 The agent is capped at reporting 100 errors per minute.  In the pool of errors 
 collected by the agent, the `priority` of an error indicates which errors should 
@@ -99,6 +105,13 @@ to New Relic is reached. Higher values take priority over lower values.
 Errors are grouped by class in New Relic's Error Analytics dashboard. With that in
 mind, the `errclass` parameter gives the caller control over how to filter for 
 errors on the dashboard.
+
+Customers may now use `newrelic_notice_error()` to record error instrumentation in
+their transactions.  Errors recorded in this manner are displayed in 
+[error traces] (https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
+and are available to query through 
+[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
+See `libnewrelic.h` for usage information.
 
 
 ### About
