@@ -1,9 +1,19 @@
-LIBNEWRELIC_INCLUDE = -I../
+#
+# Makefile for New Relic C-Agent Code Examples
+#
 
-all:	ex_notice_error
+# This Makefile presumes that the locations of libnewrelic.h and libnewrelic.a are one level above this
+# example directory.
+LIBNEWRELIC_A_LOCATION = ../
+LIBNEWRELIC_H_LOCATION = ../
 
-ex_notice_error:	ex_notice_error.o ../libnewrelic.a
-	$(CC) -o $@ $< -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
+all:	ex_notice_error.out
+
+ex_notice_error.out:	ex_notice_error.o ../libnewrelic.a
+	$(CC) -o $@ $< -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 %.o: %.c
-	$(CC) $(LIBNEWRELIC_INCLUDE) -c $< -o $@
+	$(CC) -c $< -o $@ -I$(LIBNEWRELIC_H_LOCATION) -DHAVE_BACKTRACE=1
+
+clean:
+	rm -f *.o *.out c_agent.log
