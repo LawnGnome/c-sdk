@@ -1,14 +1,14 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <limits.h>
 #include <float.h>
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "libnewrelic.h"
-#include "util_object.c"
 
 int main(void) {
+  int priority = 50;
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
@@ -35,7 +35,9 @@ int main(void) {
 
   sleep(1);
 
-  newrelic_notice_error(txn, 50, "An error happened, oh no!", "ExampleError");
+  /* Record an error */
+  newrelic_notice_error(txn, priority, "Meaningful error message",
+                        "Error.class");
 
   /* End web transaction */
   newrelic_end_transaction(&txn);

@@ -24,38 +24,45 @@ Instrument your code:
 #include "libnewrelic.h"
 
 int main (void) {
+  int priority = 50;
   newrelic_app_t *app = 0;
   newrelic_txn_t *txn = 0;
   newrelic_config_t *config = 0;
 
-  config = newrelic_new_config ("C Agent Test App", "<LICENSE_KEY_HERE>");
-  strcpy (config->daemon_socket, "/tmp/.newrelic.sock");
-  strcpy (config->log_filename, "./c_agent.log");
+  config = newrelic_new_config("C Agent Test App", "<LICENSE_KEY_HERE>");
+  strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
+  strcpy(config->log_filename, "./c_agent.log");
   config->log_level = LOG_INFO;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
-  app = newrelic_create_app (config, 10000);
-  free (config);
+  app = newrelic_create_app(config, 10000);
+  free(config);
 
   /* Start a web transaction */
-  txn = newrelic_start_web_transaction (app, "veryImportantWebTransaction");
+  txn = newrelic_start_web_transaction(app, "veryImportantWebTransaction");
 
   /* Add attributes */
-  newrelic_add_attribute_int (txn, "my_custom_int", INT_MAX);
-  newrelic_add_attribute_string (txn, "my_custom_string", "String String String");
+  newrelic_add_attribute_int(txn, "my_custom_int", INT_MAX);
+  newrelic_add_attribute_string(txn, "my_custom_string",
+                                "String String String");
 
-  sleep (1);
+  sleep(1);
+
+  /* Record an error */
+  newrelic_notice_error(txn, priority, "Meaningful error message",
+                        "Error.class");
 
   /* End web transaction */
-  newrelic_end_transaction (&txn);
+  newrelic_end_transaction(&txn);
 
   /* Start and end a non-web transaction */
-  txn = newrelic_start_non_web_transaction (app, "veryImportantOtherTransaction");
-  sleep (1);
+  txn =
+      newrelic_start_non_web_transaction(app, "veryImportantOtherTransaction");
+  sleep(1);
 
-  newrelic_end_transaction (&txn);
+  newrelic_end_transaction(&txn);
 
-  newrelic_destroy_app (&app);
+  newrelic_destroy_app(&app);
 
   return 0;
 }
@@ -81,7 +88,50 @@ Run your test application and check the `c-agent.log` file for output.
   * Transaction events
   * Web and non-web transactions
   * Custom attributes
+  * Error instrumentation
 * Logging levels
+
+#### Error instrumentation
+
+The agent provides the function `newrelic_notice_error()` so that customers 
+may record transaction errors that are not automatically handled by the agent.  
+Errors recorded in this manner are displayed in 
+[error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
+at New Relic's Error Analytics dashboard; they are available to query through
+[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
+
+When recording an error using `newrelic_notice_error()`, callers must supply four 
+parameters to the function, as indicated in `libnewrelic.h`. Among these 
+parameters are `priority` and `errclass`. 
+
+The agent is capped at reporting 100 error traces per minute.  Supposing that over 
+100 errors are noticed during a single minute, the total number of errors are 
+reported in New Relic metrics; only 100 would be available at the Error Analytic's 
+dashboard.  That said, in the pool of errors collected by the agent, the `priority` 
+of an error indicates which errors should be saved in the event that the cap has 
+been exceeded. Higher values take priority over lower values.
+
+Errors are grouped by class in New Relic's Error Analytics dashboard. With that in
+mind, the `errclass` parameter gives the caller control over how to filter for 
+errors on the dashboard.
+
+With a valid application, `app`, created using `newrelic_create_app()`, one can 
+start a transaction, record an error, and end a transaction like so:
+ 
+```
+ int priority = 50;
+ newrelic_txn_t* txn = newrelic_start_non_web_transaction(app, transaction_name);
+ 
+ ...
+ 
+ if (err) {
+    newrelic_notice_error(txn, priority, ""Meaningful error message", "Error.class");
+ }
+ 
+ ...
+ 
+ newrelic_end_transaction(&txn);
+```
 
 ### About
 
@@ -95,7 +145,7 @@ starved, it will handle these writes efficiently.
 
 #### Memory management
 The C Agent's memory use is proportional to the amount of data sent. The libc
-allocator `malloc` (and `free`) is used extensively. The dominant memory cost is
+calls `malloc` and `free` are used extensively. The dominant memory cost is
 user-provided data, including custom attributes, events, and metric names.
 
 #### Elevated privileges (sudo)
