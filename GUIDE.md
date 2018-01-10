@@ -106,13 +106,23 @@ Errors are grouped by class in New Relic's Error Analytics dashboard. With that 
 mind, the `errclass` parameter gives the caller control over how to filter for 
 errors on the dashboard.
 
-Customers may now use `newrelic_notice_error()` to record error instrumentation in
-their transactions.  Errors recorded in this manner are displayed in 
-[error traces] (https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
-and are available to query through 
-[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
-See `libnewrelic.h` for usage information.
-
+With a valid application, `app`, one can start a transaction, record an error, and
+end a transaction like so,
+ 
+```
+ int priority = 50;
+ newrelic_txn_t* txn = newrelic_start_non_web_transaction(app, transaction_name);
+ 
+ ...
+ 
+ if (err) {
+    newrelic_notice_error(txn, priority, "This is a meaningful error message", "Error.class");
+ }
+ 
+ ...
+ 
+ newrelic_end_transaction(&txn);
+```
 
 ### About
 
