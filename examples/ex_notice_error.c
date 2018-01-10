@@ -15,37 +15,46 @@ int main(void) {
   newrelic_config_t* config = 0;
 
 	char * app_name = get_app_name();
-	char * license_key = getenv("NR_LICENSE");
+	if (app_name == NULL) return -1;
 
-
-
- 	if(license_key == NULL) {
- 		printf("This example program depends on environment variables NR_APP_NAME and NR_LICENSE.\n")
- 		printf("Environment variable NR_LICENSE must be set to a valid New Relic license key.\n");
- 		return -1;
- 	}
+	char * license_key = get_license_key();
+	if (license_key == NULL) return -1;
 
   config = newrelic_new_config(app_name, license_key);
 
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");
   strcpy(config->log_filename, "./c_agent.log");
-  config->log_level = LOG_INFO;
+  config->log_level = LOG_VERBOSE;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   free(config);
 
+#ifdef butt
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  sleep(1);
+  sleep(5);
+
+  /* Add an attribute */
+  newrelic_add_attribute_int(txn, "custom_int", INT_MAX);
 
   /* Record an error */
   newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class");
+                        "Error.class.low");
+
+  sleep(5);
 
   /* End web transaction */
+  newrelic_end_transaction(&txn);
+#endif
+
+ /* Start and end a non-web transaction */
+  txn =
+      newrelic_start_non_web_transaction(app, "veryImportantOtherTransaction");
+  sleep(1);
+
   newrelic_end_transaction(&txn);
 
 
