@@ -60,7 +60,7 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->err_enabled = true;
   opt->request_params_enabled = false;
   opt->autorum_enabled = false;
-  opt->error_events_enabled = false;
+  opt->error_events_enabled = true;
   opt->tt_enabled = false;
   opt->ep_enabled = false;
   opt->tt_recordsql = false;
