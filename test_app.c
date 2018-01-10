@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 #include "libnewrelic.h"
-#include "util_object.c"
 
 int main(void) {
   int priority = 50;
