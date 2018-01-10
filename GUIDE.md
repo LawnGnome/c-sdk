@@ -107,7 +107,7 @@ mind, the `errclass` parameter gives the caller control over how to filter for
 errors on the dashboard.
 
 With a valid application, `app`, one can start a transaction, record an error, and
-end a transaction like so,
+end a transaction like so:
  
 ```
  int priority = 50;
