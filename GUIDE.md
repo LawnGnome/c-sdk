@@ -107,7 +107,7 @@ parameters are `priority` and `errclass`.
 
 The agent is capped at reporting 100 error traces per minute.  Supposing that over 
 100 errors are noticed during a single minute, the total number of errors are 
-reported in New Relic metrics; only 100 will be available at the Error Analytic's 
+reported in New Relic metrics; only 100 would be available at the Error Analytic's 
 dashboard.  That said, in the pool of errors collected by the agent, the `priority` 
 of an error indicates which errors should be saved in the event that the cap has 
 been exceeded. Higher values take priority over lower values.
