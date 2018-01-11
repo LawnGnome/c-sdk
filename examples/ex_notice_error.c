@@ -5,8 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "libnewrelic.h"
 #include "ex_common.h"
+#include "libnewrelic.h"
 
 int main(void) {
   int priority = 50;
@@ -22,41 +22,27 @@ int main(void) {
 
   config = newrelic_new_config(app_name, license_key);
 
-  strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
-  strcpy(config->redirect_collector, "staging-collector.newrelic.com");
-  strcpy(config->log_filename, "./c_agent.log");
-  config->log_level = LOG_VERBOSE;
+	customize_config(&config);
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   free(config);
 
-#ifdef butt
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  sleep(5);
+  newrelic_add_attribute_int(txn, "Custom_int", INT_MAX);
 
-  /* Add an attribute */
-  newrelic_add_attribute_int(txn, "custom_int", INT_MAX);
+  sleep(1);
 
   /* Record an error */
   newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class.low");
+                        "Error.class.kitten");
 
-  sleep(5);
+  sleep(1);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
-#endif
-
- /* Start and end a non-web transaction */
-  txn =
-      newrelic_start_non_web_transaction(app, "veryImportantOtherTransaction");
-  sleep(1);
-
-  newrelic_end_transaction(&txn);
-
 
   newrelic_destroy_app(&app);
 
