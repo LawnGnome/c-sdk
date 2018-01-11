@@ -11,7 +11,7 @@
 void record_error(newrelic_txn_t* txn){
   int priority = 50;
   newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class.medium");
+                        "Error.class.supervalu");
   return;
 }
 

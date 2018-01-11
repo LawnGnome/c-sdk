@@ -12,10 +12,10 @@ LIBNEWRELIC_H_LOCATION = ../
 all:	ex_notice_error.out
 
 ex_notice_error.out:	$(OBJS) ../libnewrelic.a
-	$(CC) -o $@ $(OBJS) -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
+	$(CC) -o $@ $(OBJS) -rdynamic -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 %.o: %.c
-	$(CC) -c $< -o $@ -I$(LIBNEWRELIC_H_LOCATION)
+	$(CC) -c $< -o $@ -rdynamic -I$(LIBNEWRELIC_H_LOCATION)
 
 clean:
 	rm -f *.o *.out c_agent.log
