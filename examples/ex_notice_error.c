@@ -8,8 +8,15 @@
 #include "ex_common.h"
 #include "libnewrelic.h"
 
-int main(void) {
+void record_error(newrelic_txn_t* txn){
   int priority = 50;
+  newrelic_notice_error(txn, priority, "Meaningful error message",
+                        "Error.class.medium");
+  return;
+}
+
+
+int main(void) {
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
@@ -33,13 +40,15 @@ int main(void) {
 
   newrelic_add_attribute_int(txn, "Custom_int", INT_MAX);
 
-  sleep(1);
+  sleep(5);
 
-  /* Record an error */
-  newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class.kitten");
+  /* Record an error.
+   * Note the nested call to newrelic_notice_error() so that something
+   * interesting appears in the backtrace.
+   */
+  record_error(txn);
 
-  sleep(1);
+  sleep(5);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
