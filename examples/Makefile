@@ -4,8 +4,8 @@
 
 OBJS = ex_notice_error.o ex_common.o
 
-# This Makefile presumes that the locations of libnewrelic.h and libnewrelic.a are one level above this
-# example directory.
+# This Makefile presumes that the locations of libnewrelic.h and libnewrelic.a are one
+# level above this example directory.
 LIBNEWRELIC_A_LOCATION = ../
 LIBNEWRELIC_H_LOCATION = ../
 
