@@ -98,7 +98,7 @@ version.o: VERSION
 
 .PHONY: clean
 clean: axiom-clean daemon-clean
-	rm -f *.o libnewrelic.a libnewrelic.so test_app
+	rm -f *.o libnewrelic.a libnewrelic.so test_app stress_app
 	$(MAKE) -C tests clean
 
 dynamic: libnewrelic.so
@@ -109,3 +109,6 @@ test_app: test_app.o libnewrelic.a
 
 test_app_dynamic: test_app.o libnewrelic.so
 	$(CC) -o test_app test_app.o -L. -lnewrelic
+
+stress_app: stress_app.o libnewrelic.a
+	$(CC) -o $@ $< -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
