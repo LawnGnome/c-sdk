@@ -11,7 +11,7 @@ Generic library to communicate with New Relic.
 
 ### Getting started
 
-Instrument your code.  Consider the brief program below or look at the `examples` directory
+Instrument your code. Consider the brief program below or look at the `examples` directory
 for source and Makefiles highlighting particular features.
 
 ```
@@ -69,16 +69,16 @@ int main (void) {
 }
 ```
 
-Compile and link your application against the static library, `libnewrelic.a`.  There 
-are two considerations to make during the linking step.  First, because `libnewrelic.a` 
+Compile and link your application against the static library, `libnewrelic.a`. There 
+are two considerations to make during the linking step. First, because `libnewrelic.a` 
 is offered as a static library, because it is already linked with the `libpcre` 
 and `libpthread` libraries, you must also link against these two libraries to avoid 
 symbol collisions in the linking step. 
 
 Second, to take full advantage of error traces at New Relic's Error Analytics 
-dashboard, link your application using GNU's `-rdynamic` linker flag.  
+dashboard, link your application using GNU's `-rdynamic` linker flag.
 Doing so means that more meaningful information appears in the stack trace 
-for the error recorded on a transaction using `newrelic_notice_error()`.  
+for the error recorded on a transaction using `newrelic_notice_error()`.
 
 With these two considerations in mind, one may compile and link a simple application
 like so:
@@ -115,10 +115,10 @@ When recording an error using `newrelic_notice_error()`, callers must supply fou
 parameters to the function, as indicated in `libnewrelic.h`. Among these 
 parameters are `priority` and `errclass`. 
 
-The agent is capped at reporting 100 error traces per minute.  Supposing that over 
+The agent is capped at reporting 100 error traces per minute. Supposing that over 
 100 errors are noticed during a single minute, the total number of errors are 
 reported in New Relic metrics; only 100 would be available at the Error Analytic's 
-dashboard.  That said, in the pool of errors collected by the agent, the `priority` 
+dashboard. That said, in the pool of errors collected by the agent, the `priority` 
 of an error indicates which errors should be saved in the event that the cap has 
 been exceeded. Higher values take priority over lower values.
 
@@ -146,7 +146,7 @@ start a transaction, record an error, and end a transaction like so:
 
 As noted above, to take full advantage of the error trace feature available
 at New Relic's Error Analytics dashboard, applications should be linked using 
-GNU's `-rdynamic` linker flag.  For the example `ex_notice_error.c` in the
+GNU's `-rdynamic` linker flag. For the example `ex_notice_error.c` in the
 `examples` directory, using this linker flag means that symbols are available
 to list the function calls in the error's backtrace, like so:
 
@@ -161,7 +161,7 @@ to list the function calls in the error's backtrace, like so:
 ```
 
 The backtrace shows that the `main()` function calls `record_error()` which 
-calls `newrelic_notice_error()`.  Without the `-rdynamic` flag, the
+calls `newrelic_notice_error()`. Without the `-rdynamic` flag, the
 function symbols are not available, and so the backtrace may not be as
 meaningful:
 
