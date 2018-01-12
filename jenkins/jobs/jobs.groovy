@@ -10,6 +10,7 @@ use(extensions) {
   def host = 'source.datanerd.us'
   def executeOn = 'ec2-linux'
   def versionDescription = 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0'
+  def gitrepoDescription = 'Branch in git repository to run test against.'
   def actions = [
     'release-2-testing',
   ]
@@ -41,6 +42,7 @@ use(extensions) {
   multiJob("$project-cut-a-release") {
     parameters {
       stringParam('VERSION', '', versionDescription)
+      stringParam('GIT_REPO_BRANCH', 'master', gitrepoDescription)
       choiceParam('ACTION', actions, 'Required -- where to publish the tarball.')
     }
 
@@ -79,6 +81,10 @@ use(extensions) {
   // The PR multijob calls all of the testing base jobs required to identify
   // this commit as clean and valid.
   multiJob("$project-pullrequest") {
+    parameters {
+      stringParam('GIT_REPO_BRANCH', '${ghprbActualCommit}', gitrepoDescription)
+    }
+
     description('When the PR trigger is exercised test the agent by running the below jobs.')
 
     repositoryPR(_repo)
@@ -264,12 +270,25 @@ use(extensions) {
   }
 
   baseJob("$project-release-tests-cmocka") {
-    repo _repo
-    branch _branch
     label executeOn
 
     configure {
       description('Run the cmocka test suite in the HBB container.')
+
+      parameters {
+        stringParam('GIT_REPO_BRANCH', '', gitrepoDescription)
+      }
+
+      scm {
+        git {
+          remote {
+            url("git@" + host + ":" + _repo + ".git")
+            credentials("artifactory-jenkins-build-bot")
+            refspec("+refs/pull/*/head:refs/remotes/origin/pr/*")
+          }
+          branch('$GIT_REPO_BRANCH')
+        }
+      }
 
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
@@ -282,12 +301,25 @@ use(extensions) {
   }
 
   baseJob("$project-release-tests-axiom") {
-    repo _repo
-    branch _branch
     label executeOn
 
     configure {
       description('Run the axiom test suite in the HBB container.')
+
+      scm {
+        git {
+          remote {
+            url("git@" + host + ":" + _repo + ".git")
+            credentials("artifactory-jenkins-build-bot")
+            refspec("+refs/pull/*/head:refs/remotes/origin/pr/*")
+          }
+          branch('$GIT_REPO_BRANCH')
+        }
+      }
+
+      parameters {
+        stringParam('GIT_REPO_BRANCH', '', gitrepoDescription)
+      }
 
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
@@ -300,12 +332,25 @@ use(extensions) {
   }
 
   baseJob("$project-release-tests-axiom-valgrind") {
-    repo _repo
-    branch _branch
     label executeOn
 
     configure {
       description('Run the axiom test suite under valgrind in the HBB container.')
+
+      scm {
+        git {
+          remote {
+            url("git@" + host + ":" + _repo + ".git")
+            credentials("artifactory-jenkins-build-bot")
+            refspec("+refs/pull/*/head:refs/remotes/origin/pr/*")
+          }
+          branch('$GIT_REPO_BRANCH')
+        }
+      }
+
+      parameters {
+        stringParam('GIT_REPO_BRANCH', '', gitrepoDescription)
+      }
 
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
@@ -318,12 +363,25 @@ use(extensions) {
   }
 
   baseJob("$project-release-tests-daemon-tests") {
-    repo _repo
-    branch _branch
     label executeOn
 
     configure {
       description('Run the daemon go tests in the HBB container.')
+
+      scm {
+        git {
+          remote {
+            url("git@" + host + ":" + _repo + ".git")
+            credentials("artifactory-jenkins-build-bot")
+            refspec("+refs/pull/*/head:refs/remotes/origin/pr/*")
+          }
+          branch('$GIT_REPO_BRANCH')
+        }
+      }
+
+      parameters {
+        stringParam('GIT_REPO_BRANCH', '', gitrepoDescription)
+      }
 
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
