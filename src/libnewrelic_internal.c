@@ -4,6 +4,7 @@
 
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,32 +23,6 @@
 #include "version.h"
 
 #define NUM_BACKTRACE_FRAMES 100
-
-nrtxnopt_t* newrelic_get_default_options(void) {
-  nrtxnopt_t* opt = nr_zalloc(sizeof(nrtxnopt_t));
-
-  opt->analytics_events_enabled = true;
-  opt->custom_events_enabled = false;
-  opt->synthetics_enabled = false;
-  opt->instance_reporting_enabled = false;
-  opt->database_name_reporting_enabled = false;
-  opt->err_enabled = true;
-  opt->request_params_enabled = false;
-  opt->autorum_enabled = false;
-  opt->error_events_enabled = true;
-  opt->tt_enabled = false;
-  opt->ep_enabled = false;
-  opt->tt_recordsql = false;
-  opt->tt_slowsql = false;
-  opt->apdex_t = 0;
-  opt->tt_threshold = 0;
-  opt->ep_threshold = 0;
-  opt->ss_threshold = 0;
-  opt->cross_process_enabled = false;
-  opt->tt_is_apdex_f = 0;
-
-  return opt;
-}
 
 nrapplist_t* newrelic_init(const char* daemon_socket) {
   nrapplist_t* context = nr_applist_create();

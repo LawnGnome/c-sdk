@@ -11,7 +11,8 @@ clean:
 static: libnewrelic.a
 
 OBJS := \
-  attribute.o \
+	attribute.o \
+	config.o \
 	libnewrelic.o \
 	libnewrelic_internal.o \
 	version.o
