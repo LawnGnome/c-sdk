@@ -11,7 +11,8 @@ Generic library to communicate with New Relic.
 
 ### Getting started
 
-Instrument your code:
+Instrument your code. Consider the brief program below or look at the `examples` directory
+for source and Makefiles highlighting particular features.
 
 ```
 #include <stdio.h>
@@ -68,11 +69,22 @@ int main (void) {
 }
 ```
 
-Link your app against the library. The C agent currently ships as a static
-library, so you must also link against libpcre and libpthread. For example:
+Compile and link your application against the static library, `libnewrelic.a`. There 
+are two considerations to make during the linking step. First, because `libnewrelic.a` 
+is offered as a static library, because it is already linked with the `libpcre` 
+and `libpthread` libraries, you must also link against these two libraries to avoid 
+symbol collisions in the linking step. 
 
+Second, to take full advantage of error traces at New Relic's Error Analytics 
+dashboard, link your application using GNU's `-rdynamic` linker flag.
+Doing so means that more meaningful information appears in the stack trace 
+for the error recorded on a transaction using `newrelic_notice_error()`.
+
+With these two considerations in mind, one may compile and link a simple application
+like so:
+                                                                           
 ```
-gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread
+gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread -rdynamic
 ```
 
 Start the daemon:
@@ -94,8 +106,7 @@ Run your test application and check the `c-agent.log` file for output.
 #### Error instrumentation
 
 The agent provides the function `newrelic_notice_error()` so that customers 
-may record transaction errors that are not automatically handled by the agent.  
-Errors recorded in this manner are displayed in 
+may record transaction errors. Errors recorded in this manner are displayed in 
 [error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
 at New Relic's Error Analytics dashboard; they are available to query through
 [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
@@ -104,10 +115,10 @@ When recording an error using `newrelic_notice_error()`, callers must supply fou
 parameters to the function, as indicated in `libnewrelic.h`. Among these 
 parameters are `priority` and `errclass`. 
 
-The agent is capped at reporting 100 error traces per minute.  Supposing that over 
+The agent is capped at reporting 100 error traces per minute. Supposing that over 
 100 errors are noticed during a single minute, the total number of errors are 
 reported in New Relic metrics; only 100 would be available at the Error Analytic's 
-dashboard.  That said, in the pool of errors collected by the agent, the `priority` 
+dashboard. That said, in the pool of errors collected by the agent, the `priority` 
 of an error indicates which errors should be saved in the event that the cap has 
 been exceeded. Higher values take priority over lower values.
 
@@ -131,6 +142,36 @@ start a transaction, record an error, and end a transaction like so:
  ...
  
  newrelic_end_transaction(&txn);
+```
+
+As noted above, to take full advantage of the error trace feature available
+at New Relic's Error Analytics dashboard, applications should be linked using 
+GNU's `-rdynamic` linker flag. For the example `ex_notice_error.c` in the
+`examples` directory, using this linker flag means that symbols are available
+to list the function calls in the error's backtrace, like so:
+
+
+```                                                                           
+   ./ex_notice_error.out(newrelic_get_stack_trace_as_json+0x2e) [0x40ae6d]
+   ./ex_notice_error.out(newrelic_notice_error+0x204) [0x40a679]
+   ./ex_notice_error.out(record_error+0x2c) [0x409822]
+   ./ex_notice_error.out(main+0xe8) [0x40990d]
+   /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7ffade6e7830]
+   ./ex_notice_error.out(_start+0x29) [0x409729]
+```
+
+The backtrace shows that the `main()` function calls `record_error()` which 
+calls `newrelic_notice_error()`. Without the `-rdynamic` flag, the
+function symbols are not available, and so the backtrace may not be as
+meaningful:
+
+```
+   ./ex_notice_error.out() [0x4037fd]
+   ./ex_notice_error.out() [0x403009]
+   ./ex_notice_error.out() [0x4021b2]
+   ./ex_notice_error.out() [0x40229d]
+   /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7f39062d6830]
+   ./ex_notice_error.out() [0x4020b9]
 ```
 
 ### About

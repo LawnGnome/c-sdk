@@ -1,5 +1,5 @@
 #
-# The Makefile for the C-agent unit test suite.
+# The Makefile for the C agent unit test suite.
 #
 # all:       Builds but does not run the tests.
 # run_tests: Builds and runs the tests.
