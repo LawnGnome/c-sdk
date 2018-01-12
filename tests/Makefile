@@ -42,13 +42,13 @@ TEST_CFLAGS += -Wuninitialized
 TEST_CFLAGS += -Wunused-label
 endif
 
-TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
+TEST_CPPFLAGS := -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/php_agent/axiom/tests -I$(C_AGENT_ROOT)/include
 ifeq (1,$(HAVE_BACKTRACE))
   TEST_CPPFLAGS += -DHAVE_BACKTRACE=1
 endif
 
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic $(CMOCKA_LIB)
+TEST_LDLIBS := -L$(C_AGENT_ROOT) -lnewrelic $(CMOCKA_LIB)
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))

@@ -1,7 +1,7 @@
 #ifndef LIBNEWRELIC_INTERNAL_H
 #define LIBNEWRELIC_INTERNAL_H
 
-#include "php_agent/axiom/nr_txn.h"
+#include "nr_txn.h"
 
 typedef struct _nr_app_and_info_t {
   nrapp_t* app;

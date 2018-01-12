@@ -1,0 +1,5 @@
+create libnewrelic.a
+addlib php_agent/axiom/libaxiom.a
+addlib src/libnewrelic.a
+save
+end
