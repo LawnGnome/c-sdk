@@ -23,6 +23,7 @@ mv ./php_agent/bin/daemon libnewrelic/bin/newrelic-daemon
 mv libnewrelic.a libnewrelic/
 
 #move files from github repository over
+mv examples/ libnewrelic/examples/
 mv libnewrelic.h libnewrelic/
 mv GUIDE.md libnewrelic/
 mv LICENSE.txt libnewrelic/
