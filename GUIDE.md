@@ -70,12 +70,15 @@ int main (void) {
 ```
 
 Compile and link your application against the static library, `libnewrelic.a`.  
-There are a few considerations to make during the linking step.  First, because
-`libnewrelic.a` is offered as a static library, you must also link against 
-`libpcre` and `libpthread`. Second, to take full advantage of error traces at New 
-Relic's Error Analytics dashboard, link your application using GNU's `-rdynamic`
-linker flag.  Doing so means that more meaningful information appears in the 
-stack trace for the error recorded on a transaction using `newrelic_notice_error()`.  
+There are two considerations to make during the linking step.  First, because
+`libnewrelic.a` is offered as a static library, because it is already linked with
+the `libpcre` and `libpthread` libraries, you must also link against these two
+libraries to avoid symbol collisions in the linking step. 
+
+Second, to take full advantage of error traces at New Relic's Error Analytics 
+dashboard, link your application using GNU's `-rdynamic` linker flag.  
+Doing so means that more meaningful information appears in the stack trace 
+for the error recorded on a transaction using `newrelic_notice_error()`.  
 
 With these two considerations in mind, a simple compile and link command follows:
                                                                            
