@@ -155,8 +155,20 @@ test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
 # The top level rule to run the tests.
 #
 .PHONY: check run_tests
-check run_tests: tests Makefile
-	@for T in $(RUNNABLE_TESTS); do ./$$T $(TESTARGS); done
+check run_tests: $(RUNNABLE_TESTS:%=%.phony) Makefile | tests
+
+#
+# This is effectively a phony implicit rule, which isn't supported by make as
+# such. We'll obviously never create a (for example) test_config.phony file, but
+# this means that make will run the test binary each time the run-unit-tests
+# target above is invoked.
+#
+# The advantage to doing it this way rather than having run-unit-tests run each
+# binary in a sh for loop is that make will detect non-zero return codes and
+# abort immediately.
+#
+%.phony: %
+	@./$< $(TESTARGS)
 
 #
 # Track the flags passed to the compiler to force a rebuild when they change.
