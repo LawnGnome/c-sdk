@@ -69,18 +69,19 @@ int main (void) {
 }
 ```
 
-Compile and link your application against the static library, `libnewrelic.a`.  
-There are two considerations to make during the linking step.  First, because
-`libnewrelic.a` is offered as a static library, because it is already linked with
-the `libpcre` and `libpthread` libraries, you must also link against these two
-libraries to avoid symbol collisions in the linking step. 
+Compile and link your application against the static library, `libnewrelic.a`.  There 
+are two considerations to make during the linking step.  First, because `libnewrelic.a` 
+is offered as a static library, because it is already linked with the `libpcre` 
+and `libpthread` libraries, you must also link against these two libraries to avoid 
+symbol collisions in the linking step. 
 
 Second, to take full advantage of error traces at New Relic's Error Analytics 
 dashboard, link your application using GNU's `-rdynamic` linker flag.  
 Doing so means that more meaningful information appears in the stack trace 
 for the error recorded on a transaction using `newrelic_notice_error()`.  
 
-With these two considerations in mind, a simple compile and link command follows:
+With these two considerations in mind, one may compile and link a simple application
+like so:
                                                                            
 ```
 gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread -rdynamic
@@ -145,7 +146,7 @@ start a transaction, record an error, and end a transaction like so:
 
 As noted above, to take full advantage of the error trace feature available
 at New Relic's Error Analytics dashboard, applications should be linked using 
-GNU's `-rdynamic` linker flag.  For the example, `ex_notice_error.c` in the
+GNU's `-rdynamic` linker flag.  For the example `ex_notice_error.c` in the
 `examples` directory, using this linker flag means that symbols are available
 to list the function calls in the error's backtrace, like so:
 

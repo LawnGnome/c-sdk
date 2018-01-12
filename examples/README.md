@@ -13,7 +13,7 @@ Set these environment variables before executing the example programs.  Programs
 variables are unset.
 
 The examples in this directory presume that the locations of libnewrelic.h and libnewrelic.a are one
-level above this example directory.  If that is not the case, take care to set the following values
+level above this `examples` directory.  If that is not the case, take care to set the following values
 in `Makefile` appropriately:
 
 ```
@@ -27,8 +27,7 @@ The source file `ex_notice_error.c` offers an example of how to instrument code 
 `newrelic_notice_error()`.  With this function, users may record transaction errors.  
 
 
-To compile and execute 
-this example, from the `examples` directory:
+To compile and execute this example, from the `examples` directory:
 
 ```
 $ make ex_notice_error.out
