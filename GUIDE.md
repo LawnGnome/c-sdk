@@ -73,7 +73,7 @@ Compile and link your application against the static library, `libnewrelic.a`.
 There are a few considerations to make during the linking step.  First, because
 `libnewrelic.a` is offered as a static library, you must also link against 
 `libpcre` and `libpthread`. Second, to take full advantage of error traces at New 
-Relic's Error Analytics dashboard link your application using the `-rdynamic`.  
+Relic's Error Analytics dashboard, link your application using the `-rdynamic`.  
 Doing so means that more meaningful information appears in the stack trace for the 
 error recorded on a transaction using `newrelic_notice_error()`.  
 
