@@ -1,7 +1,7 @@
 # C Agent Instrumentation Examples
 
 The C Agent is an software development kit that allows users to manually instrument applications written in C 
-or C++ for Linux 64-bit operating systems.  The source code in this `examples` directory provides examples of
+or C++ for Linux 64-bit operating systems.  The source code in the `examples` directory provides examples of
 how to instrument code.
 
 All examples in this directory depend on two environment variables.  These are:
