@@ -94,8 +94,7 @@ Run your test application and check the `c-agent.log` file for output.
 #### Error instrumentation
 
 The agent provides the function `newrelic_notice_error()` so that customers 
-may record transaction errors that are not automatically handled by the agent.  
-Errors recorded in this manner are displayed in 
+may record transaction errors. Errors recorded in this manner are displayed in 
 [error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
 at New Relic's Error Analytics dashboard; they are available to query through
 [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
