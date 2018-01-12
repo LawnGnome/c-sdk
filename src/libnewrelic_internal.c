@@ -23,32 +23,6 @@
 
 #define NUM_BACKTRACE_FRAMES 100
 
-bool newrelic_add_attribute(newrelic_txn_t* transaction,
-                            const char* key,
-                            nrobj_t* obj) {
-  if (NULL == transaction) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute for a NULL transaction");
-    return false;
-  }
-
-  if (NULL == key) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL key");
-    return false;
-  }
-
-  if (NULL == obj) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL value");
-    return false;
-  }
-
-  if (NR_FAILURE == nr_txn_add_user_custom_parameter(transaction, key, obj)) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute for key=\"%s\"", key);
-    return false;
-  }
-
-  return true;
-}
-
 nrtxnopt_t* newrelic_get_default_options(void) {
   nrtxnopt_t* opt = nr_zalloc(sizeof(nrtxnopt_t));
 

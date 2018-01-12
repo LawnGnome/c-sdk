@@ -6,7 +6,6 @@
 
 #include "nr_agent.h"
 #include "nr_app.h"
-#include "nr_attributes.h"
 #include "nr_axiom.h"
 #include "nr_commands.h"
 #include "nr_txn.h"
@@ -190,63 +189,6 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction) {
   nr_txn_destroy(transaction);
 
   return true;
-}
-
-bool newrelic_add_attribute_int(newrelic_txn_t* transaction,
-                                const char* key,
-                                const int value) {
-  nrobj_t* obj;
-  bool outcome;
-
-  obj = nro_new_int(value);
-  outcome = newrelic_add_attribute(transaction, key, obj);
-  nro_delete(obj);
-
-  return outcome;
-}
-
-bool newrelic_add_attribute_long(newrelic_txn_t* transaction,
-                                 const char* key,
-                                 const long value) {
-  nrobj_t* obj;
-  bool outcome;
-
-  obj = nro_new_long(value);
-  outcome = newrelic_add_attribute(transaction, key, obj);
-  nro_delete(obj);
-
-  return outcome;
-}
-
-bool newrelic_add_attribute_double(newrelic_txn_t* transaction,
-                                   const char* key,
-                                   const double value) {
-  nrobj_t* obj;
-  bool outcome;
-
-  obj = nro_new_double(value);
-  outcome = newrelic_add_attribute(transaction, key, obj);
-  nro_delete(obj);
-
-  return outcome;
-}
-
-bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
-                                   const char* key,
-                                   const char* value) {
-  nrobj_t* obj;
-  bool outcome;
-
-  if (NULL == value) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL value");
-    return false;
-  }
-
-  obj = nro_new_string(value);
-  outcome = newrelic_add_attribute(transaction, key, obj);
-  nro_delete(obj);
-
-  return outcome;
 }
 
 void newrelic_notice_error(newrelic_txn_t* transaction,
