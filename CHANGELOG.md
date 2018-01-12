@@ -14,15 +14,15 @@ See `libnewrelic.h` for usage information.
 ### Bug Fixes ###
 
 - At times, when the daemon removed an application after a 10-minute timeout, the agent 
-daemon exited in failure.  This has been fixed.
+daemon exited in failure. This has been fixed.
 
 ### End of Life Notices ###
 
 ### Upgrade Notices ###
 
 * The function `bool newrelic_end_transaction(newrelic_txn_t** transaction)` has changed
-  its return type from void to bool.  A value of true is returned if the transaction was
-  properly sent.  An error is still logged on failure.
+  its return type from void to bool. A value of true is returned if the transaction was
+  properly sent. An error is still logged on failure.
 
 * The function `bool newrelic_destroy_app(newrelic_app_t** app)` has changed its return
   type from void to bool.
