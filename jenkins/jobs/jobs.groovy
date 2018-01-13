@@ -10,7 +10,7 @@ use(extensions) {
   def host = 'source.datanerd.us'
   def executeOn = 'ec2-linux'
   def versionDescription = 'Version is denoted as [Major].[Minor].[Patch] For example: 1.1.0'
-  def gitrepoDescription = 'Branch in git repository to run test against.'
+  def gitrepoDescription = 'Branch in Git repository to run test jobs against.'
   def actions = [
     'release-2-testing',
   ]
