@@ -4,16 +4,26 @@
 
 ### New Features ###
 
-- Customers may now use `newrelic_notice_error()` to record transaction errors that 
-are not automatically handled by the agent. Errors recorded in this manner are displayed in 
-[error traces] (https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
-and are available to query through 
-[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).  
+### Bug Fixes ###
+
+### End of Life Notices ###
+
+### Upgrade Notices ###
+
+## 0.0.3-alpha ##
+
+### New Features ###
+
+- Customers may now use `newrelic_notice_error()` to record transaction errors that
+are not automatically handled by the agent. Errors recorded in this manner are displayed in
+[error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
+and are available to query through
+[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).
 See `libnewrelic.h` for usage information.
 
 ### Bug Fixes ###
 
-- At times, when the daemon removed an application after a 10-minute timeout, the agent 
+- At times, when the daemon removed an application after a 10-minute timeout, the agent
 daemon exited in failure. This has been fixed.
 
 ### End of Life Notices ###
