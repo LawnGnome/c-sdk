@@ -1,7 +1,5 @@
-#ifndef LIBNEWRELIC_INTERNAL_H
-#define LIBNEWRELIC_INTERNAL_H
-
-#include "nr_txn.h"
+#ifndef LIBNEWRELIC_STACK_H
+#define LIBNEWRELIC_STACK_H
 
 /*
  * Purpose: Returns the current stack trace as a JSON string
@@ -15,4 +13,4 @@
  */
 char* newrelic_get_stack_trace_as_json(void);
 
-#endif /* LIBNEWRELIC_INTERNAL_H */
+#endif /* LIBNEWRELIC_STACK_H */

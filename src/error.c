@@ -1,20 +1,10 @@
 #include "libnewrelic.h"
-#include "libnewrelic_internal.h"
+#include "stack.h"
+#include "transaction.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "nr_agent.h"
-#include "nr_app.h"
-#include "nr_axiom.h"
-#include "nr_commands.h"
 #include "nr_txn.h"
-#include "util_object.h"
 #include "util_logging.h"
 #include "util_memory.h"
-#include "util_strings.h"
-#include "util_sleep.h"
-#include "version.h"
 
 void newrelic_notice_error(newrelic_txn_t* transaction,
                            int priority,

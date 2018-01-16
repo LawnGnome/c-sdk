@@ -8,7 +8,6 @@
 
 #include "libnewrelic.h"
 #include "app.h"
-#include "libnewrelic_internal.h"
 #include "test.h"
 #include "util_logging.h"
 #include "util_memory.h"

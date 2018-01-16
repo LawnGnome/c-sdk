@@ -7,7 +7,6 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
-#include "libnewrelic_internal.h"
 #include "app.h"
 #include "test.h"
 

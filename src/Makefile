@@ -15,8 +15,8 @@ OBJS := \
 	app_internal.o \
 	attribute.o \
 	config.o \
-	libnewrelic.o \
-	libnewrelic_internal.o \
+	error.o \
+	stack.o \
 	transaction.o \
 	version.o
 
