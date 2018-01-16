@@ -17,6 +17,7 @@ OBJS := \
 	config.o \
 	libnewrelic.o \
 	libnewrelic_internal.o \
+	transaction.o \
 	version.o
 
 version.o: $(C_AGENT_ROOT)/VERSION

@@ -5,6 +5,7 @@
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
 #include "app.h"
+#include "transaction.h"
 #include "nr_txn.h"
 #include "util_memory.h"
 

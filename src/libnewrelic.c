@@ -16,46 +16,6 @@
 #include "util_sleep.h"
 #include "version.h"
 
-newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
-                                               const char* name) {
-  return newrelic_start_transaction(app, name, true);
-}
-
-newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
-                                                   const char* name) {
-  return newrelic_start_transaction(app, name, false);
-}
-
-bool newrelic_end_transaction(newrelic_txn_t** transaction) {
-  if ((NULL == transaction) || (NULL == *transaction)) {
-    nrl_error(NRL_INSTRUMENT, "unable to end a NULL transaction");
-    return false;
-  }
-
-  nr_txn_end(*transaction);
-
-  nrl_verbose(NRL_INSTRUMENT,
-              "sending txnname='%.64s'"
-              " agent_run_id=" NR_AGENT_RUN_ID_FMT
-              " nodes_used=%d"
-              " duration=" NR_TIME_FMT " threshold=" NR_TIME_FMT,
-              (*transaction)->name ? (*transaction)->name : "unknown",
-              (*transaction)->agent_run_id, (*transaction)->nodes_used,
-              nr_txn_duration((*transaction)),
-              (*transaction)->options.tt_threshold);
-
-  if (0 == (*transaction)->status.ignore) {
-    if (NR_FAILURE == nr_cmd_txndata_tx(nr_get_daemon_fd(), *transaction)) {
-      nrl_error(NRL_INSTRUMENT, "failed to send transaction");
-      return false;
-    }
-  }
-
-  nr_txn_destroy(transaction);
-
-  return true;
-}
-
 void newrelic_notice_error(newrelic_txn_t* transaction,
                            int priority,
                            const char* errmsg,

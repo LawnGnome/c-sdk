@@ -25,43 +25,6 @@
 
 #define NUM_BACKTRACE_FRAMES 100
 
-newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
-                                           const char* name,
-                                           bool is_web_transaction) {
-  newrelic_txn_t* transaction = NULL;
-  nrtxnopt_t* options = NULL;
-  nr_attribute_config_t* attribute_config = NULL;
-
-  if (NULL == app) {
-    nrl_error(NRL_INSTRUMENT,
-              "unable to start transaction with a NULL application");
-    return NULL;
-  }
-
-  options = newrelic_get_default_options();
-  transaction = nr_txn_begin(app->app, options, attribute_config);
-
-  if (NULL == name) {
-    name = "NULL";
-  }
-
-  nr_txn_set_path(NULL, transaction, name, NR_PATH_TYPE_ACTION,
-                  NR_OK_TO_OVERWRITE);
-
-  nr_attribute_config_destroy(&attribute_config);
-  nr_free(options);
-
-  if (is_web_transaction) {
-    nr_txn_set_as_web_transaction(transaction, 0);
-    nrl_verbose(NRL_INSTRUMENT, "starting web transaction \"%s\"", name);
-  } else {
-    nr_txn_set_as_background_job(transaction, 0);
-    nrl_verbose(NRL_INSTRUMENT, "starting non-web transaction \"%s\"", name);
-  }
-
-  return transaction;
-}
-
 char* newrelic_get_stack_trace_as_json(void) {
 #ifdef HAVE_BACKTRACE
   size_t size_of_backtrace_array;
