@@ -82,6 +82,8 @@ PCRE_CFLAGS := $(shell pcre-config --cflags)
 AGENT_VERSION := $(shell if test -f VERSION; then cat VERSION; fi)
 VERSION_FLAGS += -DNEWRELIC_VERSION=$(AGENT_VERSION)
 
+export AGENT_VERSION VERSION_FLAGS
+
 all: libnewrelic.a
 
 #
