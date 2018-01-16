@@ -160,4 +160,4 @@ test_app: test_app.o libnewrelic.a
 	$(CC) -rdynamic -o $@ -I$(C_AGENT_ROOT)/include $^ $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 test_app_dynamic: test_app.o libnewrelic.so
-	$(CC) -o test_app test_app.o -L. -lnewrelic
+	$(CC) -o $@ $< -L. -lnewrelic
