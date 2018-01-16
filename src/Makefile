@@ -6,7 +6,7 @@
 
 .PHONY: clean static
 clean:
-	rm -f *.o libnewrelic.a libnewrelic.so
+	rm -f *.o *.d .deps libnewrelic.a libnewrelic.so
 
 static: libnewrelic.a
 
@@ -20,10 +20,15 @@ OBJS := \
 	transaction.o \
 	version.o
 
-version.o: $(C_AGENT_ROOT)/VERSION
+%.o: %.c Makefile .deps/compile_flags
+	$(CC) $(C_AGENT_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(C_AGENT_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 
-%.o: %.c
-	$(CC) $(C_AGENT_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(C_AGENT_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
+#
+# Handle version.o separately to minimize the recompilation necessary
+# when the version number or commit SHA changes.
+#
+version.o: version.c Makefile .deps/compile_flags .deps/version_flags $(C_AGENT_ROOT)/VERSION
+	$(CC) $(C_AGENT_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(C_AGENT_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 
 #
 # Note that this rule only builds the C agent object files into the static
@@ -33,3 +38,31 @@ version.o: $(C_AGENT_ROOT)/VERSION
 #
 libnewrelic.a: $(OBJS)
 	$(AR) rcs $@ $^
+
+#
+# Track the flags passed to the compiler to force a rebuild when they change.
+# This ensures a rebuild occurs when the version number or commit are updated.
+# These rules must kept in sync with the pattern rules used to perform the
+# actual compilation.
+#
+# The trick here is forcing the .deps/*_flags targets to be re-evaluated for
+# each build while ensuring they are only out of date if their contents need
+# to be updated. We use a PHONY dependency to do so.
+#
+.PHONY: force
+.deps/compile_flags: force | .deps/
+	@echo '$(AXIOM_CPPFLAGS) $(CPPFLAGS) $(AXIOM_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS)' | cmp -s - $@ || echo '$(AXIOM_CPPFLAGS) $(CPPFLAGS) $(AXIOM_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS)' > $@
+
+.deps/version_flags: force | .deps/
+	@echo '$(VERSION_FLAGS)' | cmp -s - $@ || echo '$(VERSION_FLAGS)' > $@
+
+.deps/:
+	@mkdir .deps
+
+#
+# Dependency handling. When we build a .o file, we also build a .d file
+# containing that module's dependencies using -MM. Those files are in Makefile
+# format, so we include them here to define dependency rules: this means that
+# if we change a header, all affected modules will be recompiled automatically.
+#
+-include $(OBJS:.o=.d)
