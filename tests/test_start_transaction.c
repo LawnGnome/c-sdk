@@ -4,6 +4,7 @@
 #include <cmocka.h>
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
+#include "app.h"
 #include "nr_txn.h"
 #include "util_memory.h"
 

@@ -8,6 +8,7 @@
 
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
+#include "app.h"
 #include "test.h"
 #include "nr_app.h"
 #include "nr_agent.h"

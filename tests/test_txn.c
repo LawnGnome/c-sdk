@@ -6,6 +6,7 @@
 
 #include "libnewrelic.h"
 #include "libnewrelic_internal.h"
+#include "app.h"
 
 #include "nr_txn.h"
 #include "test.h"
