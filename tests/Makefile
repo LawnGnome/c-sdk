@@ -42,13 +42,13 @@ TEST_CFLAGS += -Wuninitialized
 TEST_CFLAGS += -Wunused-label
 endif
 
-TEST_CPPFLAGS := -I../php_agent/axiom -I../php_agent/axiom/tests -I..
+TEST_CPPFLAGS := -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/php_agent/axiom/tests -I$(C_AGENT_ROOT)/include
 ifeq (1,$(HAVE_BACKTRACE))
   TEST_CPPFLAGS += -DHAVE_BACKTRACE=1
 endif
 
 TEST_LDFLAGS :=
-TEST_LDLIBS := -L.. -lnewrelic $(CMOCKA_LIB)
+TEST_LDLIBS := $(C_AGENT_ROOT)/libnewrelic.a $(CMOCKA_LIB)
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
@@ -147,6 +147,12 @@ tests: $(TESTS)
 #
 # -Wl,--wrap=foo -Wl,--wrap=bar
 #
+# Note that GNU ld's function wrapping functionality can only be applied to
+# functions that are being linked. Notably, this means that you cannot change a
+# call from one function to another within the same translation unit. This
+# generally doesn't pose major issues when mocking axiom functions, but care
+# must be taken when mocking libnewrelic functions that those functions are not
+# called from within the same source file.
 #
 test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
 	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')

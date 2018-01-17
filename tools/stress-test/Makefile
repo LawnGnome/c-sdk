@@ -7,7 +7,7 @@ OBJS = stress_app.o
 # This Makefile presumes that the locations of libnewrelic.h and libnewrelic.a are one
 # level above this example directory.
 LIBNEWRELIC_A_LOCATION = ../..
-LIBNEWRELIC_H_LOCATION = ../..
+LIBNEWRELIC_H_LOCATION = ../../include
 AXIOM_LOCATION = ../../php_agent/axiom
 
 all:	stress_app

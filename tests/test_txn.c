@@ -5,7 +5,8 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
-#include "libnewrelic_internal.h"
+#include "app.h"
+#include "transaction.h"
 
 #include "nr_txn.h"
 #include "test.h"

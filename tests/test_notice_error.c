@@ -7,7 +7,7 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
-#include "libnewrelic_internal.h"
+#include "config.h"
 
 #include "nr_txn.h"
 #include "test.h"

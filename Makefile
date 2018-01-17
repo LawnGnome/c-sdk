@@ -1,44 +1,72 @@
+#
+# "What's in the bag? A shark or something?"
+#
+# No, Nicolas. It's a C agent, and we're going to build it.
+#
+# Useful top level targets:
+#
+# - all:       Builds libnewrelic.a
+# - clean:     Removes all build products
+# - daemon:    Builds the daemon in php_agent/bin
+# - dynamic:   Builds libnewrelic.so
+# - static:    Builds libnewrelic.a
+# - run_tests: Runs the unit tests
+#
+
+#
+# The PHP agent's build system does a bunch of useful platform detection that
+# we need both in general and to utilise axiom. Let's pull it in straightaway.
+#
 include php_agent/make/config.mk
 
-AGENT_SDK_CPPFLAGS := $(PLATFORM_DEFS)
-AGENT_SDK_CPPFLAGS += -Iphp_agent/axiom
+#
+# Set up the basic variables required to build the C agent. This is mostly
+# knowing where we are in the filesystem and setting up the appropriate
+# compiler flags.
+#
+C_AGENT_ROOT := $(shell pwd)
 
-AGENT_SDK_CFLAGS := -std=gnu99 -fPIC -DPIC -pthread
-AGENT_SDK_CFLAGS += -Wall
-AGENT_SDK_CFLAGS += -Werror
-AGENT_SDK_CFLAGS += -Wextra
-AGENT_SDK_CFLAGS += -Wbad-function-cast
-AGENT_SDK_CFLAGS += -Wcast-qual
-AGENT_SDK_CFLAGS += -Wdeclaration-after-statement
-AGENT_SDK_CFLAGS += -Wimplicit-function-declaration
-AGENT_SDK_CFLAGS += -Wmissing-declarations
-AGENT_SDK_CFLAGS += -Wmissing-prototypes
-AGENT_SDK_CFLAGS += -Wno-write-strings
-AGENT_SDK_CFLAGS += -Wpointer-arith
-AGENT_SDK_CFLAGS += -Wshadow
-AGENT_SDK_CFLAGS += -Wstrict-prototypes
-AGENT_SDK_CFLAGS += -Wswitch-enum
+C_AGENT_CPPFLAGS := $(PLATFORM_DEFS)
+C_AGENT_CPPFLAGS += -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/include
+
+C_AGENT_CFLAGS := -std=gnu99 -fPIC -DPIC -pthread
+C_AGENT_CFLAGS += -Wall
+C_AGENT_CFLAGS += -Werror
+C_AGENT_CFLAGS += -Wextra
+C_AGENT_CFLAGS += -Wbad-function-cast
+C_AGENT_CFLAGS += -Wcast-qual
+C_AGENT_CFLAGS += -Wdeclaration-after-statement
+C_AGENT_CFLAGS += -Wimplicit-function-declaration
+C_AGENT_CFLAGS += -Wmissing-declarations
+C_AGENT_CFLAGS += -Wmissing-prototypes
+C_AGENT_CFLAGS += -Wno-write-strings
+C_AGENT_CFLAGS += -Wpointer-arith
+C_AGENT_CFLAGS += -Wshadow
+C_AGENT_CFLAGS += -Wstrict-prototypes
+C_AGENT_CFLAGS += -Wswitch-enum
 
 ifeq (1,$(HAVE_CLANG))
-AGENT_SDK_CFLAGS += -Wbool-conversion
-AGENT_SDK_CFLAGS += -Wempty-body
-AGENT_SDK_CFLAGS += -Wheader-hygiene
-AGENT_SDK_CFLAGS += -Wimplicit-fallthrough
-AGENT_SDK_CFLAGS += -Wlogical-op-parentheses
-AGENT_SDK_CFLAGS += -Wloop-analysis
-AGENT_SDK_CFLAGS += -Wsizeof-array-argument
-AGENT_SDK_CFLAGS += -Wstring-conversion
-AGENT_SDK_CFLAGS += -Wswitch
-AGENT_SDK_CFLAGS += -Wswitch-enum
-AGENT_SDK_CFLAGS += -Wuninitialized
-AGENT_SDK_CFLAGS += -Wunused-label
+C_AGENT_CFLAGS += -Wbool-conversion
+C_AGENT_CFLAGS += -Wempty-body
+C_AGENT_CFLAGS += -Wheader-hygiene
+C_AGENT_CFLAGS += -Wimplicit-fallthrough
+C_AGENT_CFLAGS += -Wlogical-op-parentheses
+C_AGENT_CFLAGS += -Wloop-analysis
+C_AGENT_CFLAGS += -Wsizeof-array-argument
+C_AGENT_CFLAGS += -Wstring-conversion
+C_AGENT_CFLAGS += -Wswitch
+C_AGENT_CFLAGS += -Wswitch-enum
+C_AGENT_CFLAGS += -Wuninitialized
+C_AGENT_CFLAGS += -Wunused-label
 endif
 
+export C_AGENT_ROOT C_AGENT_CFLAGS C_AGENT_CPPFLAGS
+
 #
-# CMOCKA
+# Set up the appropriate flags for cmocka, since we use that for unit tests.
 #
-CMOCKA_LIB = $(shell pwd)/vendor/cmocka/build/src/libcmocka.a
-CMOCKA_INCLUDE = -I$(shell pwd)/vendor/cmocka/include
+CMOCKA_LIB = $(C_AGENT_ROOT)/vendor/cmocka/build/src/libcmocka.a
+CMOCKA_INCLUDE = -I$(C_AGENT_ROOT)/vendor/cmocka/include
 
 export CMOCKA_LIB
 export CMOCKA_INCLUDE
@@ -47,15 +75,31 @@ export CMOCKA_INCLUDE
 # Check whether it exists, and if not assume a sensible default.
 PCRE_CFLAGS := $(shell pcre-config --cflags)
 
+#
+# We pull in the current agent version from the VERSION file, and expose it to
+# the source code as the NEWRELIC_VERSION preprocessor define.
+#
 AGENT_VERSION := $(shell if test -f VERSION; then cat VERSION; fi)
 VERSION_FLAGS += -DNEWRELIC_VERSION=$(AGENT_VERSION)
 
-OBJS := \
-	libnewrelic.o \
-	libnewrelic_internal.o \
-	version.o
+export AGENT_VERSION VERSION_FLAGS
 
-all:  axiom libnewrelic.a
+all: libnewrelic.a
+
+#
+# This rule builds a static axiom library and a static C agent library, and
+# then uses GNU ar's MRI support to smoosh them together into a single,
+# beautiful library.
+#
+# TODO: consider linking PCRE in, if we can rename/hide it from symbol
+#       collisions.
+# TODO: maybe have a fallback that doesn't rely on GNU ar.
+#
+libnewrelic.a: combine.mri axiom src/libnewrelic.a
+	$(AR) -M < $<
+
+.PHONY: static
+static: libnewrelic.a
 
 .PHONY: run_tests
 run_tests: vendor libnewrelic.a
@@ -83,32 +127,41 @@ daemon:
 daemon-clean:
 	$(MAKE) -C php_agent daemon-clean
 
-libnewrelic.a: $(OBJS) php_agent/axiom/libaxiom.a
-	cp php_agent/axiom/libaxiom.a libnewrelic.a
-	$(AR) rcs $@ $(OBJS)
+.PHONY: dynamic
+dynamic: libnewrelic.so
 
+#
+# We build the shared library at the top level, since it's easiest to just take
+# the static library and have gcc wrap it in the appropriate shared library
+# goop.
+#
 # TODO: statically link to pcre instead
+#
 libnewrelic.so: libnewrelic.a
 	$(CC) -shared -pthread $(PCRE_CFLAGS) -ldl -o $@ -Wl,--whole-archive $^  -Wl,--no-whole-archive
 
-version.o: VERSION
+src/libnewrelic.a:
+	$(MAKE) -C src static
 
-%.o: %.c
-	$(CC) $(AGENT_SDK_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(AGENT_SDK_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
+.PHONY: src-clean
+src-clean:
+	$(MAKE) -C src clean
 
-.PHONY: clean
-clean: axiom-clean daemon-clean
-	rm -f *.o libnewrelic.a libnewrelic.so test_app stress_app
+.PHONY: tests-clean
+tests-clean:
 	$(MAKE) -C tests clean
 
-dynamic: libnewrelic.so
+.PHONY: clean
+clean: axiom-clean daemon-clean src-clean tests-clean
+	rm -f *.o test_app stress_app libnewrelic.a libnewrelic.so
+
+# Implicit rule for top level test programs.
+%.o: %.c
+	$(CC) $(C_AGENT_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(C_AGENT_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
 
 # this can't be run when the .so is present or else it will use it
 test_app: test_app.o libnewrelic.a
-	$(CC) -rdynamic -o test_app test_app.o -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
+	$(CC) -rdynamic -o $@ -I$(C_AGENT_ROOT)/include $^ $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 test_app_dynamic: test_app.o libnewrelic.so
-	$(CC) -o test_app test_app.o -L. -lnewrelic
-
-stress_app: stress_app.o libnewrelic.a
-	$(CC) -o $@ $< -L. -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
+	$(CC) -o $@ $< -L. -lnewrelic

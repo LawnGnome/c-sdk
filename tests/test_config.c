@@ -7,6 +7,7 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
+#include "config.h"
 #include "test.h"
 
 #define LICENSE_KEY ("Thisisafortycharacterkeyabcdefghijklmnop")

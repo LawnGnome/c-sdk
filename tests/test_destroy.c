@@ -7,7 +7,7 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
-#include "libnewrelic_internal.h"
+#include "app.h"
 #include "test.h"
 
 static void test_destroy_null(void** state NRUNUSED) {
