@@ -11,7 +11,7 @@
 
 2. Kick off Jenkins.
 
-- Start the process by building [c-agent-cut-a-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-cut-a-release/build?delay=0sec) with the `VERSION` number found in the [VERSION file](https://source.datanerd.us/c-agent/c-agent/blob/master/VERSION). The downstream jobs will perform the following actions.
+- Start the process by building [c-agent-cut-a-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-cut-a-release/build?delay=0sec) with the `VERSION` number found in the [VERSION file](https://source.datanerd.us/c-agent/c-agent/blob/master/VERSION).  Leave the  `GIT_REPO_BRANCH` set to `master`, and choose the final destination for the archive from the `ACTION` parameter. The downstream jobs will perform the following actions.
 
 - The [c-agent-compare-version](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-compare-version/) job sanity checks the version given as the input parameter versus what is found in the VERSION file of the repository.
 
