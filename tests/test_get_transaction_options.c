@@ -21,8 +21,7 @@ static void test_get_transaction_options_default(void** state NRUNUSED) {
   nrtxnopt_t* actual = newrelic_get_transaction_options(NULL);
   nrtxnopt_t* expected = newrelic_get_default_options();
 
-  /* Assert that the options were set accordingly.
-   */
+  /* Assert that the options were set accordingly. */
   assert_true(nr_txn_cmp_options(actual, expected));
 
   nr_free(actual);
@@ -45,8 +44,7 @@ static void test_get_transaction_options_tt_disabled(void** state NRUNUSED) {
 
   expected->tt_enabled = false;
 
-  /* Assert that the options were set accordingly.
-   */
+  /* Assert that the options were set accordingly. */
   assert_true(nr_txn_cmp_options(actual, expected));
 
   nr_free(actual);
@@ -71,8 +69,7 @@ static void test_get_transaction_options_tt_threshold_apdex(void** state NRUNUSE
   expected->tt_enabled = true;
   expected->tt_is_apdex_f = true;
 
-  /* Assert that the options were set accordingly.
-   */
+  /* Assert that the options were set accordingly. */
   assert_true(nr_txn_cmp_options(actual, expected));
 
   nr_free(actual);
@@ -99,8 +96,7 @@ static void test_get_transaction_options_tt_threshold_duration(void** state NRUN
   expected->tt_is_apdex_f = false;
   expected->tt_threshold = 10;
 
-  /* Assert that the options were set accordingly.
-   */
+  /* Assert that the options were set accordingly. */
   assert_true(nr_txn_cmp_options(actual, expected));
 
   nr_free(actual);
