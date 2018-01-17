@@ -103,6 +103,7 @@ TESTS := \
 	test_destroy \
 	test_end_transaction \
 	test_get_default_options \
+	test_get_transaction_options \
 	test_init \
 	test_notice_error \
 	test_start_transaction \
