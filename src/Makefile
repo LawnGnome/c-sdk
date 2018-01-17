@@ -6,7 +6,8 @@
 
 .PHONY: clean static
 clean:
-	rm -f *.o *.d .deps libnewrelic.a libnewrelic.so
+	rm -f *.o *.d libnewrelic.a libnewrelic.so
+	rm -rf .deps
 
 static: libnewrelic.a
 
