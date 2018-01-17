@@ -4,6 +4,8 @@
 
 ### New Features ###
 
+- Added configuration options to control transaction trace generation.
+
 ### Bug Fixes ###
 
 ### End of Life Notices ###
