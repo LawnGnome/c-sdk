@@ -42,7 +42,7 @@ TEST_CFLAGS += -Wuninitialized
 TEST_CFLAGS += -Wunused-label
 endif
 
-TEST_CPPFLAGS := -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/php_agent/axiom/tests -I$(C_AGENT_ROOT)/include
+TEST_CPPFLAGS := -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/php_agent/axiom/tests -I$(C_AGENT_ROOT)/include -DC_AGENT_ROOT=$(C_AGENT_ROOT)
 ifeq (1,$(HAVE_BACKTRACE))
   TEST_CPPFLAGS += -DHAVE_BACKTRACE=1
 endif
@@ -104,11 +104,12 @@ TESTS := \
 	test_end_transaction \
 	test_get_default_options \
 	test_get_transaction_options \
+	test_get_stack_trace_as_json \
 	test_init \
 	test_notice_error \
 	test_start_transaction \
 	test_txn \
-	test_get_stack_trace_as_json \
+	test_version \
 
 #
 # The list of tests to skip and tests to run.
