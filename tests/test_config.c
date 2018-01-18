@@ -49,6 +49,11 @@ static void test_config_justright_license_key(void** state NRUNUSED) {
   newrelic_config_t* config;
   config = newrelic_new_config("Test App", LICENSE_KEY);
   assert_non_null(config);
+
+  /* Test non-zero defaults. */
+  assert_true(config->transaction_tracer.enabled);
+  assert_true(NEWRELIC_THRESHOLD_IS_APDEX_FAILING == config->transaction_tracer.threshold);
+
   free(config);
 }
 

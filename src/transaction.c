@@ -63,7 +63,7 @@ newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
     return NULL;
   }
 
-  options = newrelic_get_default_options();
+  options = newrelic_get_transaction_options(app->config);
   transaction = nr_txn_begin(app->app, options, attribute_config);
 
   if (NULL == name) {

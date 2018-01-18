@@ -23,6 +23,11 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
 
   nr_strxcpy(config->app_name, app_name, nr_strlen(app_name));
   nr_strxcpy(config->license_key, license_key, nr_strlen(license_key));
+ 
+  /* Set up the default transaction tracer configuration. */
+  config->transaction_tracer.enabled = true;
+  config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_APDEX_FAILING;
+  config->transaction_tracer.duration_us = 0;
 
   return config;
 }
@@ -39,7 +44,7 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->request_params_enabled = false;
   opt->autorum_enabled = false;
   opt->error_events_enabled = true;
-  opt->tt_enabled = false;
+  opt->tt_enabled = true;
   opt->ep_enabled = false;
   opt->tt_recordsql = false;
   opt->tt_slowsql = false;
@@ -48,7 +53,26 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->ep_threshold = 0;
   opt->ss_threshold = 0;
   opt->cross_process_enabled = false;
-  opt->tt_is_apdex_f = 0;
+  opt->tt_is_apdex_f = true;
+
+  return opt;
+}
+
+nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
+  nrtxnopt_t* opt = newrelic_get_default_options();
+
+  if (NULL != config) {
+    opt->tt_enabled = (int) config->transaction_tracer.enabled;
+
+    if (NEWRELIC_THRESHOLD_IS_APDEX_FAILING == config->transaction_tracer.threshold) {
+      opt->tt_is_apdex_f = 1;
+      /* tt_threshold will be overwritten in nr_txn_begin() if tt_is_apdex_f is
+       * set. */
+    } else {
+      opt->tt_is_apdex_f = 0;
+      opt->tt_threshold = (uint64_t) config->transaction_tracer.duration_us;
+    }
+  }
 
   return opt;
 }

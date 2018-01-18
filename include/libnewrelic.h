@@ -8,6 +8,7 @@
 #define LIBNEWRELIC_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,38 @@ typedef enum _newrelic_loglevel_t {
   LOG_ERROR,
   LOG_VERBOSE
 } newrelic_loglevel_t;
+
+/*! Agent configuration used to configure the behaviour of the transaction
+ *  tracer.
+ */
+typedef enum _newrelic_transaction_tracer_threshold_t {
+  /*! Use 4*apdex(T) as the minimum time a transaction must take before it is
+   *  eligible for a transaction trace.
+   */
+  NEWRELIC_THRESHOLD_IS_APDEX_FAILING,
+
+  /*! Use the value given in the duration_us field as the minimum time a
+   *  transaction must take before it is eligible for a transaction trace.
+   */
+  NEWRELIC_THRESHOLD_IS_OVER_DURATION,
+} newrelic_transaction_tracer_threshold_t;
+
+/*! @brief Agent configuration used to configure transaction tracing. */
+typedef struct _newrelic_transaction_tracer_config_t {
+  /*! Whether to enable transaction traces. */
+  bool enabled;
+
+  /*! Whether to consider transactions for trace generation based on the apdex
+   *  configuration or a specific duration.
+   */
+  newrelic_transaction_tracer_threshold_t threshold;
+
+  /*! If threshold is set to NEWRELIC_THRESHOLD_IS_OVER_DURATION, this field
+   *  specifies the minimum transaction time before a trace may be generated,
+   *  in microseconds.
+   */
+  uint64_t duration_us;
+} newrelic_transaction_tracer_config_t;
 
 /*!
  * @brief Agent configuration used to describe application name, license key, as
@@ -86,6 +119,12 @@ typedef struct _newrelic_config_t {
    * LOG_DEBUG, LOG_VERBOSE.
    */
   newrelic_loglevel_t log_level;
+
+  /*! Optional. The transaction tracer configuration. By default, the
+   *  configuration returned by newrelic_new_config() will enable transaction
+   *  traces, with the threshold set to NEWRELIC_THRESHOLD_IS_APDEX_FAILING.
+   */
+  newrelic_transaction_tracer_config_t transaction_tracer;
 
 } newrelic_config_t;
 

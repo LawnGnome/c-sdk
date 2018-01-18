@@ -21,6 +21,8 @@ static void test_get_default_options(void** state NRUNUSED) {
   correct->analytics_events_enabled = true;
   correct->err_enabled = true;
   correct->error_events_enabled = true;
+  correct->tt_enabled = true;
+  correct->tt_is_apdex_f = true;
 
   /* Assert that the true portion of the default options were set accordingly.
    */
