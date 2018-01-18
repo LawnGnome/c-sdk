@@ -24,10 +24,10 @@ typedef struct _nr_app_and_info_t newrelic_app_t;
 /*!
  * @brief Transaction. A transaction is started using
  * newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(). A transaction is stopped using
- * newrelic_end_transaction(). One may modify a transaction by adding custom
- * attributes or recording errors to a transaction only after it has been
- * started.
+ * newrelic_start_non_web_transaction(). A started, or active, transaction is
+ * stopped using newrelic_end_transaction(). One may modify an active
+ * transaction by adding custom attributes or recording errors to a
+ * transaction only after it has been started.
  */
 typedef struct _nrtxn_t newrelic_txn_t;
 
@@ -44,8 +44,8 @@ typedef enum _newrelic_loglevel_t {
   LOG_VERBOSE
 } newrelic_loglevel_t;
 
-/*! Agent configuration used to configure the behaviour of the transaction
- *  tracer.
+/*! @brief Agent configuration used to configure the behaviour of the
+ * transaction tracer.
  */
 typedef enum _newrelic_transaction_tracer_threshold_t {
   /*! Use 4*apdex(T) as the minimum time a transaction must take before it is
@@ -69,9 +69,9 @@ typedef struct _newrelic_transaction_tracer_config_t {
    */
   newrelic_transaction_tracer_threshold_t threshold;
 
-  /*! If threshold is set to NEWRELIC_THRESHOLD_IS_OVER_DURATION, this field
-   *  specifies the minimum transaction time before a trace may be generated,
-   *  in microseconds.
+  /*! If the agent configuration threshold is set to
+   *  NEWRELIC_THRESHOLD_IS_OVER_DURATION, this field specifies the minimum
+   *  transaction time before a trace may be generated, in microseconds.
    */
   uint64_t duration_us;
 } newrelic_transaction_tracer_config_t;
@@ -181,7 +181,7 @@ bool newrelic_destroy_app(newrelic_app_t** app);
  * @brief Start a web based transaction.
  *
  * Given an application pointer and transaction name, this function begins
- * timing a new transaction. It returns a valid pointer to a New Relic
+ * timing a new transaction. It returns a valid pointer to an active New Relic
  * transaction, newrelic_txn_t.  The return value of this function may be
  * used as an input parameter to functions that modify an active transaction.
  *
@@ -212,8 +212,7 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
 /*!
  * @brief End a transaction.
  *
- * Given a transaction started by newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(), this function stops the transaction's
+ * Given an active transaction, this function stops the transaction's
  * timing, sends any data to the New Relic daemon, and destroys the transaction.
  *
  * @param [in] transaction The address of a pointer to an active transaction.
@@ -226,12 +225,11 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction);
 /*!
  * @brief Add a custom integer attribute to a transaction.
  *
- * Given a transaction started by newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(), this function appends an
+ * Given an active transaction, this function appends an
  * integer attribute to the transaction.
  *
  * @param [in] transaction An active transaction.
- * @param [in] name The name of the attribute.
+ * @param [in] key The name of the attribute.
  * @param [in] value The integer value of the attribute.
  *
  * @return true if successful; false otherwise.
@@ -243,12 +241,11 @@ bool newrelic_add_attribute_int(newrelic_txn_t* transaction,
 /*!
  * @brief Add a custom long attribute to a transaction.
  *
- * Given a transaction started by newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(), this function appends a
+ * Given an active transaction, this function appends a
  * long attribute to the transaction.
  *
  * @param [in] transaction An active transaction.
- * @param [in] name The name of the attribute.
+ * @param [in] key The name of the attribute.
  * @param [in] value The long value of the attribute.
  *
  * @return true if successful; false otherwise.
@@ -260,12 +257,11 @@ bool newrelic_add_attribute_long(newrelic_txn_t* transaction,
 /*!
  * @brief Add a custom double attribute to a transaction.
  *
- * Given a transaction started by newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(), this function appends a
+ * Given an active transaction, this function appends a
  * double attribute to the transaction.
  *
  * @param [in] transaction An active transaction.
- * @param [in] name The name of the attribute.
+ * @param [in] key The name of the attribute.
  * @param [in] value The double value of the attribute.
  *
  * @return true if successful; false otherwise.
@@ -277,12 +273,11 @@ bool newrelic_add_attribute_double(newrelic_txn_t* transaction,
 /*!
  * @brief Add a custom string attribute to a transaction.
  *
- * Given a transaction started by newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(), this function appends a
+ * Given an active transaction, this function appends a
  * string attribute to the transaction.
  *
  * @param [in] transaction An active transaction.
- * @param [in] name The name of the attribute.
+ * @param [in] key The name of the attribute.
  * @param [in] value The string value of the attribute.
  *
  * @return true if successful; false otherwise.
@@ -294,9 +289,8 @@ bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
 /*!
  * @brief Record an error in a transaction.
  *
- * Given a transaction started by newrelic_start_web_transaction() or
- * newrelic_start_non_web_transaction(), this function records an
- * error inside of the transaction.
+ * Given an active transaction, this function records an error
+ * inside of the transaction.
  *
  * @param [in] transaction An active transaction.
  * @param [in] priority The error's priority.
