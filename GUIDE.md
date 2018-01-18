@@ -4,7 +4,7 @@ Generic library to communicate with New Relic.
 
 ### Requirements
 * 64-bit Linux with
-  * glibc 2.5+ with NPTL support; or musl libc version 1.1 or higher
+  * glibc 2.5+ with NPTL support
   * kernel version 2.6.13 or higher (2.6.26+ highly recommended)
   * libpcre 8.13+
   * libpthread
