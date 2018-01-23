@@ -17,8 +17,8 @@ level above this `examples` directory. If that is not the case, take care to set
 in `Makefile` appropriately:
 
 ```
-LIBNEWRELIC_A_LOCATION = ../ # Location of libnewrelic.a
-LIBNEWRELIC_H_LOCATION = ../ # Location of libnewrelic.h
+LIBNEWRELIC_A_LOCATION = ..
+LIBNEWRELIC_H_LOCATION = ../include
 ```
 
 ## Error instrumentation

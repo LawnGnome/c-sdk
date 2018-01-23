@@ -1,5 +1,5 @@
 /*!
- * ex_common.h
+ * @file common.h
  *
  * @brief Common constants and function declarations for New Relic C-Agent
  * example code.

@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ex_common.h"
+#include "common.h"
 
 /*
  * @brief Customize an agent configuration
