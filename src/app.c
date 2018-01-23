@@ -60,6 +60,8 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
                nr_strlen(given_config->log_filename));
   }
 
+  config->transaction_tracer = given_config->transaction_tracer;
+
   app_info = (nr_app_info_t*)nr_zalloc(sizeof(nr_app_info_t));
 
   if (0 < nr_strlen(given_config->redirect_collector)) {
