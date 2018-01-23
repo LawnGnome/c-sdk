@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "ex_common.h"
+#include "common.h"
 #include "libnewrelic.h"
 
 void record_error(newrelic_txn_t* txn) {

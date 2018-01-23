@@ -2,20 +2,21 @@
 # Makefile for New Relic C-Agent Code Examples
 #
 
-OBJS = ex_notice_error.o ex_common.o
+# This Makefile presumes that libnewrelic.h and libnewrelic.a are at the following
+# locations:
 
-# The examples in this directory presume that the locations of libnewrelic.h and libnewrelic.a are one
-# level above this example directory.
-LIBNEWRELIC_A_LOCATION = ../
-LIBNEWRELIC_H_LOCATION = ../
+LIBNEWRELIC_A_LOCATION = ..
+LIBNEWRELIC_H_LOCATION = ../include
 
-all:	ex_notice_error.out
+EXAMPLES = ex_notice_error.out
 
-ex_notice_error.out:	$(OBJS) ../libnewrelic.a
-	$(CC) -o $@ $(OBJS) -rdynamic -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
+all: $(EXAMPLES)
+
+ex_%.out: ex_%.o common.o ../libnewrelic.a
+	$(CC) -o $@ $< common.o -rdynamic -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
 
 %.o: %.c
 	$(CC) -c $< -o $@ -I$(LIBNEWRELIC_H_LOCATION)
 
 clean:
-	rm -f *.o *.out c_agent.log
+	rm -f *.o $(EXAMPLES) c_agent.log
