@@ -95,7 +95,7 @@ all: libnewrelic.a
 #       collisions.
 # TODO: maybe have a fallback that doesn't rely on GNU ar.
 #
-libnewrelic.a: combine.mri axiom src/libnewrelic.a
+libnewrelic.a: combine.mri axiom src-static
 	$(AR) -M < $<
 
 .PHONY: static
@@ -140,7 +140,8 @@ dynamic: libnewrelic.so
 libnewrelic.so: libnewrelic.a
 	$(CC) -shared -pthread $(PCRE_CFLAGS) -ldl -o $@ -Wl,--whole-archive $^  -Wl,--no-whole-archive
 
-src/libnewrelic.a:
+.PHONY: src-static
+src-static:
 	$(MAKE) -C src static
 
 .PHONY: src-clean
