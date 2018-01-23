@@ -8,7 +8,8 @@
 LIBNEWRELIC_A_LOCATION = ..
 LIBNEWRELIC_H_LOCATION = ../include
 
-EXAMPLES = ex_notice_error.out
+EXAMPLES := \
+	ex_notice_error.out \
 
 all: $(EXAMPLES)
 
