@@ -303,6 +303,20 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            const char* errmsg,
                            const char* errclass);
 
+typedef struct _newrelic_external_segment_t newrelic_external_segment_t;
+
+typedef struct _newrelic_external_segment_params_t {
+  char* library;
+  char* procedure;
+  char* uri;
+} newrelic_external_segment_params_t;
+
+newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* transaction,
+                                                             const newrelic_external_segment_params_t *params);
+
+bool newrelic_end_external_segment(newrelic_txn_t* transaction,
+                                   newrelic_external_segment_t** segment_ptr);
+
 #ifdef __cplusplus
 }
 #endif

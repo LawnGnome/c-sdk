@@ -17,6 +17,7 @@ OBJS := \
 	attribute.o \
 	config.o \
 	error.o \
+	external.o \
 	segment.o \
 	stack.o \
 	transaction.o \
