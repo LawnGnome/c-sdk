@@ -1,15 +1,12 @@
 #ifndef LIBNEWRELIC_EXTERNAL_H
 #define LIBNEWRELIC_EXTERNAL_H
 
+#include "node_external.h"
 #include "nr_txn.h"
-#include "util_object.h"
  
 typedef struct _newrelic_external_segment_t {
   nrtxn_t *txn;
-  nrtxntime_t start;
-  char* library;
-  char* procedure;
-  char* uri; // cleaned
+  nr_node_external_params_t params;
 } newrelic_external_segment_t;
 
 bool newrelic_validate_external_param(const char* in,

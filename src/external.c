@@ -50,11 +50,11 @@ newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* tra
   }
 
   segment = nr_zalloc(sizeof(newrelic_external_segment_t));
-  nr_txn_set_time(transaction, &segment->start);
-  segment->txn       = transaction;
-  segment->library   = nr_strdup(params->library ? params->library : "unknown");
-  segment->procedure = nr_strdup(params->procedure);
-  segment->uri       = nr_strdup(params->uri);
+  nr_txn_set_time(transaction, &segment->params.start);
+  segment->txn              = transaction;
+  segment->params.library   = nr_strdup(params->library ? params->library : "unknown");
+  segment->params.procedure = nr_strdup(params->procedure);
+  segment->params.url       = nr_strdup(params->uri);
 
   return segment;
 }
@@ -79,12 +79,12 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
     return false;
   }
 
-  // TODO: something useful with the procedure and library when axiom can.
-  nr_txn_end_node_external(transaction, &segment->start, segment->uri, nr_strlen(segment->uri), 0, NULL);
+  nr_txn_set_time(transaction, &segment->params.stop);
+  nr_txn_end_node_external(transaction, &segment->params);
 
-  nr_free(segment->library);
-  nr_free(segment->procedure);
-  nr_free(segment->uri);
+  nr_free(segment->params.library);
+  nr_free(segment->params.procedure);
+  nr_free(segment->params.url);
   nr_realfree((void **) segment_ptr);
 
   return true;
