@@ -6,8 +6,8 @@ how to instrument code.
 
 All examples in this directory depend on two environment variables. These are:
 
-- `NR_APP_NAME`. A meaningful application name.
-- `NR_LICENSE`. A valid New Relic license key.
+- `NEW_RELIC_APP_NAME`. A meaningful application name.
+- `NEW_RELIC_LICENSE_KEY`. A valid New Relic license key.
 
 Set these environment variables before executing the example programs. Programs shall warn users if the
 variables are unset.
@@ -36,6 +36,6 @@ $ ./ex_notice_error.out
 ```
 
 After executing the example program, visit the New Relic Error Analytics dashboard for the account 
-corresponding to the license key set as `NR_LICENSE`. For each time that `ex_notice_error.out`
+corresponding to the license key set as `NEW_RELIC_LICENSE_KEY`. For each time that `ex_notice_error.out`
 is executed an error with the message "Meaningful error message" and error class "Error.class.supervalu"
 is reported to New Relic and should be subsequently available at the aforementioned dashboard.
