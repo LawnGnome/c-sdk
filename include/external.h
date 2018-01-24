@@ -13,6 +13,9 @@ typedef struct _newrelic_external_segment_t {
   nr_node_external_params_t params;
 } newrelic_external_segment_t;
 
+/*! @brief Destroy an external segment. */
+void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr);
+
 /*!
  * @brief Validate an external parameter.
  *

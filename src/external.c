@@ -6,6 +6,21 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
+void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr) {
+  newrelic_external_segment_t* segment;
+
+  if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
+    return;
+  }
+
+  segment = *segment_ptr;
+
+  nr_free(segment->params.library);
+  nr_free(segment->params.procedure);
+  nr_free(segment->params.url);
+  nr_realfree((void **) segment_ptr);
+}
+
 bool newrelic_validate_external_param(const char* in, const char* name) {
   /* Because external parameters are used in metric names, they cannot include
    * slashes. */
@@ -71,6 +86,7 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
     nrl_error(NRL_INSTRUMENT, "cannot end a NULL external segment");
     return false;
   }
+  segment = *segment_ptr;
 
   if (NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "cannot end an external segment on a NULL transaction");
@@ -81,7 +97,6 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
    * transaction it was started on. Transitioning an external segment between
    * transactions would be problematic, since times are transaction-specific.
    * */
-  segment = *segment_ptr;
   if (transaction != segment->txn) {
     nrl_error(NRL_INSTRUMENT, "cannot end an external segment on a different transaction to the one it was created on");
     goto end;
@@ -94,11 +109,6 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
   status = true;
 
 end:
-  /* Destroy the external segment. */
-  nr_free(segment->params.library);
-  nr_free(segment->params.procedure);
-  nr_free(segment->params.url);
-  nr_realfree((void **) segment_ptr);
-
+  newrelic_destroy_external_segment(segment_ptr);
   return status;
 }
