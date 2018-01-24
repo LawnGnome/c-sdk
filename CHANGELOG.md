@@ -4,6 +4,11 @@
 
 ### New Features ###
 
+- Added support for creating external segments using the new
+  `newrelic_start_external_segment()` and `newrelic_end_external_segment()`
+  functions. See `libnewrelic.h` and `examples/ex_external.c` for usage
+  information.
+
 - Added configuration options to control transaction trace generation.
 
 ### Bug Fixes ###
