@@ -9,8 +9,6 @@ typedef struct _newrelic_external_segment_t {
   nr_node_external_params_t params;
 } newrelic_external_segment_t;
 
-bool newrelic_validate_external_param(const char* in,
-                                      const char* name,
-                                      bool accept_null);
+bool newrelic_validate_external_param(const char* in, const char* name);
 
 #endif /* LIBNEWRELIC_EXTERNAL_H */

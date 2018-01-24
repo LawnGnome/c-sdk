@@ -6,12 +6,7 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
-bool newrelic_validate_external_param(const char* in, const char* name, bool accept_null) {
-  if ((false == accept_null) && (NULL == in)) {
-    nrl_error(NRL_INSTRUMENT, "%s cannot be NULL", name);
-    return false;
-  }
-
+bool newrelic_validate_external_param(const char* in, const char* name) {
   /* Because external parameters are used in metric names, they cannot include
    * slashes. */
   if (nr_strchr(in, '/')) {
@@ -36,11 +31,11 @@ newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* tra
     return NULL;
   }
 
-  if (!newrelic_validate_external_param(params->library, "library", true)) {
+  if (!newrelic_validate_external_param(params->library, "library")) {
     return NULL;
   }
 
-  if (!newrelic_validate_external_param(params->procedure, "procedure", false)) {
+  if (!newrelic_validate_external_param(params->procedure, "procedure")) {
     return NULL;
   }
 
@@ -52,8 +47,8 @@ newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* tra
   segment = nr_zalloc(sizeof(newrelic_external_segment_t));
   nr_txn_set_time(transaction, &segment->params.start);
   segment->txn              = transaction;
-  segment->params.library   = nr_strdup(params->library ? params->library : "unknown");
-  segment->params.procedure = nr_strdup(params->procedure);
+  segment->params.library   = params->library   ? nr_strdup(params->library)   : NULL;
+  segment->params.procedure = params->procedure ? nr_strdup(params->procedure) : NULL;
   segment->params.url       = nr_strdup(params->uri);
 
   return segment;
