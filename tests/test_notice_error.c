@@ -13,27 +13,6 @@
 #include "test.h"
 #include "util_memory.h"
 
-static int group_setup(void** state) {
-  newrelic_txn_t* txn = 0;
-  nrtxnopt_t* opts = 0;
-  txn = (newrelic_txn_t*)nr_zalloc(sizeof(newrelic_txn_t));
-  opts = newrelic_get_default_options();
-  txn->options = *opts;
-  txn->status.recording = 1;
-
-  *state = txn;
-  return 0;  // tells cmocka setup completed, 0==OK
-}
-
-static int group_teardown(void** state) {
-  newrelic_txn_t* txn = 0;
-  txn = (newrelic_txn_t*)*state;
-
-  nr_free(txn->options);
-  nr_free(txn);
-  return 0;  // tells cmocka teardown completed, 0==OK
-}
-
 static void test_notice_error_null_transaction(void** state NRUNUSED) {
   newrelic_notice_error(NULL, 0, "message", "class");
   assert_false(false);  // Just make sure we haven't errored out
@@ -133,6 +112,6 @@ int main(void) {
       cmocka_unit_test(test_notice_error_success),
   };
 
-  return cmocka_run_group_tests(notice_error_tests, group_setup,
-                                group_teardown);
+  return cmocka_run_group_tests(notice_error_tests, txn_group_setup,
+                                txn_group_teardown);
 }

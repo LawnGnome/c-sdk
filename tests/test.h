@@ -7,4 +7,10 @@
 # define NRUNUSED
 #endif
 
+/*! @brief Provides a fake transaction as the group state. */
+extern int txn_group_setup(void** state);
+
+/*! @brief Cleans up the fake transaction provided in the group state. */
+extern int txn_group_teardown(void** state);
+
 #endif
