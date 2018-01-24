@@ -102,6 +102,7 @@ TESTS := \
 	test_create_app \
 	test_destroy \
 	test_end_transaction \
+	test_external \
 	test_get_default_options \
   test_get_stack_trace_as_json \
 	test_get_transaction_options \
