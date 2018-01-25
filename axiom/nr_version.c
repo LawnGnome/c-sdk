@@ -90,8 +90,9 @@
  *   vaughan                 05Jul2017 (7.5) (Tanya)
  *   weber                   06Sep2017 (7.6) (Erika)
  *   yershova                20Nov2017 (7.7) (Tanya)
+ *   zahedi                  25Jan2018 (7.8) (Tanya)
  */
-#define NR_CODENAME "yershova"
+#define NR_CODENAME "zahedi"
 
 const char *
 nr_version (void)

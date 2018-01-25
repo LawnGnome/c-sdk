@@ -3,30 +3,18 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "node_external.h"
+#include "node_external_private.h"
 #include "nr_header.h"
 #include "nr_txn.h"
 #include "util_memory.h"
 #include "util_strings.h"
 #include "util_url.h"
 
-/*
- * Purpose : This function is designed to avoid repetition in the transaction
- *           trace by collapsing adjacent calls to the same function.
- *
- * Params  : 1. The current transaction.
- *           2. The start time of the just completed call.
- *           3. The stop time of the just completed call.
- *           4. The metric/node name of the just completed call.
- *
- * Returns : NR_FAILURE if the call could not be collapsed into the last
- *           added transaction trace node, or NR_SUCCESS if the collapse was
- *           successful and a new node should not be created.
- *
- * Notes   : This function has a problem:  If rollup occurs, the priority queue
- *           is not updated with the node's new duration.
- */
 nr_status_t
-nr_txn_node_rollup (nrtxn_t *txn, const nrtxntime_t *start, const nrtxntime_t *stop, const char *name)
+nr_txn_node_rollup (nrtxn_t *txn,
+                    const nrtxntime_t *start, const nrtxntime_t *stop,
+                    const char *name)
 {
   nrtxnnode_t *rollup;
   const char *rollup_name;
@@ -43,7 +31,7 @@ nr_txn_node_rollup (nrtxn_t *txn, const nrtxntime_t *start, const nrtxntime_t *s
 
   rollup_name = nr_string_get (txn->trace_strings, rollup->name);
 
-  /* 
+  /*
    * The would-be-node must have the same name as the rollup.
    */
   if (0 != nr_strcmp (name, rollup_name)) {
@@ -158,42 +146,44 @@ node_external_create_metrics (
 }
 
 void
-nr_txn_do_end_node_external (
-  nrtxn_t *txn,
-  const char *async_context,
-  const nrtxntime_t *start,
-  const nrtxntime_t *stop,
-  const char *url,
-  int urllen,
-  int do_rollup,
-  const char *encoded_response_header)
+nr_txn_end_node_external (nrtxn_t *txn, const nr_node_external_params_t *params)
 {
   nrtime_t duration;
   char *cleaned_url;
-  char *node_name = 0;
-  char *external_id = 0;
-  char *external_txnname = 0;
-  char *external_guid = 0;
-  nrobj_t *data_hash = 0;
+  char *node_name = NULL;
+  char *external_id = NULL;
+  char *external_txnname = NULL;
+  char *external_guid = NULL;
+  nrobj_t *data_hash = NULL;
+  int urllen;
 
-  if (0 == nr_txn_valid_node_end (txn, start, stop)) {
+  /*
+   * nr_txn_valid_node_end() also checks if txn is NULL.
+   */
+  if ((NULL == params) ||
+      (0 == nr_txn_valid_node_end (txn, &params->start, &params->stop))) {
     return;
   }
 
-  duration = nr_time_duration (start->when, stop->when);
+  duration = nr_time_duration (params->start.when, params->stop.when);
 
-  if (0 == async_context) {
+  if (NULL == params->async_context) {
     nr_txn_adjust_exclusive_time (txn, duration);
   }
 
-  if (encoded_response_header) {
-    nr_header_outbound_response (txn, encoded_response_header, &external_id, &external_txnname, &external_guid);
+  if (params->encoded_response_header) {
+    nr_header_outbound_response (txn, params->encoded_response_header,
+                                 &external_id, &external_txnname, &external_guid);
   }
 
-  node_name = node_external_create_metrics (txn, duration, url, urllen, external_id, external_txnname);
+  urllen = NRSAFELEN (params->urllen);
+  node_name = node_external_create_metrics (txn, duration,
+                                            params->url, urllen,
+                                            external_id, external_txnname);
 
-  if (1 == do_rollup) {
-    if (NR_SUCCESS == nr_txn_node_rollup (txn, start, stop, node_name)) {
+  if (params->do_rollup) {
+    if (NR_SUCCESS == nr_txn_node_rollup (txn, &params->start, &params->stop,
+                                          node_name)) {
       goto leave;
     }
   }
@@ -202,13 +192,20 @@ nr_txn_do_end_node_external (
   if (external_guid) {
     nro_set_hash_string (data_hash, "transaction_guid", external_guid);
   }
-  cleaned_url = nr_url_clean (url, urllen);
+  cleaned_url = nr_url_clean (params->url, urllen);
   if (cleaned_url) {
     nro_set_hash_string (data_hash, "uri", cleaned_url);
     nr_free (cleaned_url);
   }
+  if (params->library) {
+    nro_set_hash_string (data_hash, "library", params->library);
+  }
+  if (params->procedure) {
+    nro_set_hash_string (data_hash, "procedure", params->procedure);
+  }
 
-  nr_txn_save_trace_node (txn, start, stop, node_name, async_context, data_hash);
+  nr_txn_save_trace_node (txn, &params->start, &params->stop, node_name,
+                          params->async_context, data_hash);
 
   /* Fall through to */
 leave:
@@ -217,43 +214,4 @@ leave:
   nr_free (external_id);
   nr_free (external_txnname);
   nr_free (external_guid);
-}
-
-void
-nr_txn_end_node_external (
-  nrtxn_t *txn,
-  const nrtxntime_t *start,
-  const char *url,
-  int urllen,
-  int do_rollup,
-  const char *encoded_response_header)
-{
-  nrtxntime_t stop;
-
-  stop.stamp = 0;
-  stop.when = 0;
-  nr_txn_set_time (txn, &stop);
-
-  nr_txn_do_end_node_external (txn, NULL, start, &stop, url, urllen, do_rollup, encoded_response_header);
-}
-
-void
-nr_txn_end_node_external_async (
-  nrtxn_t *txn,
-  const char *async_context,
-  const nrtxntime_t *start,
-  nrtime_t duration,
-  const char *url,
-  int urllen,
-  int do_rollup,
-  const char *encoded_response_header)
-{
-  nrtxntime_t stop;
-
-  stop.stamp = 0;
-  stop.when = 0;
-  nr_txn_set_time (txn, &stop);
-  stop.when = start->when + duration;
-
-  nr_txn_do_end_node_external (txn, async_context, start, &stop, url, urllen, do_rollup, encoded_response_header);
 }

@@ -679,6 +679,14 @@ nr_laravel_queue_enable (TSRMLS_D)
       nr_laravel_queue_workcommand_fire TSRMLS_CC);
 
   /*
+   * Laravel 5.5 renamed the methods on all its command classes from `fire`
+   * to `handle`.  As a result, we also need to hook the following.
+   */
+  nr_php_wrap_user_function (
+      NR_PSTR ("Illuminate\\Queue\\Console\\WorkCommand::handle"),
+      nr_laravel_queue_workcommand_fire TSRMLS_CC);
+
+  /*
    * Hook the method that creates the JSON payloads for queued jobs so that we
    * can add our metadata for CATMQ.
    */

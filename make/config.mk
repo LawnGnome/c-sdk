@@ -38,22 +38,26 @@ HAVE_BACKTRACE := $(shell test -e /usr/include/execinfo.h && echo 1 || echo 0)
 HAVE_LIBEXECINFO := $(shell test -e /usr/lib/libexecinfo.so -o -e /usr/lib/libexecinfo.a && echo 1 || echo 0)
 
 ifeq (Darwin,$(UNAME))
+  OS := Darwin
   ARCH := $(shell uname -m | sed -e 's/i386/x86/' -e 's/x86_64/x64/')
   PLATFORM_DEFS := -DNR_SYSTEM_DARWIN=1
 endif
 
 ifeq (FreeBSD,$(UNAME))
+  OS := FreeBSD
   ARCH := $(shell uname -p | sed -e 's/i386/x86/' -e 's/amd64/x64/')
   PLATFORM_DEFS := -DNR_SYSTEM_FREEBSD=1
   HAVE_CLOSEFROM := 1
 endif
 
 ifeq (Linux,$(UNAME))
+  OS := Linux
   ARCH := $(shell uname -m | sed -e 's/i[3456]86/x86/' -e 's/x86_64/x64/')
   PLATFORM_DEFS := -DNR_SYSTEM_LINUX=1
 endif
 
 ifeq (SunOS,$(UNAME))
+  OS := Solaris
   # Solaris is a multi-architecture system, so we default to 64-bit.
   ARCH := x64
   PLATFORM_DEFS := -DNR_SYSTEM_SOLARIS=1 -D_POSIX_THREAD_SEMANTICS

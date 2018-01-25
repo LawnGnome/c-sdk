@@ -11,9 +11,9 @@
 #include "util_logging.h"
 #include "util_sql.h"
 
-static const char *
-get_array_string (const zval *zv, const char *key) {
-  const zval *value = nr_php_zend_hash_find (Z_ARRVAL_P (zv), key);
+static char *
+get_array_string (zval *zv, const char *key) {
+  zval *value = nr_php_zend_hash_find (Z_ARRVAL_P (zv), key);
 
   if (!nr_php_is_zval_valid_string (value)) {
     return NULL;
@@ -22,11 +22,11 @@ get_array_string (const zval *zv, const char *key) {
 }
 
 nr_datastore_instance_t *
-nr_php_api_datastore_create_instance_from_params (const zval *params)
+nr_php_api_datastore_create_instance_from_params (zval *params)
 {
-  const char *database_name = get_array_string (params, "databaseName");
-  const char *host = get_array_string (params, "host");
-  const char *port_path_or_id = get_array_string (params, "portPathOrId");
+  char *database_name = get_array_string (params, "databaseName");
+  char *host = get_array_string (params, "host");
+  char *port_path_or_id = get_array_string (params, "portPathOrId");
 
   return nr_datastore_instance_create (host, port_path_or_id, database_name);
 }

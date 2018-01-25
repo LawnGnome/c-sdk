@@ -54,7 +54,7 @@ nr_postgres_default_database_name ()
 
 /*
  * The connection info parsing logic is directly from libpq's conninfo_parse():
- * https://github.com/postgres/postgres/blob/master/src/interfaces/libpq/fe-connect.c#L4662-L4819
+ * https://github.com/postgres/postgres/blob/a0ae54df9b153256a9d0afe45732853cb5ccae09/src/interfaces/libpq/fe-connect.c#L4662-L4819
  */
 void
 nr_postgres_parse_conn_info (const char *conn_info, char **host, char **port_path_or_id, char **database_name)
@@ -178,7 +178,7 @@ nr_postgres_parse_conn_info (const char *conn_info, char **host, char **port_pat
     } else if ((0 == nr_strcmp (pname, "user")) && (NULL == *database_name)) {
       /*
        * If dbname isn't explicitly provided, the user value is used.
-       * See: https://github.com/postgres/postgres/blob/master/src/interfaces/libpq/fe-connect.c#L943-L950
+       * See: https://github.com/postgres/postgres/blob/a0ae54df9b153256a9d0afe45732853cb5ccae09/src/interfaces/libpq/fe-connect.c#L943-L950
        */
       *database_name = pval;
     }
@@ -195,15 +195,15 @@ fill_defaults:
      /*
       * Without either a host name or host address, libpq will connect using
       * a local Unix-domain socket. /tmp is the compiled-in default.
-      * See: https://github.com/postgres/postgres/blob/master/src/interfaces/libpq/fe-connect.c#L854-L860
-      * See: https://github.com/postgres/postgres/blob/master/src/include/pg_config_manual.h#L190
+      * See: https://github.com/postgres/postgres/blob/a0ae54df9b153256a9d0afe45732853cb5ccae09/src/interfaces/libpq/fe-connect.c#L943-L950
+      * See: https://github.com/postgres/postgres/blob/a0ae54df9b153256a9d0afe45732853cb5ccae09/src/include/pg_config_manual.h#L185
       */
       *port_path_or_id = "/tmp";
     }
   } else if (*host[0] == '/') {
     /*
      * We're going to ignore port if given a path for the host name.
-     * See: https://github.com/postgres/postgres/blob/master/src/interfaces/libpq/fe-connect.c#L841-L842
+     * See: https://github.com/postgres/postgres/blob/a0ae54df9b153256a9d0afe45732853cb5ccae09/src/interfaces/libpq/fe-connect.c#L841-L842
      */
     *port_path_or_id = *host;
     *host = nr_strdup ("localhost");

@@ -148,10 +148,13 @@ NR_PHP_WRAPPER (nr_drupal_http_request_exec)
    * drupal_http_request() calls are on the stack by checking a counter.
    */
   if (1 == NRPRG (drupal_http_request_depth)) {
-    char *response_header = NULL;
-    nrtxntime_t start;
+    nr_node_external_params_t external_params = {
+      .library = "Drupal",
+      .url     = Z_STRVAL_P (arg1),
+      .urllen  = (size_t) Z_STRLEN_P (arg1),
+    };
 
-    nr_txn_set_time (NRPRG (txn), &start);
+    nr_txn_set_time (NRPRG (txn), &external_params.start);
 
     /*
      * Our wrapper for drupal_http_request (which we installed in
@@ -160,19 +163,19 @@ NR_PHP_WRAPPER (nr_drupal_http_request_exec)
      */
     NR_PHP_WRAPPER_CALL;
 
-    response_header = nr_drupal_http_request_get_response_header (return_value TSRMLS_CC);
+    nr_txn_set_time (NRPRG (txn), &external_params.stop);
 
-  if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
-    nrl_verbosedebug (NRL_CAT,
-      "CAT: outbound response: transport='Drupal 6-7' %s=" NRP_FMT,
-      X_NEWRELIC_APP_DATA, NRP_CAT (response_header));
-  }
+    external_params.encoded_response_header = nr_drupal_http_request_get_response_header (return_value TSRMLS_CC);
 
-    nr_txn_end_node_external (NRPRG (txn), &start,
-                              Z_STRVAL_P (arg1), Z_STRLEN_P (arg1), 0,
-                              response_header);
+    if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
+      nrl_verbosedebug (NRL_CAT,
+        "CAT: outbound response: transport='Drupal 6-7' %s=" NRP_FMT,
+        X_NEWRELIC_APP_DATA, NRP_CAT (external_params.encoded_response_header));
+    }
 
-    nr_free (response_header);
+    nr_txn_end_node_external (NRPRG (txn), &external_params);
+
+    nr_free (external_params.encoded_response_header);
   } else {
     NR_PHP_WRAPPER_CALL;
   }

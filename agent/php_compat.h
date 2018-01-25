@@ -1,9 +1,6 @@
 #ifndef PHP_COMPAT_HDR
 #define PHP_COMPAT_HDR
 
-/* TODO(aharvey): consider moving into axiom. */
-#define NRSAFELEN(L) ((((int) L) < 0) ? 0 : ((int) L))
-
 #if ZEND_MODULE_API_NO >= ZEND_7_0_X_API_NO /* PHP 7.0+ */
 #define PHP7
 

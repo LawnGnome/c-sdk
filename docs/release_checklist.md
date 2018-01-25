@@ -74,6 +74,14 @@ You will need to have the following:
 
 ## <a name="cutting-a-release-branch"></a>Cutting a Release Branch
 
+#### 0. Ask the annoying questions
+
+You've probably already answered these, but just to make sure...
+
+* Does master reflect all the work that's going into this release? 
+* Are there any outstanding PRs that haven't been merged to master that should be in this release? 
+* Does the CHANGELOG.md file on master reflect all those things?
+
 #### 1. Update hudson `php-release-*` job configurations
 The three jobs which need to be changed are:
 * `php-release-agent`
@@ -94,13 +102,13 @@ In the php deployment repository, find this script:
 ```
 ./hudson/create-release-branch.sh
 ```
-You have a Jenkins API token from the [build server](https://phpagent-build.pdx.vm.datanerd.us).
-  Jenkins generates an API token for every user. Your API token can be found at
-  https://phpagent-build.pdx.vm.datanerd.us/user/\_YOUR\_USERNAME\_/configure.
 
-If you haven't already, change the JENKINS_TOKEN variable in that script to be your API token's value.
+Run this script from the php_agent directory, executing the following command:
 
-Then, in the `php_agent` root directory, run the script.
+```JENKINS_TOKEN=<your token> JENKINS_USER=<your username> hudson/create-release-branch.sh```
+
+Jenkins generates a different API token for every user. Your API token can be found at 
+https://phpagent-build.pdx.vm.datanerd.us/user/\_YOUR\_USERNAME\_/configure.
 
 #### 3. Push the new release branch to `php-agent/php_agent`
 (This step used to be part of the `create-release-branch.sh` script above.
@@ -188,9 +196,10 @@ git push --tags
 ```
 
 #### 7. Tell everybody it's there
-Let the team know that the new release is sitting in the testing repository. 
-Also, contact your Product Manager and ask them to review the release notes and make them
-even more marketing-savvy than they already are.
+Let the team know that the new release is sitting in the testing repository. Email 
+gts-php@newrelic.com to alert our Support Team of the upcoming release. Also, contact 
+your Product Manager and ask them to review the release notes and make them even more 
+marketing-savvy than they already are.
 
 #### 8. Start some QA! Run the cross-platform installation and sanity checks on the new agent:
 
@@ -235,7 +244,7 @@ Bring up an Ubuntu/Debian machine and a Red Hat/CentOS machine. Download the
 agent and make sure the installation step works.
 
 #### 7. Make New & Noteworthy
-Remind Chris to add
+Remind your Product Manager to add
 New & Noteworthy entries (multiple) via [Fog Lights](https://fog-lights.datanerd.us/) 
 for the key feature(s) or improvement(s) in the release. 
 * Include a descriptive title so that it is identifiable across all possible

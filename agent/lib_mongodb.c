@@ -118,7 +118,7 @@ NR_PHP_WRAPPER (nr_mongodb_operation)
     .datastore = {
       .type = NR_DATASTORE_MONGODB,
     },
-    .operation = wraprec->extra,
+    .operation = nr_strdup (wraprec->extra),
     .instance = &instance,
     .callbacks = {
       .backtrace = nr_php_backtrace_callback,
@@ -162,6 +162,7 @@ leave:
   nr_php_scope_release (&this_var);
   nr_free (instance.host);
   nr_free (instance.port_path_or_id);
+  nr_free (params.operation);
 } NR_PHP_WRAPPER_END
 
 void

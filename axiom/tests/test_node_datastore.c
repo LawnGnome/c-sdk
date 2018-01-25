@@ -693,7 +693,7 @@ modify_table_name (char *tablename)
   }
 }
 
-const nr_slowsqls_labelled_query_t sample_input_query = {
+nr_slowsqls_labelled_query_t sample_input_query = {
   .name  = "Doctrine DQL Query",
   .query = "SELECT COUNT(b) from Bot b where b.size = 23;",
 };

@@ -118,6 +118,12 @@ nr_remove_const (const void *ptr)
 #define NRBLANKSTR(S) ((S) ? (S) : "")
 
 /*
+ * Safely (ish) converts size_t lengths into signed ints for older APIs, such as
+ * most of PHP 5.
+ */
+#define NRSAFELEN(L) ((((int) L) < 0) ? 0 : ((int) L))
+
+/*
  * macro magic needed to make quoted strings.
  */
 #define NR_STR1(X) #X

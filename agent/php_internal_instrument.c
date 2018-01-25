@@ -1302,7 +1302,7 @@ nr_php_instrument_datastore_operation_call (
     .datastore = {
       .type = datastore,
     },
-    .operation = operation,
+    .operation = nr_strdup (operation),
     .instance  = instance,
     .callbacks = {
       .backtrace = nr_php_backtrace_callback,
@@ -1314,6 +1314,8 @@ nr_php_instrument_datastore_operation_call (
   nr_txn_set_time (NRPRG (txn), &params.stop);
 
   nr_txn_end_node_datastore (NRPRG (txn), &params, NULL);
+
+  nr_free (params.operation);
 
   if (zcaught) {
     zend_bailout ();
@@ -2028,8 +2030,7 @@ NR_INNER_WRAPPER (curl_init)
  */
 NR_INNER_WRAPPER (curl_exec)
 {
-  nrtxntime_t start;
-  char *url = 0;
+  nr_node_external_params_t external_params = { .library = "curl" };
   zval *curlres;
   int should_instrument = 0;
   int zcaught = 0;
@@ -2041,16 +2042,15 @@ NR_INNER_WRAPPER (curl_exec)
     return;
   }
 
-  url = nr_php_curl_get_url (curlres TSRMLS_CC);
-  if (nr_php_curl_should_instrument_proto (url) &&
+  external_params.url = nr_php_curl_get_url (curlres TSRMLS_CC);
+  if (nr_php_curl_should_instrument_proto (external_params.url) &&
      (0 == nr_guzzle_in_call_stack (TSRMLS_C))) {
     should_instrument = 1;
+    external_params.urllen = nr_strlen (external_params.url);
   }
 
   if (should_instrument) {
-    start.stamp = 0;
-    start.when = 0;
-    nr_txn_set_time (NRPRG (txn), &start);
+    nr_txn_set_time (NRPRG (txn), &external_params.start);
   }
 
   zcaught = nr_zend_call_old_handler (nr_wrapper->oldhandler, INTERNAL_FUNCTION_PARAM_PASSTHRU);
@@ -2062,11 +2062,13 @@ NR_INNER_WRAPPER (curl_exec)
   }
 
   if (should_instrument) {
-    nr_txn_end_node_external (NRPRG (txn), &start, url, nr_strlen (url), 0, NRPRG (curl_exec_x_newrelic_app_data));
+    nr_txn_set_time (NRPRG (txn), &external_params.stop);
+    external_params.encoded_response_header = NRPRG (curl_exec_x_newrelic_app_data);
+    nr_txn_end_node_external (NRPRG (txn), &external_params);
   }
 
   nr_free (NRPRG (curl_exec_x_newrelic_app_data));
-  nr_free (url);
+  nr_free (external_params.url);
 
   if (zcaught) {
     zend_bailout ();
@@ -2167,7 +2169,7 @@ NR_INNER_WRAPPER (mongocollection_15)
     .datastore = {
       .type = NR_DATASTORE_MONGODB,
     },
-    .operation = nr_wrapper->extra,
+    .operation = nr_strdup (nr_wrapper->extra),
     .callbacks = {
       .backtrace = nr_php_backtrace_callback,
     },
@@ -2193,6 +2195,8 @@ NR_INNER_WRAPPER (mongocollection_15)
   nr_txn_set_time (NRPRG (txn), &params.stop);
 
   nr_txn_end_node_datastore (NRPRG (txn), &params, NULL);
+
+  nr_free (params.operation);
 
   if (zcaught) {
     zend_bailout ();
@@ -2298,15 +2302,13 @@ NR_INNER_WRAPPER (file_get_contents)
 {
   nr_status_t rv;
   int zend_rv;
-  nrtxntime_t start;
+  nr_node_external_params_t external_params = { .library = "file_get_contents" };
   zval *file_zval = 0;
   zval *use_include_path = 0;
   zval *context = 0;
   zval *offset = 0;
   zval *maxlen = 0;
   int zcaught = 0;
-  char *url = 0;
-  char *x_newrelic_app_data = 0;
 
   zend_rv = zend_parse_parameters_ex (ZEND_PARSE_PARAMS_QUIET, ZEND_NUM_ARGS () TSRMLS_CC, "z|zz!zz",
                                  &file_zval, &use_include_path, &context, &offset, &maxlen);
@@ -2342,24 +2344,27 @@ NR_INNER_WRAPPER (file_get_contents)
   }
 
   nr_php_file_get_contents_add_headers (context TSRMLS_CC);
-  url = nr_strndup (Z_STRVAL_P (file_zval), Z_STRLEN_P (file_zval));
+  external_params.url = nr_strndup (Z_STRVAL_P (file_zval), Z_STRLEN_P (file_zval));
+  external_params.urllen = (size_t) Z_STRLEN_P (file_zval);
 
-  nr_txn_set_time (NRPRG (txn), &start);
+  nr_txn_set_time (NRPRG (txn), &external_params.start);
 
   zcaught = nr_zend_call_old_handler (nr_wrapper->oldhandler, INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  x_newrelic_app_data = nr_php_file_get_contents_response_header (TSRMLS_C);
+  nr_txn_set_time (NRPRG (txn), &external_params.stop);
+
+  external_params.encoded_response_header = nr_php_file_get_contents_response_header (TSRMLS_C);
   nr_php_file_get_contents_remove_headers (context TSRMLS_CC);
 
   if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
     nrl_verbosedebug (NRL_CAT,
       "CAT: outbound response: transport='file_get_contents' %s=" NRP_FMT,
-      X_NEWRELIC_APP_DATA, NRP_CAT (x_newrelic_app_data));
+      X_NEWRELIC_APP_DATA, NRP_CAT (external_params.encoded_response_header));
   }
 
-  nr_txn_end_node_external (NRPRG (txn), &start, url, nr_strlen (url), 0, x_newrelic_app_data);
-  nr_free (x_newrelic_app_data);
-  nr_free (url);
+  nr_txn_end_node_external (NRPRG (txn), &external_params);
+  nr_free (external_params.encoded_response_header);
+  nr_free (external_params.url);
 
   if (zcaught) {
     zend_bailout ();
@@ -2380,13 +2385,20 @@ NR_INNER_WRAPPER (curl_multi_exec)
   int zcaught = 0;
 
   if (!nr_guzzle_in_call_stack (TSRMLS_C)) {
-    nrtxntime_t start;
+    nr_node_external_params_t external_params = {
+      .do_rollup = true,
+      .library   = "curl_multi_exec",
+      .url       = "curl_multi_exec",
+      .urllen    = sizeof ("curl_multi_exec") - 1,
+    };
 
-    nr_txn_set_time (NRPRG (txn), &start);
+    nr_txn_set_time (NRPRG (txn), &external_params.start);
 
     zcaught = nr_zend_call_old_handler (nr_wrapper->oldhandler, INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-    nr_txn_end_node_external (NRPRG (txn), &start, NR_PSTR ("curl_multi_exec"), 1, 0);
+    nr_txn_set_time (NRPRG (txn), &external_params.stop);
+
+    nr_txn_end_node_external (NRPRG (txn), &external_params);
   } else {
     zcaught = nr_zend_call_old_handler (nr_wrapper->oldhandler, INTERNAL_FUNCTION_PARAM_PASSTHRU);
   }
@@ -2403,31 +2415,32 @@ NR_INNER_WRAPPER (curl_multi_exec)
 NR_INNER_WRAPPER (httprequest_send)
 {
   int zcaught = 0;
-  nrtxntime_t start;
   zval *this_var = 0;
-  char *url = 0;
-  char *x_newrelic_app_data = 0;
+  nr_node_external_params_t external_params = { .library = "pecl_http 1" };
 
   this_var = NR_PHP_INTERNAL_FN_THIS;
 
   nr_php_httprequest_send_request_headers (this_var TSRMLS_CC);
-  url = nr_php_httprequest_send_get_url (this_var TSRMLS_CC);
+  external_params.url = nr_php_httprequest_send_get_url (this_var TSRMLS_CC);
+  external_params.urllen = nr_strlen (external_params.url);
 
-  nr_txn_set_time (NRPRG (txn), &start);
+  nr_txn_set_time (NRPRG (txn), &external_params.start);
 
   zcaught = nr_zend_call_old_handler (nr_wrapper->oldhandler, INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  x_newrelic_app_data = nr_php_httprequest_send_response_header (this_var TSRMLS_CC);
+  nr_txn_set_time (NRPRG (txn), &external_params.stop);
+
+  external_params.encoded_response_header = nr_php_httprequest_send_response_header (this_var TSRMLS_CC);
 
   if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
     nrl_verbosedebug (NRL_CAT,
       "CAT: outbound response: transport='pecl_http 1' %s=" NRP_FMT,
-      X_NEWRELIC_APP_DATA, NRP_CAT (x_newrelic_app_data));
+      X_NEWRELIC_APP_DATA, NRP_CAT (external_params.encoded_response_header));
   }
 
-  nr_txn_end_node_external (NRPRG (txn), &start, url, nr_strlen (url), 0, x_newrelic_app_data);
-  nr_free (x_newrelic_app_data);
-  nr_free (url);
+  nr_txn_end_node_external (NRPRG (txn), &external_params);
+  nr_free (external_params.encoded_response_header);
+  nr_free (external_params.url);
 
   if (zcaught) {
     zend_bailout ();
@@ -2442,6 +2455,7 @@ NR_INNER_WRAPPER (soapclient_dorequest)
 {
   int               rv;
   int               zcaught;
+  nr_node_external_params_t external_params = { .library = "SoapClient" };
   nr_string_len_t   buf_len    = 0;
   nr_string_len_t   loc_len    = 0;
   nr_string_len_t   action_len = 0;
@@ -2450,7 +2464,6 @@ NR_INNER_WRAPPER (soapclient_dorequest)
   char             *action     = 0;
   zend_long         version    = 0;
   zend_long         one_way    = 0;
-  nrtxntime_t       start;
 
   rv = zend_parse_parameters_ex (
     ZEND_PARSE_PARAMS_QUIET,
@@ -2462,14 +2475,15 @@ NR_INNER_WRAPPER (soapclient_dorequest)
     &version,
     &one_way);
 
-  if (FAILURE == rv) {
-    loc = 0;
-    loc_len = 0;
+  if (FAILURE != rv) {
+    external_params.url = loc;
+    external_params.urllen = (size_t) loc_len;
   }
 
-  nr_txn_set_time (NRPRG (txn), &start);
+  nr_txn_set_time (NRPRG (txn), &external_params.start);
   zcaught = nr_zend_call_old_handler (nr_wrapper->oldhandler, INTERNAL_FUNCTION_PARAM_PASSTHRU);
-  nr_txn_end_node_external (NRPRG (txn), &start, loc, loc_len, 0, 0);
+  nr_txn_set_time (NRPRG (txn), &external_params.stop);
+  nr_txn_end_node_external (NRPRG (txn), &external_params);
 
   if (zcaught) {
     zend_bailout ();

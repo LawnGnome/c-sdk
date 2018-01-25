@@ -7,7 +7,7 @@ This guide is intended to be both a beginner installation guide as well as a dev
 * [Development](#development)
 * [Pull requests](#pull-requests)
 
-##FAQ
+## FAQ
 *So what's this __nrcamp/nrlamp__ stuff?*
 * For a long while, the PHP agent was tied to our homegrown [NRLAMP](https://source.datanerd.us/php-agent/nrlamp) and [NRCAMP](https://source.datanerd.us/php-agent/nrcamp) stack. The NRLAMP stack contains Apache, Mysql, PHP, and related tools.
 
@@ -73,28 +73,28 @@ If you're not using the [`php-agent/php-build-scripts`](https://source.datanerd.
 exec "/opt/nr/php/${NRLAMP_PHP}/bin/php "$@"
 ```
 
-##Prerequisites
-###A Development Platform
+## Prerequisites
+### A Development Platform
 If you want to work on Mac OSX, Homebrew should handle most of the installs you need.  That said, at the time of this writing, most of the team uses Linux in a dual-boot environment, in a vagrant box, or on an EC2 box.  For such platforms, use your Linux package manager of choice. 
 
-###Go!
+### Go!
 Install the [latest version of Go](https://golang.org/dl/). Typically it's installed in `/usr/local/go`. Be sure to extend your **PATH** to include it!
 
-###Submodules!
+### Submodules!
 As noted in this repository's README.md, upon checkout, you will need to get the `cross_agent_tests` and `newrelic-integration` submodules. This can be done by running the command:
 ```
 git submodule update --init
 ```
 
-##Bye Bye NRCAMP and NRLAMP.
-Here's where you choose whether to use the historical **nrcamp/nrlamp** setup or the newer php-build-scripts. The latter is strongly recommended. 
+## Bye Bye NRCAMP and NRLAMP.
+Here's where you choose whether to use the historical **nrcamp/nrlamp** setup, the newer php-build-scripts, or (on macOS only) Homebrew. The php-build-scripts are strongly recommended. 
 
-###The NRCAMP and NRLAMP route
+### The NRCAMP and NRLAMP route
 Below are instructions for **nrcamp/nrlamp**.
 
 Both NRCAMP and NRLAMP are installed into `/opt/nr`; this knowledge is burned in deeply. Prefix your search path to include `/opt/nr/camp/bin` and `/opt/nr/lamp/bin`.
 
-####System dependencies
+#### System dependencies
 Here are some non-exhaustive, system-specific dependencies we've encountered:
 
 **Centos 6.5**
@@ -121,7 +121,7 @@ Here are some non-exhaustive, system-specific dependencies we've encountered:
 |libc6-dev-i386 libc6-dev|NRCAMP gcc_final|
 |libsasl2-dev|NRLAMP php70|
 
-####Build it!
+#### Build it!
 This step will take awhile (like, a few hours).
 ```
 mkdir -p /opt/nr
@@ -138,14 +138,33 @@ cd ../nrlamp
 ./buildit --valgrind --zend_debug --clean
 ```
 
-###The php-build-scripts route
+### The php-build-scripts route
 Follow the README in [php-agent/php-build-scripts](https://source.datanerd.us/php-agent/php-build-scripts) then come back here. You may need to manually create a directory:
 
 ```
 $ mkdir -p /opt/nr/logs
 ```
 
-##Build the PHP Agent
+### Homebrew
+
+On macOS, you can also get the PHP versions you need via Homebrew's PHP tap. There are a couple of irritations, however:
+
+1. To get embed support (required for the agent unit tests), you have to build PHP from source. This is, obviously, rather slower than pouring a bottle.
+2. Having multiple versions installed at once is clunky, as `brew upgrade` invocations tend to demand that you unlink and re-link each PHP version in turn when there are newer versions.
+
+Nevertheless, if you're really keen to do it this way, here's how you'd install PHP 7.2 with a reasonable set of extensions for development and testing:
+
+```bash
+brew tap php
+brew install php72 --with-embed
+brew install php72-gmp php72-intl php72-memcached php72-mongodb php72-opcache php72-pdo-pgsql php72-redis php72-uopz 
+```
+
+For other versions, you can replace the `72` with whatever major and minor version you're interested in: eg `php53` for PHP 5.3.
+
+Whichever version of PHP was installed or upgraded most recently will be the version at `/usr/local/bin/php`. You can control this with `brew unlink` and `brew link`. Alternatively, to build the PHP agent against a specific version of PHP, you can reference the cellar directory the version lives in (eg `make agent-check PHPIZE=/usr/local/Cellar/php72/7.2.1_12/bin/phpize PHP_CONFIG=/usr/local/Cellar/php72/7.2.1_12/bin/php-config` to build against php72 version 7.2.1_12).
+
+## Build the PHP Agent
 Hooray! Now let's build the agent. [Grab the agent](git@source.datanerd.us:php-agent/php_agent.git). Running `make` from the top level of the php agent directory builds the correct agent and daemon.
 - If you've followed the **nrcamp/nrlamp** directions, `make` will use the PHP you specify, defaulting to version specified by the environment variable **NRLAMP_PHP**. 
 - If you utilized the **php_build_scripts**, take a moment to re-read the above FAQ section on _"How do I specify and switch between versions of PHP if I used the php-build-scripts?"_
@@ -171,7 +190,7 @@ Here are the non-exhaustive capabilities of the Makefile:
 For more detail on the targets and variables the Makefile supports, see the
 [make reference](make.md).
 
-###INI settings
+### INI settings
 Create your **newrelic.ini** with the agent's template. For **nrcamp/nrlamp**, this is:
 ```
 cat agent/scripts/newrelic.ini.template agent/scripts/newrelic.ini.private.template > /opt/nr/etc/php-common/newrelic.ini`
@@ -193,10 +212,10 @@ newrelic.daemon.location = "/Users/earnold/workspace/php_agent/bin/daemon"
 newrelic.daemon.collector_host = "staging-collector.newrelic.com"
 ```
 
-##Take the agent for a spin
+## Take the agent for a spin
 Make sure the new **newrelic.so** you just created is somewhere PHP can see it. If you're using **nrcamp/nrlamp**, use `make agent-install` otherwise, just copy or symlink `agent/modules/newrelic.so` to the PHP you want to use.
 
-###phpinfo()
+### phpinfo()
 Request `phpinfo()` in the terminal and watch the activity in the daemon and agent logs, then check your staging account. ZOMG, look at all those non-web background transactions!
 ```
 php -i # do this a bunch of times to fully connect
@@ -204,7 +223,7 @@ tail -f /opt/nr/logs/php_agent.log
 tail -f /opt/nr/logs/newrelic-daemon.log
 ```
 
-###Apache
+### Apache
 [**nrcamp/nrlamp** version] Replace the default **http.conf** with the nrlamp version and edit to taste.
 ```
 cp /opt/nr/etc/httpd/httpd.conf.nrlamp /opt/nr/etc/httpd/httpd.conf
@@ -218,26 +237,26 @@ apachectl start
 ```
 Navigate to <http://localhost:9090> in the browser to check it out. Look for activity in the daemon and agent logs, then check your staging account to see the data!
 
-###Start the daemon manually
+### Start the daemon manually
 You can start the daemon manually or via the agent (the two previous examples had the agent start the dameon). To start it manually, tell the daemon not to launch automatically in your **newrelic.ini** with `newrelic.daemon.dont_launch = 3` and start it with appropriate flags:
 ```
 ./bin/daemon -f -logfile stdout -loglevel debug
 ```
 
-##Development
-###Unit tests
+## Development
+### Unit tests
 First, poke git to update the submodule for the cross-agent tests, then run the unit tests.
 ```
 git submodule init && git submodule update
 make run_tests
 ```
 
-###Integration tests
+### Integration tests
 ```
 ./bin/integration-runner
 ```
 
-###Valgrind
+### Valgrind
 You can run `make valgrind` to build and run the axiom tests under Valgrind. If using **nrcamp/nrlamp**, ensure you've built nrlamp with the appropriate flags (see above). Export the following environmental variables to tell PHP to notify you of leaked zvals.
 ```
 export USE_ZEND_ALLOC=0
@@ -248,8 +267,8 @@ There may also be **php.ini** setting(s) that are required. To test instrumentat
 valgrind --leak-check=full /opt/nr/lamp/bin/php-5.6-no-zts <file>
 ```
 
-##Pull requests
-###Pull request builder
+## Pull requests
+### Pull request builder
 [Requires **nrcamp/nrlamp**] Did you know, your dev machine can probably run the pull request build job faster than Jenkins can! Try it out:
 ```
 ./hudson/build-pull-request.sh
@@ -263,7 +282,7 @@ The pull request script does the following:
 5. Run the agent integration tests for each version of PHP
 6. Build the zts agent for each version of PHP
 
-###Checklist
+### Checklist
 * [ ] Read your code. Look for errors, mistakes, and anything you may have missed.
 * [ ] Run tests:
     * [ ] For C code, `make run_tests`

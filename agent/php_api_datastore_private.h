@@ -29,7 +29,7 @@ static const nr_php_api_datastore_segment_key_validators_t datastore_validators[
 static const size_t num_datastore_validators = sizeof (datastore_validators) / sizeof (nr_php_api_datastore_segment_key_validators_t);
 
 extern nr_datastore_instance_t *
-nr_php_api_datastore_create_instance_from_params (const zval *params);
+nr_php_api_datastore_create_instance_from_params (zval *params);
 
 extern zval *
 nr_php_api_datastore_validate (const HashTable *params);

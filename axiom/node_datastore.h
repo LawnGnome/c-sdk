@@ -17,21 +17,21 @@ typedef void (*nr_modify_table_name_fn_t)(char *table_name);
 typedef struct _nr_node_datastore_params_t {
   nrtxntime_t start;                  /* The call start */
   nrtxntime_t stop;                   /* The call stop */
-  const char *collection;             /* The null-terminated collection; if unset, this will be extracted from the SQL */
-  const char *operation;              /* The null-terminated operation; if unset, this will be extracted from the SQL */
+  char *collection;                   /* The null-terminated collection; if unset, this will be extracted from the SQL */
+  char *operation;                    /* The null-terminated operation; if unset, this will be extracted from the SQL */
   nr_datastore_instance_t *instance;  /* Any instance information that was collected */
-  const char *async_context;          /* The async context, if any */
+  char *async_context;                /* The async context, if any */
 
   struct {
     nr_datastore_t type;              /* The datastore type that made the call */
-    const char *string;               /* The datastore type as a string, if datastore is NR_DATASTORE_OTHER */
+    char *string;                     /* The datastore type as a string, if datastore is NR_DATASTORE_OTHER */
   } datastore;
 
   /*
    * These fields only make sense for SQL datastore types.
    */
   struct {
-    const char *sql;                  /* The null-terminated SQL statement that was executed */
+    char *sql;                        /* The null-terminated SQL statement that was executed */
 
     /*
      * The explain plan JSON for the SQL node, or NULL if no explain plan is
@@ -39,13 +39,13 @@ typedef struct _nr_node_datastore_params_t {
      * enabled globally: this should be done before calling this function
      * (preferably, before even generating the explain plan!).
      */
-    const char *plan_json;
+    char *plan_json;
 
     /*
      * If a query language (such as DQL) was used to create the SQL, put that
      * command here.
      */
-    const nr_slowsqls_labelled_query_t *input_query;
+    nr_slowsqls_labelled_query_t *input_query;
   } sql;
 
   /*

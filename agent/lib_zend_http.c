@@ -89,30 +89,34 @@ nr_zend_check_adapter (zval *this_var TSRMLS_DC)
  *           Zend_Http_Client::request call.
  *
  * Params  : 1. The instance receiver of the Zend_Http_Client::request call.
+ *           2. A pointer to a string that will receive the URL. It is the
+ *              responsibility of the caller to free this URL.
+ *           3. A pointer to an integer that will receive the URL length.
  *
- * Returns : A newly allocated string containing the url on success, and 0 on
- *           failure.
+ * Returns : NR_SUCCESS or NR_FAILURE. If NR_FAILURE is returned, the url and
+ *           url_len pointers will be unchanged.
  */
-static char *
-nr_zend_http_client_request_get_url (zval *this_var TSRMLS_DC)
+static nr_status_t
+nr_zend_http_client_request_get_url (zval *this_var, char **url_ptr,
+                                     size_t *urllen_ptr TSRMLS_DC)
 {
-  char *url = 0;
+  nr_status_t retval = NR_FAILURE;
   zval *uri = 0;
   zval *rval = 0;
 
-  if (0 == this_var) {
-    return 0;
+  if ((0 == this_var) || (0 == url_ptr) || (0 == urllen_ptr)) {
+    goto end;
   }
 
   if (!nr_php_is_zval_valid_object (this_var)) {
     nrl_verbosedebug (NRL_FRAMEWORK, "Zend: this not an object: %d", Z_TYPE_P (this_var));
-    return 0;
+    goto end;
   }
 
   uri = nr_php_get_zval_object_property (this_var, "uri" TSRMLS_CC);
   if (0 == uri) {
     nrl_verbosedebug (NRL_FRAMEWORK, "Zend: no URI");
-    return 0;
+    goto end;
   }
 
   if (0 == nr_php_object_instanceof_class (uri, "Zend_Uri_Http" TSRMLS_CC)) {
@@ -123,7 +127,7 @@ nr_zend_http_client_request_get_url (zval *this_var TSRMLS_DC)
     } else {
       nrl_verbosedebug (NRL_FRAMEWORK, "Zend: URI is not an object: %d", Z_TYPE_P (uri));
     }
-    return 0;
+    goto end;
   }
 
   /*
@@ -133,15 +137,16 @@ nr_zend_http_client_request_get_url (zval *this_var TSRMLS_DC)
 
   rval = nr_php_call (uri, "getUri");
   if (nr_php_is_zval_non_empty_string (rval)) {
-    url = nr_strndup (Z_STRVAL_P (rval), Z_STRLEN_P (rval));
+    *url_ptr = nr_strndup (Z_STRVAL_P (rval), Z_STRLEN_P (rval));
+    *urllen_ptr = (size_t) Z_STRLEN_P (rval);
+    retval = NR_SUCCESS;
   } else {
-    url = 0;
     nrl_verbosedebug (NRL_FRAMEWORK, "Zend: uri->getUri() failed");
   }
 
+end:
   nr_php_zval_free (&rval);
-
-  return url;
+  return retval;
 }
 
 /*
@@ -242,9 +247,7 @@ NR_PHP_WRAPPER_START (nr_zend_http_client_request)
 {
   zval *this_var = 0;
   zval **retval_ptr;
-  char *url = 0;
-  nrtxntime_t start;
-  char *x_newrelic_app_data = 0;
+  nr_node_external_params_t external_params = { .library = "Zend_Http_Client" };
   nr_zend_http_adapter adapter;
 
   (void)wraprec;
@@ -259,20 +262,22 @@ NR_PHP_WRAPPER_START (nr_zend_http_client_request)
     goto leave;
   }
 
-  url = nr_zend_http_client_request_get_url (this_var TSRMLS_CC);
-  if (0 == url) {
+  if (NR_FAILURE == nr_zend_http_client_request_get_url (this_var,
+                                                         &external_params.url,
+                                                         &external_params.urllen
+                                                         TSRMLS_CC)) {
     NR_PHP_WRAPPER_CALL;
     goto leave;
   }
 
   nr_zend_http_client_request_add_request_headers (this_var TSRMLS_CC);
 
-  nr_txn_set_time (NRPRG (txn), &start);
-
+  nr_txn_set_time (NRPRG (txn), &external_params.start);
   NR_PHP_WRAPPER_CALL;
+  nr_txn_set_time (NRPRG (txn), &external_params.stop);
 
   if (retval_ptr) {
-    x_newrelic_app_data = nr_zend_http_client_request_get_response_header (*retval_ptr TSRMLS_CC);
+    external_params.encoded_response_header = nr_zend_http_client_request_get_response_header (*retval_ptr TSRMLS_CC);
   } else {
     nrl_verbosedebug (NRL_FRAMEWORK, "Zend: unable to obtain return value from request");
   }
@@ -280,14 +285,14 @@ NR_PHP_WRAPPER_START (nr_zend_http_client_request)
   if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
     nrl_verbosedebug (NRL_CAT,
       "CAT: outbound response: transport='Zend_Http_Client' %s=" NRP_FMT,
-      X_NEWRELIC_APP_DATA, NRP_CAT (x_newrelic_app_data));
+      X_NEWRELIC_APP_DATA, NRP_CAT (external_params.encoded_response_header));
   }
 
-  nr_txn_end_node_external (NRPRG (txn), &start, url, nr_strlen (url), 0, x_newrelic_app_data);
-  nr_free (x_newrelic_app_data);
-  nr_free (url);
+  nr_txn_end_node_external (NRPRG (txn), &external_params);
 
 leave:
+  nr_free (external_params.encoded_response_header);
+  nr_free (external_params.url);
   nr_php_scope_release (&this_var);
 } NR_PHP_WRAPPER_END
 

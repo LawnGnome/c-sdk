@@ -1730,8 +1730,6 @@ metric_exists (nrmtable_t *metrics, const char *name)
 static nrtxn_t *
 create_full_txn_and_reset (nrapp_t *app)
 {
-  nrtxntime_t start;
-  nrtxntime_t stop;
   nrtxn_t *txn;
 
   /*
@@ -1795,11 +1793,16 @@ create_full_txn_and_reset (nrapp_t *app)
     nr_txn_end_node_datastore (txn, &params, NULL);
   }
 
-  start.when = txn->root.start_time.when + 7 * NR_TIME_DIVISOR;
-  stop.when  = txn->root.start_time.when + 8 * NR_TIME_DIVISOR;
-  start.stamp = 7;
-  stop.stamp = 8;
-  nr_txn_do_end_node_external (txn, NULL, &start, &stop, NR_PSTR ("newrelic.com"), 0, 0);
+  {
+    nr_node_external_params_t params = {
+      .start  = {.when = txn->root.start_time.when + 7 * NR_TIME_DIVISOR, .stamp = 7},
+      .stop   = {.when = txn->root.start_time.when + 8 * NR_TIME_DIVISOR, .stamp = 8},
+      .url    = "newrelic.com",
+      .urllen = sizeof ("newrelic.com") - 1,
+    };
+
+    nr_txn_end_node_external (txn, &params);
+  }
 
   tlib_pass_if_true ("four nodes added", 4 == txn->nodes_used, "txn->nodes_used=%d", txn->nodes_used);
 

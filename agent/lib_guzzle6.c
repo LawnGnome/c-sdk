@@ -105,16 +105,13 @@ static void
 nr_guzzle6_requesthandler_handle_response (zval *handler, zval *response
                                            TSRMLS_DC)
 {
-  char *app_data = NULL;
-  char *context = NULL;
+  nr_node_external_params_t external_params = { .library = "Guzzle 6" };
   zval *request;
-  nrtxntime_t start = { .stamp = 0, .when = 0 };
-  nrtxntime_t stop = { .stamp = 0, .when = 0 };
-  char *uri = NULL;
 
-  nr_txn_set_time (NRPRG (txn), &stop);
+  nr_txn_set_time (NRPRG (txn), &external_params.stop);
 
-  if (NR_FAILURE == nr_guzzle_obj_find_and_remove (handler, &start TSRMLS_CC)) {
+  if (NR_FAILURE == nr_guzzle_obj_find_and_remove (handler,
+                                                   &external_params.start TSRMLS_CC)) {
     return;
   }
 
@@ -127,36 +124,34 @@ nr_guzzle6_requesthandler_handle_response (zval *handler, zval *response
     return;
   }
 
-  uri = nr_php_psr7_request_uri (request TSRMLS_CC);
-  if (NULL == uri) {
+  external_params.url = nr_php_psr7_request_uri (request TSRMLS_CC);
+  if (NULL == external_params.url) {
     return;
   }
+  external_params.urllen = nr_strlen (external_params.url);
 
   /*
    * Get the X-NewRelic-App-Data response header. If there isn't one, NULL is
    * returned, and everything still works just fine.
    */
-  app_data = nr_php_psr7_message_get_header (response,
-                                             X_NEWRELIC_APP_DATA TSRMLS_CC);
+  external_params.encoded_response_header = nr_php_psr7_message_get_header (response,
+                                                                            X_NEWRELIC_APP_DATA TSRMLS_CC);
 
   if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
     nrl_verbosedebug (NRL_CAT, "CAT: outbound response: transport='Guzzle 6' %s=" NRP_FMT,
-      X_NEWRELIC_APP_DATA, NRP_CAT (app_data));
+      X_NEWRELIC_APP_DATA, NRP_CAT (external_params.encoded_response_header));
   }
 
   /*
    * Create a context name.
    */
-  context = nr_guzzle_create_async_context_name ("Guzzle 6", response);
+  external_params.async_context = nr_guzzle_create_async_context_name ("Guzzle 6", response);
 
-  nr_txn_end_node_external_async (NRPRG (txn), context,
-                                  &start, nr_time_duration (start.when, stop.when),
-                                  uri, nr_strlen (uri),
-                                  0, app_data);
+  nr_txn_end_node_external (NRPRG (txn), &external_params);
 
-  nr_free (app_data);
-  nr_free (context);
-  nr_free (uri);
+  nr_free (external_params.async_context);
+  nr_free (external_params.encoded_response_header);
+  nr_free (external_params.url);
 }
 
 /*

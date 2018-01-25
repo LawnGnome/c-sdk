@@ -184,15 +184,14 @@ nr_guzzle3_request_state_transfer (zval *request TSRMLS_DC)
 static void
 nr_guzzle3_request_state_complete (zval *request TSRMLS_DC)
 {
-  char *app_data = NULL;
-  char *context = NULL;
   nrtime_t duration = 0.0;
-  nrtxntime_t start = { .stamp = 0, .when = 0 };
+  nr_node_external_params_t external_params = { .library = "Guzzle 3" };
   zval *response = NULL;
   zval *time = NULL;
   zval *url = NULL;
 
-  if (NR_FAILURE == nr_guzzle_obj_find_and_remove (request, &start TSRMLS_CC)) {
+  if (NR_FAILURE == nr_guzzle_obj_find_and_remove (request,
+                                                   &external_params.start TSRMLS_CC)) {
     nrl_verbosedebug (NRL_INSTRUMENT,
                       "Guzzle 3: Request object entered STATE_COMPLETE without being tracked");
     return;
@@ -211,7 +210,7 @@ nr_guzzle3_request_state_complete (zval *request TSRMLS_DC)
   }
 
   /*
-   * Next, we want to get the request time.
+   * Next, we want to get the request duration so we can set the stop time.
    */
   time = nr_guzzle3_response_get_info ("total_time", response TSRMLS_CC);
   if ((NULL == time) || (IS_DOUBLE != Z_TYPE_P (time))) {
@@ -219,6 +218,8 @@ nr_guzzle3_request_state_complete (zval *request TSRMLS_DC)
     goto leave;
   }
   duration = (nrtime_t) (Z_DVAL_P (time) * NR_TIME_DIVISOR);
+  nr_txn_set_time (NRPRG (txn), &external_params.stop);
+  external_params.stop.when = external_params.start.when + duration;
 
   /*
    * We also need the URL to create a useful metric.
@@ -227,31 +228,35 @@ nr_guzzle3_request_state_complete (zval *request TSRMLS_DC)
   if (!nr_php_is_zval_valid_string (url)) {
     goto leave;
   }
+  external_params.url = Z_STRVAL_P (url);
+  external_params.urllen = (size_t) Z_STRLEN_P (url);
 
   /*
    * Grab the X-NewRelic-App-Data response header, if there is one. We don't
    * check for a valid string below as it's not an error if the header doesn't
    * exist (and hence NULL is returned).
    */
-  app_data = nr_guzzle_response_get_header (X_NEWRELIC_APP_DATA,
-                                            response TSRMLS_CC);
+  external_params.encoded_response_header = nr_guzzle_response_get_header (X_NEWRELIC_APP_DATA,
+                                                                           response TSRMLS_CC);
 
   if (NRPRG (txn) && NRTXN (special_flags.debug_cat)) {
     nrl_verbosedebug (NRL_CAT, "CAT: outbound response: transport='Guzzle 3' %s=" NRP_FMT,
-      X_NEWRELIC_APP_DATA, NRP_CAT (app_data));
+      X_NEWRELIC_APP_DATA, NRP_CAT (external_params.encoded_response_header));
   }
+
+  /*
+   * Create the async context, in case there was parallelism.
+   */
+  external_params.async_context = nr_guzzle_create_async_context_name ("Guzzle 3", request);
 
   /*
    * Whew! Let's create an external node already.
    */
-  context = nr_guzzle_create_async_context_name ("Guzzle 3", request);
-  nr_txn_end_node_external_async (NRPRG (txn), context, &start, duration,
-                                  Z_STRVAL_P (url), Z_STRLEN_P (url), 0,
-                                  app_data);
+  nr_txn_end_node_external (NRPRG (txn), &external_params);
 
 leave:
-  nr_free (app_data);
-  nr_free (context);
+  nr_free (external_params.async_context);
+  nr_free (external_params.encoded_response_header);
   nr_php_zval_free (&response);
   nr_php_zval_free (&time);
   nr_php_zval_free (&url);
