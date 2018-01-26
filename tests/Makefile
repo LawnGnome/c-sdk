@@ -107,6 +107,7 @@ TESTS := \
 	test_get_transaction_options \
 	test_init \
 	test_notice_error \
+	test_segment \
 	test_start_transaction \
 	test_txn \
 	test_version \
