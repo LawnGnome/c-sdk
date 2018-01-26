@@ -36,16 +36,6 @@ void __wrap_nr_txn_end_node_external(nrtxn_t* txn, const nr_node_external_params
 }
 
 /*
- * Purpose: Test that newrelic_validate_external_param() does sensible things.
- */
-static void test_validate_external_param(void** state NRUNUSED) {
-  assert_false(newrelic_validate_external_param("foo/bar", "param"));
-  assert_true(newrelic_validate_external_param(NULL, "param"));
-  assert_true(newrelic_validate_external_param("", "param"));
-  assert_true(newrelic_validate_external_param("foo", "param"));
-}
-
-/*
  * Purpose: Test that newrelic_start_external_segment() handles invalid inputs
  * correctly.
  */
@@ -170,7 +160,6 @@ static void test_end_external_segment_valid(void** state) {
  */
 int main(void) {
   const struct CMUnitTest external_tests[] = {
-      cmocka_unit_test(test_validate_external_param),
       cmocka_unit_test(test_start_external_segment_invalid),
       cmocka_unit_test(test_start_external_segment_valid),
       cmocka_unit_test(test_end_external_segment_invalid),

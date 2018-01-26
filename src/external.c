@@ -1,5 +1,6 @@
 #include "libnewrelic.h"
 #include "external.h"
+#include "segment.h"
 
 #include "node_external.h"
 #include "util_logging.h"
@@ -21,17 +22,6 @@ void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr
   nr_realfree((void **) segment_ptr);
 }
 
-bool newrelic_validate_external_param(const char* in, const char* name) {
-  /* Because external parameters are used in metric names, they cannot include
-   * slashes. */
-  if (nr_strchr(in, '/')) {
-    nrl_error(NRL_INSTRUMENT, "%s cannot include a slash", name);
-    return false;
-  }
-
-  return true;
-}
-
 newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* transaction,
                                                              const newrelic_external_segment_params_t *params) {
   newrelic_external_segment_t* segment = NULL;
@@ -47,11 +37,11 @@ newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* tra
     return NULL;
   }
 
-  if (!newrelic_validate_external_param(params->library, "library")) {
+  if (!newrelic_validate_segment_param(params->library, "library")) {
     return NULL;
   }
 
-  if (!newrelic_validate_external_param(params->procedure, "procedure")) {
+  if (!newrelic_validate_segment_param(params->procedure, "procedure")) {
     return NULL;
   }
 

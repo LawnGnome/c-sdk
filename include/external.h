@@ -16,18 +16,4 @@ typedef struct _newrelic_external_segment_t {
 /*! @brief Destroy an external segment. */
 void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr);
 
-/*!
- * @brief Validate an external parameter.
- *
- * This function ensures that any given parameter does not include a slash. As
- * external parameter values are generally used in metric names, slashes will
- * break the APM UI.
- *
- * @param [in] in   The parameter value.
- * @param [in] name The parameter name (used in any error message).
- * @return True if the parameter value is valid, false otherwise. A message at
- *         level LOG_ERROR will be logged if validation fails.
- */
-bool newrelic_validate_external_param(const char* in, const char* name);
-
 #endif /* LIBNEWRELIC_EXTERNAL_H */
