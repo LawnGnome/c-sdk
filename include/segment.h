@@ -3,8 +3,8 @@
  *
  */
 
-#ifndef SEGMENT_H
-#define SEGMENT_H
+#ifndef LIBNEWRELIC_SEGMENT_H
+#define LIBNEWRELIC_SEGMENT_H
 
 #include <stdbool.h>
 
