@@ -94,6 +94,36 @@ test_strdup (void)
 }
 
 /*
+ * test that string duplication with default fallback works.
+ */
+static void
+test_strdup_or (void)
+{
+
+  char *rp;
+
+  rp = nr_strdup_or ("abc", "default");
+  tlib_pass_if_true ("simple nr_strdup_or", (0 != rp) && (0 == nr_strcmp (rp, "abc")), "rp=%p rp='%s'", rp, rp ? rp : "");
+  nr_free (rp);
+
+  rp = nr_strdup_or ("", "default");
+  tlib_pass_if_true ("nr_strdup_or of empty string", (0 != rp) && (0 == nr_strcmp (rp, "")), "rp=%p rp='%s'", rp, rp ? rp : "");
+  nr_free (rp);
+
+  rp = nr_strdup_or (0,"default");
+  tlib_pass_if_true ("nr_strdup_or of NULL string", (0 != rp) && (0 == nr_strcmp (rp, "default")), "rp=%p rp='%s'", rp, rp ? rp : "");
+  nr_free(rp);
+
+  rp = nr_strdup_or (0,0);
+  tlib_pass_if_true ("nr_strdup_or of NULL string with NULL backup", (0 != rp) && (0 == nr_strcmp (rp, "")), "rp=%p rp='%s'", rp, rp ? rp : "");
+  nr_free (rp);
+
+  rp = nr_strdup_or ("abc",0);
+  tlib_pass_if_true ("nr_strdup_or of string with NULL backup", (0 != rp) && (0 == nr_strcmp (rp, "abc")), "rp=%p rp='%s'", rp, rp ? rp : "");
+  nr_free (rp);
+}
+
+/*
  * test that nr_strndup() works.
  */
 static void
@@ -304,6 +334,7 @@ test_main (void *p NRUNUSED)
   test_free_side_effect ();
 
   test_strdup ();
+  test_strdup_or ();
   test_strndup ();
 
   test_memcpy ();

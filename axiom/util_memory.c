@@ -132,6 +132,18 @@ nr_strdup (const char *orig)
 }
 
 char * NRMALLOC
+nr_strdup_or (const char* string_if_not_null, const char* default_string)
+{
+  if (NULL != string_if_not_null) {
+  	return nr_strdup (string_if_not_null);
+  }
+  if (NULL != default_string) {
+  	return nr_strdup (default_string);
+  }
+  return nr_strdup ("");
+}
+
+char * NRMALLOC
 nr_strndup (const char *orig, int len)
 {
   char *ret;

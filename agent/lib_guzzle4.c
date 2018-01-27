@@ -159,17 +159,17 @@ nr_guzzle4_subscriber_event_get_args (nr_guzzle4_subscriber_event_args_t *args, 
   NR_UNUSED_THIS_PTR;
 
   if (NULL == args) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: %s got NULL args", __func__);
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: %s got NULL args", __func__);
     return NR_FAILURE;
   }
 
   if (SUCCESS != zend_parse_parameters (ZEND_NUM_ARGS () TSRMLS_CC, "os", &args->event, &args->name, &args->name_len)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: zpp failed in %s", __func__);
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: zpp failed in %s", __func__);
     return NR_FAILURE;
   }
 
   if (!nr_guzzle4_is_zval_an_event (args->event TSRMLS_CC)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: event is not an EventInterface in %s", __func__);
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: event is not an EventInterface in %s", __func__);
     return NR_FAILURE;
   }
 
@@ -259,7 +259,7 @@ PHP_NAMED_FUNCTION (nr_guzzle4_subscriber_on_before)
   zval *request = NULL;
 
   if (NR_FAILURE == nr_guzzle4_subscriber_event_get_args (&args, INTERNAL_FUNCTION_PARAM_PASSTHRU)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: onBefore() received unexpected arguments");
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: onBefore() received unexpected arguments");
     RETURN_FALSE;
   }
 
@@ -268,7 +268,7 @@ PHP_NAMED_FUNCTION (nr_guzzle4_subscriber_on_before)
    */
   request = nr_php_call (args.event, "getRequest");
   if (!nr_guzzle4_is_zval_a_request (request TSRMLS_CC)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: onBefore() event did not return a request");
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: onBefore() event did not return a request");
     RETURN_FALSE;
   }
 
@@ -308,7 +308,7 @@ PHP_NAMED_FUNCTION (nr_guzzle4_subscriber_on_complete)
   zval *url = NULL;
 
   if (NR_FAILURE == nr_guzzle4_subscriber_event_get_args (&args, INTERNAL_FUNCTION_PARAM_PASSTHRU)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: onComplete() received unexpected arguments");
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: onComplete() received unexpected arguments");
     RETVAL_FALSE;
     goto leave;
   }
@@ -318,14 +318,14 @@ PHP_NAMED_FUNCTION (nr_guzzle4_subscriber_on_complete)
    */
   request = nr_php_call (args.event, "getRequest");
   if (!nr_guzzle4_is_zval_a_request (request TSRMLS_CC)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: onComplete() event did not return a request");
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: onComplete() event did not return a request");
     RETVAL_FALSE;
     goto leave;
   }
 
   response = nr_php_call (args.event, "getResponse");
   if (!nr_guzzle4_is_zval_a_response (response TSRMLS_CC)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: onComplete() event did not return a response");
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: onComplete() event did not return a response");
     RETVAL_FALSE;
     goto leave;
   }
@@ -336,7 +336,7 @@ PHP_NAMED_FUNCTION (nr_guzzle4_subscriber_on_complete)
   if (NR_FAILURE == nr_guzzle_obj_find_and_remove (request,
                                                    &external_params.start TSRMLS_CC)) {
     nrl_verbosedebug (NRL_INSTRUMENT,
-                      "Guzzle 4: Request completed without being tracked");
+                      "Guzzle 4-5: Request completed without being tracked");
     RETVAL_FALSE;
     goto leave;
   }
@@ -439,7 +439,7 @@ NR_PHP_WRAPPER_START (nr_guzzle4_client_construct)
     if (subscriber_interface) {
       zend_class_implements (nr_guzzle4_subscriber_ce TSRMLS_CC, 1, subscriber_interface);
     } else {
-      nrl_info (NRL_FRAMEWORK, "Guzzle 4: cannot find SubscriberInterface class entry");
+      nrl_info (NRL_FRAMEWORK, "Guzzle 4-5: cannot find SubscriberInterface class entry");
       goto end;
     }
   }
@@ -447,7 +447,7 @@ NR_PHP_WRAPPER_START (nr_guzzle4_client_construct)
   /* Register the subscriber. */
   emitter = nr_php_call (this_var, "getEmitter");
   if (!nr_guzzle4_is_zval_an_emitter (emitter TSRMLS_CC)) {
-    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: Client::getEmitter() didn't return an EmitterInterface object");
+    nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: Client::getEmitter() didn't return an EmitterInterface object");
     goto end;
   }
 
@@ -456,12 +456,12 @@ NR_PHP_WRAPPER_START (nr_guzzle4_client_construct)
 
   retval = nr_php_call (emitter, "attach", subscriber);
   if (NULL == retval) {
-    nrl_info (NRL_FRAMEWORK, "Guzzle 4: Emitter::attach() failed");
+    nrl_info (NRL_FRAMEWORK, "Guzzle 4-5: Emitter::attach() failed");
     nr_php_zval_free (&subscriber);
     goto end;
   }
   nr_php_zval_free (&retval);
-  nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4: subscriber attached to emitter");
+  nrl_verbosedebug (NRL_FRAMEWORK, "Guzzle 4-5: subscriber attached to emitter");
 
 end:
   nr_php_scope_release (&this_var);

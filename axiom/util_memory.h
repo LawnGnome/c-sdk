@@ -61,6 +61,14 @@ extern void *nr_realloc (void *oldptr, int newsize) NRMALLOCSZ (2);
 extern char *nr_strdup (const char *orig) NRMALLOC;
 
 /*
+ * Semantics:  strdup (NULL) always succeeds.
+ * Given two string pointers, each possibly NULL, return a duplicate of
+ * one, where the first pointer takes precedence over the second.  If
+ * both parameters are NULL, mimic strdup semantics and return "".
+ */
+extern char *nr_strdup_or (const char* string_if_not_null, const char* default_string) NRMALLOC;
+
+/*
  * Semantics: strndup (NULL, x) always succeeds. Copies at most LEN bytes and
  * the returned pointer is always NUL terminated. Maximum length of the returned
  * pointer is LEN+1 bytes. If the string is less than LEN bytes it will be
