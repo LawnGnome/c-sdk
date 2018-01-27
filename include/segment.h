@@ -7,6 +7,7 @@
 #define LIBNEWRELIC_SEGMENT_H
 
 #include <stdbool.h>
+#include "nr_txn.h"
 
 typedef struct _newrelic_segment_t {
   nrtxn_t*    transaction;

@@ -1,6 +1,8 @@
+#include "libnewrelic.h"
 #include "segment.h"
 
 #include "util_logging.h"
+#include "util_memory.h"
 #include "util_strings.h"
 
 bool newrelic_validate_segment_param(const char* in, const char* name) {
@@ -16,27 +18,25 @@ bool newrelic_validate_segment_param(const char* in, const char* name) {
   return true;
 }
 
-newrelic_segment_t *
-newrelic_start_segment (newrelic_txn_t *transaction, const char *name) {
-  newrelic_segment_t *segment;
-  nrtxntime_t *start;
+// TODO: category?
+newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
+                                           const char* name) {
+  newrelic_segment_t* segment;
 
   if (NULL == transaction) {
-    nrl_error (NRL_INSTRUMENT, "unable to start segment with NULL transaction");
+    nrl_error(NRL_INSTRUMENT, "unable to start segment with NULL transaction");
     return NULL;
   }
 
-  if (NULL == name) {
-    name = "NULL";
-  }
+  segment = nr_zalloc(sizeof(newrelic_segment_t));
+  segment->transaction = transaction;
+  // TODO: validate
+  segment->name = nr_strdup(name ? name : "NULL");
 
   start = (nrtxntime_t *) nr_zalloc (sizeof (nrtxntime_t));
   nr_txn_set_time (transaction, start);
 
-  segment = nr_zalloc (sizeof (newrelic_segment_t));
-  segment->transaction = transaction;
-  segment->name = name;
-  segment->start = start;
+  nr_txn_set_time(transaction, &segment->start);
 
   return segment;
 }
@@ -45,33 +45,44 @@ void newrelic_end_segment (newrelic_segment_t **segment) {
   char *scoped_metric = NULL;
   nrtxntime_t *stop;
   nrtime_t duration;
+  nrtime_t exclusive;
+  char* metric_name = NULL;
+  newrelic_segment_t* segment;
+  bool status = false;
+  nrtxntime_t stop;
 
-  if ((NULL == segment) || (NULL == *segment)) {
-    nrl_error (NRL_INSTRUMENT, "unable to end a NULL segment");
-    return;
+  if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
+    nrl_error(NRL_INSTRUMENT, "unable to end a NULL segment");
+    return false;
+  }
+  segment = *segment_ptr;
+
+  if (NULL == segment->transaction) {
+    nrl_error(NRL_INSTRUMENT, "unable to end a segment of a NULL transaction");
+    goto end;
   }
 
-  if (NULL == (*segment)->transaction) {
-    nrl_error (NRL_INSTRUMENT, "unable to end a segment of a NULL transaction");
-    return;
+  /* Sanity check that the segment is being ended on the same transaction it
+   * was started on. Transitioning a segment between transactions would be
+   * problematic, since times are transaction-specific.
+   * */
+  if (transaction != segment->transaction) {
+    nrl_error(NRL_INSTRUMENT, "cannot end a segment on a different transaction to the one it was created on");
+    goto end;
   }
 
-  stop = (nrtxntime_t *) nr_zalloc (sizeof (nrtxntime_t));
-  nr_txn_set_time ((*segment)->transaction, stop);
+  nr_txn_set_time(transaction, &stop);
+  duration = nr_time_duration(segment->start.when, stop.when);
+
 
   duration = nr_time_duration ((*segment)->start->when, stop->when);
 
-  scoped_metric = nr_formatf ("Custom/%s", (*segment)->name);
-  nrm_add ((*segment)->transaction->scoped_metrics, scoped_metric, duration);
-  nrl_verbose (NRL_INSTRUMENT,
-    "added segment %s with duration " NR_TIME_FMT "!",
-    scoped_metric,
-    duration);
+  status = true;
 
-  nr_free (scoped_metric);
-  nr_free (stop);
-  nr_free ((*segment)->start);
-  nr_free ((*segment));
+end:
+  nr_free(metric_name);
+  nr_free(segment->name);
+  nr_realfree((void**) segment_ptr);
 
   return;
 }
