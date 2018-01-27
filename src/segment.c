@@ -33,17 +33,16 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   // TODO: validate
   segment->name = nr_strdup(name ? name : "NULL");
 
-  start = (nrtxntime_t *) nr_zalloc (sizeof (nrtxntime_t));
-  nr_txn_set_time (transaction, start);
+  segment->kids_duration_save = transaction->cur_kids_duration;
+  transaction->cur_kids_duration = &segment->kids_duration;
 
   nr_txn_set_time(transaction, &segment->start);
 
   return segment;
 }
 
-void newrelic_end_segment (newrelic_segment_t **segment) {
-  char *scoped_metric = NULL;
-  nrtxntime_t *stop;
+bool newrelic_end_segment(newrelic_txn_t* transaction,
+                          newrelic_segment_t** segment_ptr) {
   nrtime_t duration;
   nrtime_t exclusive;
   char* metric_name = NULL;
@@ -73,9 +72,21 @@ void newrelic_end_segment (newrelic_segment_t **segment) {
 
   nr_txn_set_time(transaction, &stop);
   duration = nr_time_duration(segment->start.when, stop.when);
+  exclusive = duration - segment->kids_duration;
 
+  *(segment->kids_duration_save) += duration;
+  transaction->cur_kids_duration = segment->kids_duration_save;
 
-  duration = nr_time_duration ((*segment)->start->when, stop->when);
+  /* Add a custom metric. */
+  metric_name = nr_formatf("Custom/%s", segment->name);
+  nrm_add_ex(transaction->scoped_metrics, metric_name, duration, exclusive);
+  // TODO: the PHP agent also adds an unscoped metric; ascertain if that's
+  // actually useful.
+  nrm_add_ex(transaction->unscoped_metrics, metric_name, duration, exclusive);
+
+  /* Add a trace node. */
+  nr_txn_save_trace_node(transaction, &segment->start, &stop, metric_name,
+                         NULL, NULL);
 
   status = true;
 
@@ -84,6 +95,6 @@ end:
   nr_free(segment->name);
   nr_realfree((void**) segment_ptr);
 
-  return;
+  return status;
 }
 

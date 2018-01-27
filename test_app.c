@@ -42,13 +42,17 @@ int main(void) {
                         "Error.class");
 
   /* Add segments */
-  segment1 = newrelic_start_segment (txn, "Secret Stuff");
-  sleep (1);
-  newrelic_end_segment (&segment1);
+  segment1 = newrelic_start_segment(txn, "Secret Stuff");
+  sleep(1);
+  newrelic_end_segment(txn, &segment1);
 
-  newrelic_start_segment (txn, "More Secret Stuff");
-  sleep (2);
-  newrelic_end_segment (&segment2);
+  segment2 = newrelic_start_segment(txn, "More Secret Stuff");
+  sleep(1);
+  segment1 = newrelic_start_segment(txn, "Nested Secret Stuff");
+  sleep(1);
+  newrelic_end_segment(txn, &segment1);
+  sleep(1);
+  newrelic_end_segment(txn, &segment2);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
