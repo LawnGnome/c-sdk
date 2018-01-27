@@ -33,6 +33,10 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   // TODO: validate
   segment->name = nr_strdup(name ? name : "NULL");
 
+  /* Set up the fields so that we can correctly track child segment duration.
+   *
+   * FIXME: this only works for custom segments right now.
+   */
   segment->kids_duration_save = transaction->cur_kids_duration;
   transaction->cur_kids_duration = &segment->kids_duration;
 
@@ -72,8 +76,9 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 
   nr_txn_set_time(transaction, &stop);
   duration = nr_time_duration(segment->start.when, stop.when);
-  exclusive = duration - segment->kids_duration;
 
+  /* Calculate exclusive time and restore the previous child duration field. */
+  exclusive = duration - segment->kids_duration;
   *(segment->kids_duration_save) += duration;
   transaction->cur_kids_duration = segment->kids_duration_save;
 
