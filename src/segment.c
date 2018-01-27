@@ -79,8 +79,8 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 
   /* Calculate exclusive time and restore the previous child duration field. */
   exclusive = duration - segment->kids_duration;
-  *(segment->kids_duration_save) += duration;
   transaction->cur_kids_duration = segment->kids_duration_save;
+  nr_txn_adjust_exclusive_time(transaction, duration);
 
   /* Add a custom metric. */
   metric_name = nr_formatf("Custom/%s", segment->name);
