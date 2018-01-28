@@ -44,40 +44,6 @@ typedef enum _newrelic_loglevel_t {
   LOG_VERBOSE
 } newrelic_loglevel_t;
 
-/*!
- * @brief Agent configuration used to configure how datastore segments
- * are recorded in a transaction.
- */
-typedef struct _newrelic_datastore_segment_config_t {
-
-	/* If set to true, instance names are reported to New Relic. More
-	 * specifically, the host and port_path_or_id fields in a
-	 * newrelic_datastore_segment_params_t passed to
-	 * newrelic_datastore_start_segment() is reported when the
-	 * corresponding transaction is reported.
-	 */
-	bool instance_reporting;
-
-	/* If set to true, database names are reported to New Relic. More
-	 * specifically, the database_name field in a
-	 * newrelic_datastore_segment_params_t passed to
-	 * newrelic_datastore_start_segment() is reported when the
-   * corresponding transaction is reported.
-	 */
-	bool database_name_reporting;
-
-	/* If set to true, datastore query parameters are reported to
-	 * New Relic. More specifically, the query field in a
-   * newrelic_datastore_segment_params_t passed to
-   * newrelic_datastore_start_segment() is reported when the
-   * corresponding transaction is reported.
-   *
-	 * Datastore query parameters are omitted if set to false. New Relic
-	 * recommends setting this value to false in applications where
-	 * sensitive information appears in query parameters */
-	bool query_parameters;
-} newrelic_datastore_segment_config_t;
-
 /*! @brief Agent configuration used to configure the behaviour of the
  * transaction tracer.
  */
@@ -111,8 +77,39 @@ typedef struct _newrelic_transaction_tracer_config_t {
 } newrelic_transaction_tracer_config_t;
 
 /*!
+ * @brief Agent configuration used to configure how datastore segments
+ * are recorded in a transaction.
+ */
+typedef struct _newrelic_datastore_segment_config_t {
+  /* If set to true for a transaction, instance names are reported to New Relic.
+   * More specifically, the host and port_path_or_id fields in a
+   * newrelic_datastore_segment_params_t passed to
+   * newrelic_datastore_start_segment() is reported when the
+   * corresponding transaction is reported. */
+  bool instance_reporting;
+
+  /* If set to true for a transaction, database names are reported to New Relic.
+   * More * specifically, the database_name field in a
+   * newrelic_datastore_segment_params_t passed to
+   * newrelic_datastore_start_segment() is reported when the
+   * corresponding transaction is reported. */
+  bool database_name_reporting;
+
+  /* If set to true for a transaction, datastore query parameters are reported
+   * to * New Relic. More specifically, the query field in a
+   * newrelic_datastore_segment_params_t passed to
+   * newrelic_datastore_start_segment() is reported when the
+   * corresponding transaction is reported.
+   *
+   * Datastore query parameters are omitted if set to false. New Relic
+   * recommends setting this value to false in applications where
+   * sensitive information appears in query parameters */
+  bool query_parameters;
+} newrelic_datastore_segment_config_t;
+
+/*!
  * @brief Agent configuration used to describe application name, license key, as
- * well as daemon and logging configuration.
+ * well as daemon, logging, transaction tracer and datastore configuration.
  *
  * @see newrelic_new_config().
  */
@@ -162,9 +159,8 @@ typedef struct _newrelic_config_t {
 
   /*! Optional. The datastore tracer configuration.  By default, the
    *  configuration returned by newrelic_new_config() will enable datastore
-   *  segments with instance_reporting and database_name_reporting
-   *  set to true.  By default, all other configuration fields are
-   *  set to false.
+   *  segments with instance_reporting and database_name_reporting set
+   *  to true.  By default, all other configuration fields are set to false.
    */
   newrelic_datastore_segment_config_t datastore_tracer;
 

@@ -76,3 +76,9 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
 
   return opt;
 }
+
+nrtxnopt_t* newrelic_get_datastore_options(const newrelic_config_t* config) {
+
+
+}
+
