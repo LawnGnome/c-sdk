@@ -89,22 +89,12 @@ typedef struct _newrelic_datastore_segment_config_t {
   bool instance_reporting;
 
   /* If set to true for a transaction, database names are reported to New Relic.
-   * More * specifically, the database_name field in a
+   * More specifically, the database_name field in a
    * newrelic_datastore_segment_params_t passed to
    * newrelic_datastore_start_segment() is reported when the
    * corresponding transaction is reported. */
   bool database_name_reporting;
 
-  /* If set to true for a transaction, datastore query parameters are reported
-   * to * New Relic. More specifically, the query field in a
-   * newrelic_datastore_segment_params_t passed to
-   * newrelic_datastore_start_segment() is reported when the
-   * corresponding transaction is reported.
-   *
-   * Datastore query parameters are omitted if set to false. New Relic
-   * recommends setting this value to false in transactions where
-   * sensitive information appears in query parameters */
-  bool query_parameters;
 } newrelic_datastore_segment_config_t;
 
 /*!

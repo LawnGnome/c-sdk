@@ -29,6 +29,10 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_APDEX_FAILING;
   config->transaction_tracer.duration_us = 0;
 
+  /* Set up the default datastore tracer configuration */
+  config->datastore_tracer.instance_reporting = true;
+  config->datastore_tracer.database_name_reporting = true;
+
   return config;
 }
 
