@@ -23,7 +23,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
 
   nr_strxcpy(config->app_name, app_name, nr_strlen(app_name));
   nr_strxcpy(config->license_key, license_key, nr_strlen(license_key));
- 
+
   /* Set up the default transaction tracer configuration. */
   config->transaction_tracer.enabled = true;
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_APDEX_FAILING;
@@ -38,8 +38,8 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->analytics_events_enabled = true;
   opt->custom_events_enabled = false;
   opt->synthetics_enabled = false;
-  opt->instance_reporting_enabled = false;
-  opt->database_name_reporting_enabled = false;
+  opt->instance_reporting_enabled = true;
+  opt->database_name_reporting_enabled = true;
   opt->err_enabled = true;
   opt->request_params_enabled = false;
   opt->autorum_enabled = false;
@@ -62,23 +62,22 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
   nrtxnopt_t* opt = newrelic_get_default_options();
 
   if (NULL != config) {
-    opt->tt_enabled = (int) config->transaction_tracer.enabled;
+    opt->tt_enabled = (int)config->transaction_tracer.enabled;
+    opt->instance_reporting_enabled =
+        config->datastore_tracer.instance_reporting;
+    opt->database_name_reporting_enabled =
+        config->datastore_tracer.database_name_reporting;
 
-    if (NEWRELIC_THRESHOLD_IS_APDEX_FAILING == config->transaction_tracer.threshold) {
+    if (NEWRELIC_THRESHOLD_IS_APDEX_FAILING ==
+        config->transaction_tracer.threshold) {
       opt->tt_is_apdex_f = 1;
       /* tt_threshold will be overwritten in nr_txn_begin() if tt_is_apdex_f is
        * set. */
     } else {
       opt->tt_is_apdex_f = 0;
-      opt->tt_threshold = (uint64_t) config->transaction_tracer.duration_us;
+      opt->tt_threshold = (uint64_t)config->transaction_tracer.duration_us;
     }
   }
 
   return opt;
 }
-
-nrtxnopt_t* newrelic_get_datastore_options(const newrelic_config_t* config) {
-
-
-}
-

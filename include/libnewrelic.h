@@ -102,7 +102,7 @@ typedef struct _newrelic_datastore_segment_config_t {
    * corresponding transaction is reported.
    *
    * Datastore query parameters are omitted if set to false. New Relic
-   * recommends setting this value to false in applications where
+   * recommends setting this value to false in transactions where
    * sensitive information appears in query parameters */
   bool query_parameters;
 } newrelic_datastore_segment_config_t;
