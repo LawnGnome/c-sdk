@@ -56,7 +56,8 @@ static void test_get_transaction_options_tt_disabled(void** state NRUNUSED) {
  * Purpose: Test that affirms the transaction options with the transaction
  *          tracer enabled and set to apdex mode are correct.
  */
-static void test_get_transaction_options_tt_threshold_apdex(void** state NRUNUSED) {
+static void test_get_transaction_options_tt_threshold_apdex(
+    void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
@@ -81,7 +82,8 @@ static void test_get_transaction_options_tt_threshold_apdex(void** state NRUNUSE
  * Purpose: Test that affirms the transaction options with the transaction
  *          tracer enabled and set to a duration are correct.
  */
-static void test_get_transaction_options_tt_threshold_duration(void** state NRUNUSED) {
+static void test_get_transaction_options_tt_threshold_duration(
+    void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
@@ -105,6 +107,56 @@ static void test_get_transaction_options_tt_threshold_duration(void** state NRUN
 }
 
 /*
+ * Purpose: Test that affirms the datastore tracer options with the
+ * instance_reporting unset are correct.
+ */
+static void test_get_transaction_options_instance_reporting(
+    void** state NRUNUSED) {
+  nrtxnopt_t* actual;
+  nrtxnopt_t* expected;
+  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+
+  config->datastore_tracer.instance_reporting = false;
+
+  actual = newrelic_get_transaction_options(config);
+  expected = newrelic_get_default_options();
+
+  expected->instance_reporting_enabled = false;
+
+  /* Assert that the options were set accordingly. */
+  assert_true(nr_txn_cmp_options(actual, expected));
+
+  nr_free(actual);
+  nr_free(expected);
+  free(config);
+}
+
+/*
+ * Purpose: Test that affirms the datastore tracer options with the
+ * database_name_reporting unset are correct.
+ */
+static void test_get_transaction_options_database_name_reporting(
+    void** state NRUNUSED) {
+  nrtxnopt_t* actual;
+  nrtxnopt_t* expected;
+  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+
+  config->datastore_tracer.database_name_reporting = false;
+
+  actual = newrelic_get_transaction_options(config);
+  expected = newrelic_get_default_options();
+
+  expected->database_name_reporting_enabled = false;
+
+  /* Assert that the options were set accordingly. */
+  assert_true(nr_txn_cmp_options(actual, expected));
+
+  nr_free(actual);
+  nr_free(expected);
+  free(config);
+}
+
+/*
  * Purpose: Main entry point (i.e. runs the tests)
  */
 int main(void) {
@@ -113,6 +165,8 @@ int main(void) {
       cmocka_unit_test(test_get_transaction_options_tt_disabled),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_apdex),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_duration),
+      cmocka_unit_test(test_get_transaction_options_instance_reporting),
+      cmocka_unit_test(test_get_transaction_options_database_name_reporting),
   };
 
   return cmocka_run_group_tests(options_tests,  // our tests
