@@ -41,7 +41,10 @@ int main(void) {
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  /* Fake a web request */
+  /* Fake a web request by sleeping for one second. In a more typical
+   * instrumentation scenario the start() and stop() calls for the external
+   * segment would be before and after code performing an HTTP or SOAP
+   * operation, for example. */
   segment = newrelic_start_external_segment(txn, &params);
   sleep(1);
   newrelic_end_external_segment(txn, &segment);
