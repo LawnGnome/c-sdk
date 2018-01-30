@@ -151,6 +151,7 @@ src-clean:
 .PHONY: tests-clean
 tests-clean:
 	$(MAKE) -C tests clean
+	$(MAKE) -C vendor clean
 
 .PHONY: clean
 clean: axiom-clean daemon-clean src-clean tests-clean
