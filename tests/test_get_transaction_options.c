@@ -56,7 +56,8 @@ static void test_get_transaction_options_tt_disabled(void** state NRUNUSED) {
  * Purpose: Test that affirms the transaction options with the transaction
  *          tracer enabled and set to apdex mode are correct.
  */
-static void test_get_transaction_options_tt_threshold_apdex(void** state NRUNUSED) {
+static void test_get_transaction_options_tt_threshold_apdex(
+    void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
@@ -81,7 +82,8 @@ static void test_get_transaction_options_tt_threshold_apdex(void** state NRUNUSE
  * Purpose: Test that affirms the transaction options with the transaction
  *          tracer enabled and set to a duration are correct.
  */
-static void test_get_transaction_options_tt_threshold_duration(void** state NRUNUSED) {
+static void test_get_transaction_options_tt_threshold_duration(
+    void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
@@ -108,7 +110,8 @@ static void test_get_transaction_options_tt_threshold_duration(void** state NRUN
  * Purpose: Test that affirms the datastore tracer options with the
  * instance_reporting unset are correct.
  */
-static void test_get_transaction_options_instance_reporting(void** state NRUNUSED) {
+static void test_get_transaction_options_instance_reporting(
+    void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
@@ -132,7 +135,8 @@ static void test_get_transaction_options_instance_reporting(void** state NRUNUSE
  * Purpose: Test that affirms the datastore tracer options with the
  * database_name_reporting unset are correct.
  */
-static void test_get_transaction_options_database_name_reporting(void** state NRUNUSED) {
+static void test_get_transaction_options_database_name_reporting(
+    void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);

@@ -150,7 +150,7 @@ typedef struct _newrelic_config_t {
   /*! Optional. The datastore tracer configuration.  By default, the
    *  configuration returned by newrelic_new_config() will enable datastore
    *  segments with instance_reporting and database_name_reporting set
-   *  to true.  By default, all other configuration fields are set to false.
+   *  to true.
    */
   newrelic_datastore_segment_config_t datastore_tracer;
 
