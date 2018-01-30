@@ -8,13 +8,6 @@
 #include "common.h"
 #include "libnewrelic.h"
 
-void record_error(newrelic_txn_t* txn) {
-  int priority = 50;
-  newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class.supervalu");
-  return;
-}
-
 int main(void) {
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
