@@ -5,13 +5,13 @@
 #include "nr_txn.h"
  
 /*! @brief The internal type used to represent an external segment. */
-typedef struct _newrelic_external_segment_t {
+struct _newrelic_external_segment_t {
   /*! The transaction the external segment was created on. */
   nrtxn_t *txn;
 
   /*! The external node parameters. */
   nr_node_external_params_t params;
-} newrelic_external_segment_t;
+};
 
 /*! @brief Destroy an external segment. */
 void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr);
