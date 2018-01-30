@@ -3,6 +3,28 @@
 
 #include "nr_txn.h"
 
+#define NEWRELIC_SQL_OFF "off"
+#define NEWRELIC_SQL_RAW "raw"
+#define NEWRELIC_SQL_OBFUSCATED "obfuscated"
+
+/*!
+ * @brief Given a string "off", "raw" or "obfuscated" return the
+ * corresponding nr_tt_recordsql value.
+ *
+ * @return  If the string is NULL or any other value, return
+ * the default NR_SQL_OBFUSCATED. Otherwise:
+ *  - If "off", return NR_SQL_NONE.
+ *  - If "raw", return NR_SQL_RAW.
+ *  - If "obfuscated", return NR_SQL_OBFUSCATED.
+ */
+nr_tt_recordsql_t newrelic_validate_recordsql(const char* setting);
+
+/*!
+ * @brief Create a set of default agent configuration options
+ *
+ * @return A newly allocated nrtxnopt_t struct, which must be released
+ * 				 with nr_free() when no longer required.
+ */
 nrtxnopt_t* newrelic_get_default_options(void);
 
 /*!
