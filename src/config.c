@@ -49,7 +49,7 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->error_events_enabled = true;
   opt->tt_enabled = true;
   opt->ep_enabled = false;
-  opt->tt_recordsql = false;
+  opt->tt_recordsql = NR_SQL_OBFUSCATED;
   opt->tt_slowsql = false;
   opt->apdex_t = 0;
   opt->tt_threshold = 0;
