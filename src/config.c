@@ -20,7 +20,6 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   }
 
   config = (newrelic_config_t*)nr_zalloc(sizeof(newrelic_config_t));
-
   nr_strxcpy(config->app_name, app_name, nr_strlen(app_name));
   nr_strxcpy(config->license_key, license_key, nr_strlen(license_key));
 
