@@ -52,7 +52,9 @@ static void test_start_external_segment_invalid(void** state) {
   /* A NULL uri should also result in a NULL. */
   assert_null(newrelic_start_external_segment(txn, &params));
 
-  /* Now we'll test library and procedure. */
+  /* Now we'll test library and procedure values including slashes, which are
+   * prohibited because they do terrible things to metric names and APM in
+   * turn. */
   params.uri = "https://newrelic.com/";
 
   params.library = "foo/bar";
@@ -124,11 +126,13 @@ static void test_end_external_segment_invalid(void** state) {
   assert_false(newrelic_end_external_segment(NULL, NULL));
   assert_false(newrelic_end_external_segment(txn, NULL));
 
-  /* This should destroy the given segment. */
+  /* This should destroy the given segment, even though the transaction is
+   * invalid. */
   assert_false(newrelic_end_external_segment(NULL, &segment_ptr));
   assert_null(segment_ptr);
 
-  /* A different transaction should result in failure. */
+  /* A different transaction should result in failure, but should still destroy
+   * the segment. */
   segment_ptr = duplicate_external_segment(&segment);
   assert_false(newrelic_end_external_segment(txn + 1, &segment_ptr));
   assert_null(segment_ptr);
@@ -152,6 +156,9 @@ static void test_end_external_segment_valid(void** state) {
   expect_value(__wrap_nr_txn_end_node_external, txn, txn);
   expect_value(__wrap_nr_txn_end_node_external, params, &segment_ptr->params);
   assert_true(newrelic_end_external_segment(txn, &segment_ptr));
+
+  /* Ensure that segment_ptr was freed by checking that it's NULL here (and by
+   * checking that the test doesn't leak). */
   assert_null(segment_ptr);
 }
 
