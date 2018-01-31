@@ -108,7 +108,7 @@ static void test_get_transaction_options_tt_threshold_duration(
 
 /*
  * Purpose: Test that affirms the transaction options with
- * recordsql "off" are correct.
+ * recordsql NEWRELIC_SQL_OFF are correct.
  */
 static void test_get_transaction_options_tt_recordsql_none(
     void** state NRUNUSED) {
@@ -133,7 +133,7 @@ static void test_get_transaction_options_tt_recordsql_none(
 
 /*
  * Purpose: Test that affirms the transaction options with
- * recordsql "raw" are correct.
+ * recordsql NEWRELIC_SQL_RAW are correct.
  */
 static void test_get_transaction_options_tt_recordsql_raw(
     void** state NRUNUSED) {
