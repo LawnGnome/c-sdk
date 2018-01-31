@@ -108,7 +108,7 @@ static void test_get_transaction_options_tt_threshold_duration(
 
 /*
  * Purpose: Test that affirms the transaction options with
- * recordsql "off" are correct.
+ * recordsql NEWRELIC_SQL_OFF are correct.
  */
 static void test_get_transaction_options_tt_recordsql_none(
     void** state NRUNUSED) {
@@ -116,7 +116,7 @@ static void test_get_transaction_options_tt_recordsql_none(
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
 
-  config->transaction_tracer.record_sql = "off";
+  config->transaction_tracer.record_sql = NEWRELIC_SQL_OFF;
 
   actual = newrelic_get_transaction_options(config);
   expected = newrelic_get_default_options();
@@ -133,20 +133,20 @@ static void test_get_transaction_options_tt_recordsql_none(
 
 /*
  * Purpose: Test that affirms the transaction options with
- * recordsql "obfuscated" are correct.
+ * recordsql NEWRELIC_SQL_RAW are correct.
  */
-static void test_get_transaction_options_tt_recordsql_obfuscated(
+static void test_get_transaction_options_tt_recordsql_raw(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
 
-  config->transaction_tracer.record_sql = "obfuscated";
+  config->transaction_tracer.record_sql = NEWRELIC_SQL_RAW;
 
   actual = newrelic_get_transaction_options(config);
   expected = newrelic_get_default_options();
 
-  expected->tt_recordsql = NR_SQL_OBFUSCATED;
+  expected->tt_recordsql = NR_SQL_RAW;
 
   /* Assert that the options were set accordingly. */
   assert_true(nr_txn_cmp_options(actual, expected));
@@ -166,21 +166,14 @@ static void test_get_transaction_options_tt_recordsql_invalid(
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
 
-  config->transaction_tracer.record_sql = "foo";
+  config->transaction_tracer.record_sql = 1000;
 
   actual = newrelic_get_transaction_options(config);
   expected = newrelic_get_default_options();
 
   expected->tt_recordsql = NR_SQL_OBFUSCATED;
 
-  /* For a "foo" setting, assert that the options were set accordingly. */
-  assert_true(nr_txn_cmp_options(actual, expected));
-
-  nr_free(actual);
-  config->transaction_tracer.record_sql = NULL;
-  actual = newrelic_get_transaction_options(config);
-
-  /* For a NULL setting, assert that the options were set accordingly. */
+  /* For an invalid setting, assert that the options were set accordingly. */
   assert_true(nr_txn_cmp_options(actual, expected));
 
   nr_free(actual);
@@ -248,7 +241,7 @@ int main(void) {
       cmocka_unit_test(test_get_transaction_options_tt_threshold_apdex),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_duration),
       cmocka_unit_test(test_get_transaction_options_tt_recordsql_none),
-      cmocka_unit_test(test_get_transaction_options_tt_recordsql_obfuscated),
+      cmocka_unit_test(test_get_transaction_options_tt_recordsql_raw),
       cmocka_unit_test(test_get_transaction_options_tt_recordsql_invalid),
       cmocka_unit_test(test_get_transaction_options_instance_reporting),
       cmocka_unit_test(test_get_transaction_options_database_name_reporting),
