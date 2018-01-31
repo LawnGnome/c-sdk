@@ -1,6 +1,7 @@
 #ifndef LIBNEWRELIC_CONFIG_H
 #define LIBNEWRELIC_CONFIG_H
 
+#include "libnewrelic.h"
 #include "nr_txn.h"
 
 /*!
@@ -13,7 +14,7 @@
  *  - If "raw", return NR_SQL_RAW.
  *  - If "obfuscated", return NR_SQL_OBFUSCATED.
  */
-nr_tt_recordsql_t newrelic_validate_recordsql(const char* setting);
+nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting);
 
 /*!
  * @brief Create a set of default agent configuration options

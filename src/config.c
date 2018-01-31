@@ -5,7 +5,7 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
-nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_record_sql_t setting) {
+nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting) {
 
   if (NEWRELIC_SQL_OFF == setting) {
     return NR_SQL_NONE;
@@ -41,6 +41,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   config->transaction_tracer.enabled = true;
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_APDEX_FAILING;
   config->transaction_tracer.duration_us = 0;
+  config->transaction_tracer.record_sql = NEWRELIC_SQL_OBFUSCATED;
 
   /* Set up the default datastore tracer configuration */
   config->datastore_tracer.instance_reporting = true;
