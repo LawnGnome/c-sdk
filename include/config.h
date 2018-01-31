@@ -5,14 +5,14 @@
 #include "nr_txn.h"
 
 /*!
- * @brief Given a string "off", "raw" or "obfuscated" return the
- * corresponding nr_tt_recordsql value.
+ * @brief Given a newrelic_tt_recordsql_t value return the
+ * corresponding nr_tt_recordsql_t value.
  *
  * @return  If the string is NULL or any other value, return
  * the default NR_SQL_OBFUSCATED. Otherwise:
- *  - If "off", return NR_SQL_NONE.
- *  - If "raw", return NR_SQL_RAW.
- *  - If "obfuscated", return NR_SQL_OBFUSCATED.
+ *  - If NEWRELIC_SQL_NONE, return NR_SQL_NONE.
+ *  - If NEWRELIC_SQL_RAW, return NR_SQL_RAW.
+ *  - If NEWRELIC_SQL_OBFUSCATED, return NR_SQL_OBFUSCATED.
  */
 nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting);
 
