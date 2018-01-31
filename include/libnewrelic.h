@@ -94,8 +94,8 @@ typedef struct _newrelic_transaction_tracer_config_t {
    *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
    *    as 'SELECT * FROM table WHERE foo = ?'.
    *
-   *  New Relic highly discourages the use of the "raw" setting in production
-   *  environments.
+   *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
+   *  in production environments.
    */
    newrelic_tt_recordsql_t record_sql;
 } newrelic_transaction_tracer_config_t;
