@@ -10,7 +10,7 @@
  *
  * @return  If the string is NULL or any other value, return
  * the default NR_SQL_OBFUSCATED. Otherwise:
- *  - If NEWRELIC_SQL_NONE, return NR_SQL_NONE.
+ *  - If NEWRELIC_SQL_OFF, return NR_SQL_NONE.
  *  - If NEWRELIC_SQL_RAW, return NR_SQL_RAW.
  *  - If NEWRELIC_SQL_OBFUSCATED, return NR_SQL_OBFUSCATED.
  */
