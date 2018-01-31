@@ -44,6 +44,16 @@ typedef enum _newrelic_loglevel_t {
   LOG_VERBOSE
 } newrelic_loglevel_t;
 
+/*!
+ * @brief Record SQL settings.
+ *
+ */
+typedef enum _newrelic_tt_recordsql_t {
+	NEWRELIC_SQL_OFF,
+	NEWRELIC_SQL_RAW,
+	NEWRELIC_SQL_OBFUSCATED
+} newrelic_tt_recordsql_t;
+
 /*! @brief Agent configuration used to configure the behaviour of the
  * transaction tracer.
  */
@@ -75,19 +85,18 @@ typedef struct _newrelic_transaction_tracer_config_t {
    */
   uint64_t duration_us;
 
-  /*! Controls the format of the sql put into transaction traces. The only
-   *  accepted strings are "off", "raw" and "obfuscated."
+  /*! Controls the format of the sql put into transaction traces.
    *
-   *  - If set to "off", transaction traces have no sql in them.
-   *  - If set to "raw" the sql is untouched.
-   *  - If set to "obfuscated", alphanumeric characters are set to '?'.
-   *    For example 'SELECT * FROM table WHERE foo = 42' is reported as
-   *    'SELECT * FROM table WHERE foo = ?'.
+   *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
+   *  - If set to NEWRELIC_SQL_RAW, the sql is untouched.
+   *  - If set to NEWRELIC_SQL_OBFUSCATED, alphanumeric characters are set
+   *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
+   *    as 'SELECT * FROM table WHERE foo = ?'.
    *
    *  New Relic highly discourages the use of the "raw" setting in production
    *  environments.
    */
-  char* record_sql;
+   newrelic_tt_recordsql_t record_sql;
 } newrelic_transaction_tracer_config_t;
 
 /*!

@@ -5,18 +5,15 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
-nr_tt_recordsql_t newrelic_validate_recordsql(const char* setting) {
-  if (NULL == setting) {
-    return NR_SQL_OBFUSCATED;
-  }
-  if (!nr_strncmp(setting, NEWRELIC_SQL_OFF, nr_strlen(NEWRELIC_SQL_OFF))) {
+nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_record_sql_t setting) {
+
+  if (NEWRELIC_SQL_OFF == setting) {
     return NR_SQL_NONE;
   }
-  if (!nr_strncmp(setting, NEWRELIC_SQL_RAW, nr_strlen(NEWRELIC_SQL_RAW))) {
+  if (NEWRELIC_SQL_RAW == setting) {
     return NR_SQL_RAW;
   }
-  if (!nr_strncmp(setting, NEWRELIC_SQL_OBFUSCATED,
-                 nr_strlen(NEWRELIC_SQL_OBFUSCATED))) {
+  if (NEWRELIC_SQL_OBFUSCATED == setting) {
     return NR_SQL_OBFUSCATED;
   }
   return NR_SQL_OBFUSCATED;

@@ -3,10 +3,6 @@
 
 #include "nr_txn.h"
 
-#define NEWRELIC_SQL_OFF "off"
-#define NEWRELIC_SQL_RAW "raw"
-#define NEWRELIC_SQL_OBFUSCATED "obfuscated"
-
 /*!
  * @brief Given a string "off", "raw" or "obfuscated" return the
  * corresponding nr_tt_recordsql value.
