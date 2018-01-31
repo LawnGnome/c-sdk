@@ -47,6 +47,7 @@ typedef enum _newrelic_loglevel_t {
 /*!
  * @brief Record SQL settings.
  *
+ * @see struct _newrelic_transaction_tracer_config_t
  */
 typedef enum _newrelic_tt_recordsql_t {
 	NEWRELIC_SQL_OFF,
