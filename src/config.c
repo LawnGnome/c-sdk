@@ -5,6 +5,23 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
+nr_tt_recordsql_t newrelic_validate_recordsql(const char* setting) {
+  if (NULL == setting) {
+    return NR_SQL_OBFUSCATED;
+  }
+  if (!nr_strncmp(setting, NEWRELIC_SQL_OFF, nr_strlen(NEWRELIC_SQL_OFF))) {
+    return NR_SQL_NONE;
+  }
+  if (!nr_strncmp(setting, NEWRELIC_SQL_RAW, nr_strlen(NEWRELIC_SQL_RAW))) {
+    return NR_SQL_RAW;
+  }
+  if (!nr_strncmp(setting, NEWRELIC_SQL_OBFUSCATED,
+                 nr_strlen(NEWRELIC_SQL_OBFUSCATED))) {
+    return NR_SQL_OBFUSCATED;
+  }
+  return NR_SQL_OBFUSCATED;
+}
+
 newrelic_config_t* newrelic_new_config(const char* app_name,
                                        const char* license_key) {
   newrelic_config_t* config;
@@ -49,7 +66,7 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->error_events_enabled = true;
   opt->tt_enabled = true;
   opt->ep_enabled = false;
-  opt->tt_recordsql = false;
+  opt->tt_recordsql = NR_SQL_OBFUSCATED;
   opt->tt_slowsql = false;
   opt->apdex_t = 0;
   opt->tt_threshold = 0;
@@ -66,6 +83,8 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
 
   if (NULL != config) {
     opt->tt_enabled = (int)config->transaction_tracer.enabled;
+    opt->tt_recordsql =
+        newrelic_validate_recordsql(config->transaction_tracer.record_sql);
     opt->instance_reporting_enabled =
         config->datastore_tracer.instance_reporting;
     opt->database_name_reporting_enabled =
