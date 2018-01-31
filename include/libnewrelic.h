@@ -50,9 +50,9 @@ typedef enum _newrelic_loglevel_t {
  * @see struct _newrelic_transaction_tracer_config_t
  */
 typedef enum _newrelic_tt_recordsql_t {
-	NEWRELIC_SQL_OFF,
-	NEWRELIC_SQL_RAW,
-	NEWRELIC_SQL_OBFUSCATED
+  NEWRELIC_SQL_OFF,
+  NEWRELIC_SQL_RAW,
+  NEWRELIC_SQL_OBFUSCATED
 } newrelic_tt_recordsql_t;
 
 /*! @brief Agent configuration used to configure the behaviour of the
@@ -97,7 +97,7 @@ typedef struct _newrelic_transaction_tracer_config_t {
    *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
    *  in production environments.
    */
-   newrelic_tt_recordsql_t record_sql;
+  newrelic_tt_recordsql_t record_sql;
 } newrelic_transaction_tracer_config_t;
 
 /*!
