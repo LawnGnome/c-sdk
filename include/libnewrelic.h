@@ -89,10 +89,12 @@ typedef struct _newrelic_transaction_tracer_config_t {
   /*! Controls the format of the sql put into transaction traces.
    *
    *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
-   *  - If set to NEWRELIC_SQL_RAW, the sql is untouched.
+   *  - If set to NEWRELIC_SQL_RAW, the sql is untouched and added to the
+   *    transaction trace.
    *  - If set to NEWRELIC_SQL_OBFUSCATED, alphanumeric characters are set
    *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
-   *    as 'SELECT * FROM table WHERE foo = ?'.
+   *    as 'SELECT * FROM table WHERE foo = ?'.  These obfuscated queries are
+   *    added to the transaction trace for supported datastore products.
    *
    *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
    *  in production environments.
