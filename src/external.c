@@ -7,7 +7,8 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
-void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr) {
+void newrelic_destroy_external_segment(
+    newrelic_external_segment_t** segment_ptr) {
   newrelic_external_segment_t* segment;
 
   if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
@@ -19,16 +20,18 @@ void newrelic_destroy_external_segment(newrelic_external_segment_t** segment_ptr
   nr_free(segment->params.library);
   nr_free(segment->params.procedure);
   nr_free(segment->params.url);
-  nr_realfree((void **) segment_ptr);
+  nr_realfree((void**)segment_ptr);
 }
 
-newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* transaction,
-                                                             const newrelic_external_segment_params_t *params) {
+newrelic_external_segment_t* newrelic_start_external_segment(
+    newrelic_txn_t* transaction,
+    const newrelic_external_segment_params_t* params) {
   newrelic_external_segment_t* segment = NULL;
 
   /* Validate our inputs. */
   if (NULL == transaction) {
-    nrl_error(NRL_INSTRUMENT, "cannot start an external segment on a NULL transaction");
+    nrl_error(NRL_INSTRUMENT,
+              "cannot start an external segment on a NULL transaction");
     return NULL;
   }
 
@@ -56,10 +59,11 @@ newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* tra
 
   /* Set the fields that we care about. */
   nr_txn_set_time(transaction, &segment->params.start);
-  segment->txn              = transaction;
-  segment->params.library   = params->library   ? nr_strdup(params->library)   : NULL;
-  segment->params.procedure = params->procedure ? nr_strdup(params->procedure) : NULL;
-  segment->params.url       = nr_strdup(params->uri);
+  segment->txn = transaction;
+  segment->params.library = params->library ? nr_strdup(params->library) : NULL;
+  segment->params.procedure =
+      params->procedure ? nr_strdup(params->procedure) : NULL;
+  segment->params.url = nr_strdup(params->uri);
 
   return segment;
 }
@@ -79,7 +83,8 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
   segment = *segment_ptr;
 
   if (NULL == transaction) {
-    nrl_error(NRL_INSTRUMENT, "cannot end an external segment on a NULL transaction");
+    nrl_error(NRL_INSTRUMENT,
+              "cannot end an external segment on a NULL transaction");
     goto end;
   }
 
@@ -88,7 +93,9 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
    * transactions would be problematic, since times are transaction-specific.
    * */
   if (transaction != segment->txn) {
-    nrl_error(NRL_INSTRUMENT, "cannot end an external segment on a different transaction to the one it was created on");
+    nrl_error(NRL_INSTRUMENT,
+              "cannot end an external segment on a different transaction to "
+              "the one it was created on");
     goto end;
   }
 

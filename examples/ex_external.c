@@ -13,8 +13,8 @@ int main(void) {
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
   newrelic_external_segment_params_t params = {
-    .procedure = "GET",
-    .uri       = "https://httpbin.org/delay/1",
+      .procedure = "GET",
+      .uri = "https://httpbin.org/delay/1",
   };
   newrelic_external_segment_t* segment = 0;
 

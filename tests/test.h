@@ -2,9 +2,9 @@
 #define TEST_H
 
 #if defined(__GNUC__)
-# define NRUNUSED __attribute__((__unused__))
+#define NRUNUSED __attribute__((__unused__))
 #else
-# define NRUNUSED
+#define NRUNUSED
 #endif
 
 /*! @brief Provides a fake transaction as the group state. */

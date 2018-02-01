@@ -357,8 +357,9 @@ typedef struct _newrelic_external_segment_params_t {
  *         NULL is returned, and a log message will be written to the agent log
  *         at LOG_ERROR level.
  */
-newrelic_external_segment_t* newrelic_start_external_segment(newrelic_txn_t* transaction,
-                                                             const newrelic_external_segment_params_t *params);
+newrelic_external_segment_t* newrelic_start_external_segment(
+    newrelic_txn_t* transaction,
+    const newrelic_external_segment_params_t* params);
 
 /*!
  * @brief Stop recording an external segment within a transaction.
