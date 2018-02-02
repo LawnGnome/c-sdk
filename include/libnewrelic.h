@@ -96,43 +96,40 @@ typedef struct _newrelic_transaction_tracer_config_t {
    */
   uint64_t stack_trace_threshold_us;
 
-  /*! Controls the format of the sql put into transaction traces.
-   *
-   *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
-   *  - If set to NEWRELIC_SQL_RAW, the sql is added to the transaction
-   *    trace as-is.
-   *  - If set to NEWRELIC_SQL_OBFUSCATED, alphanumeric characters are set
-   *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
-   *    as 'SELECT * FROM table WHERE foo = ?'.  These obfuscated queries are
-   *    added to the transaction trace for supported datastore products.
-   *
-   *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
-   *  in production environments.
-   *
-   *  Default: NEWRELIC_SQL_OBFUSCATED.
-   */
-  newrelic_tt_recordsql_t record_sql;
+  struct {
+    /*! Controls whether slow datastore queries are recorded.  If set to true
+     *  for a transaction, the transaction tracer records the top-10 slowest
+     *  queries along with a stack trace of where the call occurred.
+     *  Default: true.
+     */
+    bool enabled;
 
-  /*! Controls whether slow SQL call traces are recorded.  If set to true for a
-   *  transaction, the transaction tracer records the top-10 slowest SQL calls
-   *  along with a stack trace of where the call occurred.
-   *  Default: true.
-   */
-  bool slow_sql;
+    /*! Controls the format of the sql put into transaction traces for supported
+     *  sql-like products. Only relevant if the above slow_query.enabled
+     *  field is set to true.
+     *
+     *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
+     *  - If set to NEWRELIC_SQL_RAW, the sql is added to the transaction
+     *    trace as-is.
+     *  - If set to NEWRELIC_SQL_OBFUSCATED, alphanumeric characters are set
+     *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
+     *    as 'SELECT * FROM table WHERE foo = ?'.  These obfuscated queries are
+     *    added to the transaction trace for supported datastore products.
+     *
+     *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
+     *  in production environments.
+     *
+     *  Default: NEWRELIC_SQL_OBFUSCATED.
+     */
+    newrelic_tt_recordsql_t record_sql;
 
-  /*! Enables or disables requesting "explain plans" from MySQL databases
-   *  accessed via MySQLi or PDO_MySQL for slow SQL calls. The threshold
-   *  for requesting explain plans is defined below.
-   *  Default: true.
-   */
-  bool explain_enabled;
-
-  /*! Used by the slow SQL tracer to set the threshold above which an SQL
-   * statement is considered "slow",in microseconds.  Only relevant if
-   * explain_enabled is set to true.
-   * Default: 500000.
-   */
-  uint64_t explain_threshold_us;
+    /*! Specify the threshold above which a datastore query is considered
+     *  "slow", in microseconds.  Only relevant if the above slow_query.enabled
+     *  field is set to true.
+     *  Default: 500000.
+     */
+    uint64_t threshold_us;
+  } datastore_reporting;
 
 } newrelic_transaction_tracer_config_t;
 
