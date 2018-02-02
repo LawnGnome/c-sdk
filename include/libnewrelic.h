@@ -92,7 +92,7 @@ typedef struct _newrelic_transaction_tracer_config_t {
 
   /*! Sets the threshold above which the New Relic agent will record a
    *  stack trace for a transaction trace, in microseconds.
-   *  Default: 500000.
+   *  Default: 500000, or 0.5 seconds.
    */
   uint64_t stack_trace_threshold_us;
 
@@ -126,7 +126,7 @@ typedef struct _newrelic_transaction_tracer_config_t {
     /*! Specify the threshold above which a datastore query is considered
      *  "slow", in microseconds.  Only relevant if the above
      *  datastore_reporting.enabled field is set to true.
-     *  Default: 500000.
+     *  Default: 500000, or 0.5 seconds.
      */
     uint64_t threshold_us;
   } datastore_reporting;
