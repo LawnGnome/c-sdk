@@ -72,7 +72,7 @@ typedef enum _newrelic_transaction_tracer_threshold_t {
 
 /*! @brief Agent configuration used to configure transaction tracing. */
 typedef struct _newrelic_transaction_tracer_config_t {
-  /*! Whether to enable transaction traces. */
+  /*! Whether to enable transaction traces. Default: true. */
   bool enabled;
 
   /*! Whether to consider transactions for trace generation based on the apdex
@@ -87,9 +87,9 @@ typedef struct _newrelic_transaction_tracer_config_t {
   uint64_t duration_us;
 
   /*! Sets the threshold above which the New Relic agent will record a
-   *  stack trace for a transaction trace.
+   *  stack trace for a transaction trace, in microseconds.
    */
-  uint64_t stack_trace_threshold;
+  uint64_t stack_trace_threshold_us;
 
   /*! Controls the format of the sql put into transaction traces.
    *
@@ -119,10 +119,10 @@ typedef struct _newrelic_transaction_tracer_config_t {
   bool explain_enabled;
 
   /*! Used by the slow SQL tracer to set the threshold above which an SQL
-   * statement is considered "slow".  Only relevant if explain_enabled
-   * is set to true.
+   * statement is considered "slow",in microseconds.  Only relevant if
+   * explain_enabled is set to true.
    */
-  uint64_t explain_threshold;
+  uint64_t explain_threshold_us;
 
 } newrelic_transaction_tracer_config_t;
 
