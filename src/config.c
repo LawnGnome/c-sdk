@@ -42,10 +42,11 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   config->transaction_tracer.duration_us = 0;
   config->transaction_tracer.stack_trace_threshold_us = 500000;
 
-	/* Set up the default datastore reporting configuration */
+  /* Set up the default datastore reporting configuration */
   config->transaction_tracer.datastore_reporting.enabled = true;
   config->transaction_tracer.datastore_reporting.threshold_us = 500000;
-  config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_OBFUSCATED;
+  config->transaction_tracer.datastore_reporting.record_sql =
+      NEWRELIC_SQL_OBFUSCATED;
 
   /* Set up the default datastore tracer configuration */
   config->datastore_tracer.instance_reporting = true;
@@ -92,12 +93,13 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
 
     /* Convert public transaction tracer settings to transaction options. */
     opt->tt_enabled = (int)config->transaction_tracer.enabled;
-    opt->tt_recordsql =
-        newrelic_validate_recordsql(config->transaction_tracer.datastore_reporting.record_sql);
+    opt->tt_recordsql = newrelic_validate_recordsql(
+        config->transaction_tracer.datastore_reporting.record_sql);
     opt->tt_slowsql = config->transaction_tracer.datastore_reporting.enabled;
 
     opt->ep_threshold =
-        config->transaction_tracer.datastore_reporting.threshold_us * NR_TIME_DIVISOR_US;
+        config->transaction_tracer.datastore_reporting.threshold_us *
+        NR_TIME_DIVISOR_US;
     opt->ss_threshold = config->transaction_tracer.stack_trace_threshold_us *
                         NR_TIME_DIVISOR_US;
 
