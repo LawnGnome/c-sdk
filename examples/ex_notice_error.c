@@ -21,11 +21,11 @@ int main(void) {
   newrelic_config_t* config = 0;
 
   char* app_name = get_app_name();
-  if (app_name == NULL)
+  if (NULL == app_name)
     return -1;
 
   char* license_key = get_license_key();
-  if (license_key == NULL)
+  if (NULL == license_key)
     return -1;
 
   config = newrelic_new_config(app_name, license_key);
