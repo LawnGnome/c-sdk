@@ -357,6 +357,84 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            const char* errmsg,
                            const char* errclass);
 
+/*! @brief The internal type used to represent an external segment. */
+typedef struct _newrelic_external_segment_t newrelic_external_segment_t;
+
+/*! @brief Parameters used when creating an external segment. */
+typedef struct _newrelic_external_segment_params_t {
+  /*!
+   * The URI that was loaded. This field is required to be a null-terminated
+   * string containing a valid URI, and cannot be NULL.
+   */
+  char* uri;
+
+  /*!
+   * The procedure used to load the external resource.
+   *
+   * In HTTP contexts, this will usually be the request method (eg `GET`,
+   * `POST`, et al). For non-HTTP requests, or protocols that encode more
+   * specific semantics on top of HTTP like SOAP, you may wish to use a
+   * different value that more precisely encodes how the resource was
+   * requested.
+   *
+   * If provided, this field is required to be a null-terminated string that
+   * does not include any slash characters. It is also valid to provide NULL,
+   * in which case no procedure will be attached to the external segment.
+   */
+  char* procedure;
+
+  /*!
+   * The library used to load the external resource.
+   *
+   * If provided, this field is required to be a null-terminated string that
+   * does not include any slash characters. It is also valid to provide NULL,
+   * in which case no library will be attached to the external segment.
+   */
+  char* library;
+} newrelic_external_segment_params_t;
+
+/*!
+ * @brief Start recording an external segment within a transaction.
+ *
+ * Given an active transaction, this function creates an external segment
+ * inside of the transaction and marks it as having been started. An external
+ * segment is generally used to represent a HTTP or RPC request.
+ *
+ * @param [in] transaction An active transaction.
+ * @param [in] params      The parameters describing the external request. All
+ *                         parameters are copied, and no references to the
+ *                         pointers provided are kept after this function
+ *                         returns.
+ * @return A pointer to an external segment, which may then be provided to
+ *         newrelic_end_external_segment() when the external request is
+ *         complete. If an error occurs when creating the external segment,
+ *         NULL is returned, and a log message will be written to the agent log
+ *         at LOG_ERROR level.
+ */
+newrelic_external_segment_t* newrelic_start_external_segment(
+    newrelic_txn_t* transaction,
+    const newrelic_external_segment_params_t* params);
+
+/*!
+ * @brief Stop recording an external segment within a transaction.
+ *
+ * Given an active transaction and an external segment created by
+ * newrelic_start_external_segment(), this function stops the external segment
+ * and saves it.
+ *
+ * @param [in]     transaction An active transaction.
+ * @param [in,out] segment_ptr A pointer to the segment pointer returned by
+ *                             newrelic_start_external_segment(). The segment
+ *                             pointer will be set to NULL before this function
+ *                             returns to avoid any potential double free
+ *                             errors.
+ * @return True if the segment was saved successfully, or false if an error
+ *         occurred. If an error occurred, a log message will be written to the
+ *         agent log at LOG_ERROR level.
+ */
+bool newrelic_end_external_segment(newrelic_txn_t* transaction,
+                                   newrelic_external_segment_t** segment_ptr);
+
 #ifdef __cplusplus
 }
 #endif
