@@ -72,22 +72,27 @@ typedef enum _newrelic_transaction_tracer_threshold_t {
 
 /*! @brief Agent configuration used to configure transaction tracing. */
 typedef struct _newrelic_transaction_tracer_config_t {
-  /*! Whether to enable transaction traces. Default: true. */
+  /*! Whether to enable transaction traces.
+   *  Default: true.
+   */
   bool enabled;
 
   /*! Whether to consider transactions for trace generation based on the apdex
    *  configuration or a specific duration.
+   *  Default: NEWRELIC_THRESHOLD_IS_APDEX_FAILING.
    */
   newrelic_transaction_tracer_threshold_t threshold;
 
   /*! If the agent configuration threshold is set to
    *  NEWRELIC_THRESHOLD_IS_OVER_DURATION, this field specifies the minimum
    *  transaction time before a trace may be generated, in microseconds.
+   *  Default: 0.
    */
   uint64_t duration_us;
 
   /*! Sets the threshold above which the New Relic agent will record a
    *  stack trace for a transaction trace, in microseconds.
+   *  Default: 500000.
    */
   uint64_t stack_trace_threshold_us;
 
@@ -103,24 +108,29 @@ typedef struct _newrelic_transaction_tracer_config_t {
    *
    *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
    *  in production environments.
+   *
+   *  Default: NEWRELIC_SQL_OBFUSCATED.
    */
   newrelic_tt_recordsql_t record_sql;
 
   /*! Controls whether slow SQL call traces are recorded.  If set to true for a
    *  transaction, the transaction tracer records the top-10 slowest SQL calls
    *  along with a stack trace of where the call occurred.
+   *  Default: true.
    */
   bool slow_sql;
 
   /*! Enables or disables requesting "explain plans" from MySQL databases
    *  accessed via MySQLi or PDO_MySQL for slow SQL calls. The threshold
    *  for requesting explain plans is defined below.
+   *  Default: true.
    */
   bool explain_enabled;
 
   /*! Used by the slow SQL tracer to set the threshold above which an SQL
    * statement is considered "slow",in microseconds.  Only relevant if
    * explain_enabled is set to true.
+   * Default: 500000.
    */
   uint64_t explain_threshold_us;
 
