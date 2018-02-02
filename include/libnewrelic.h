@@ -87,7 +87,7 @@ typedef struct _newrelic_transaction_tracer_config_t {
   uint64_t duration_us;
 
   /*! Sets the threshold above which the New Relic agent will record a
-*  stack trace for a transaction trace.
+   *  stack trace for a transaction trace.
    */
   uint64_t stack_trace_threshold;
 
