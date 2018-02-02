@@ -86,6 +86,11 @@ typedef struct _newrelic_transaction_tracer_config_t {
    */
   uint64_t duration_us;
 
+  /*! Sets the threshold above which the New Relic agent will record a
+*  stack trace for a transaction trace.
+   */
+  uint64_t stack_trace_threshold;
+
   /*! Controls the format of the sql put into transaction traces.
    *
    *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
@@ -100,6 +105,25 @@ typedef struct _newrelic_transaction_tracer_config_t {
    *  in production environments.
    */
   newrelic_tt_recordsql_t record_sql;
+
+  /*! Controls whether slow SQL call traces are recorded.  If set to true for a
+   *  transaction, the transaction tracer records the top-10 slowest SQL calls
+   *  along with a stack trace of where the call occurred.
+   */
+  bool slow_sql;
+
+  /*! Enables or disables requesting "explain plans" from MySQL databases
+   *  accessed via MySQLi or PDO_MySQL for slow SQL calls. The threshold
+   *  for requesting explain plans is defined below.
+   */
+  bool explain_enabled;
+
+  /*! Used by the slow SQL tracer to set the threshold above which an SQL
+   * statement is considered "slow".  Only relevant if explain_enabled
+   * is set to true.
+   */
+  uint64_t explain_threshold;
+
 } newrelic_transaction_tracer_config_t;
 
 /*!
@@ -120,10 +144,6 @@ typedef struct _newrelic_datastore_segment_config_t {
    * newrelic_datastore_start_segment() is reported when the
    * corresponding transaction is reported. */
   bool database_name_reporting;
-
-  /* If set to true for a transaction, the datastore tracer records the top-10
-   * slowest SQL calls along with a stack trace of where the call occurred. */
-  bool slow_sql;
 
 } newrelic_datastore_segment_config_t;
 

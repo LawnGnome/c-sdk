@@ -68,9 +68,9 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->tt_recordsql = NR_SQL_OBFUSCATED;
   opt->tt_slowsql = true;
   opt->apdex_t = 0;
-  opt->tt_threshold = 1;
-  opt->ep_threshold = 1;
-  opt->ss_threshold = 1; // TODO
+  opt->tt_threshold = 0;
+  opt->ep_threshold = 500 * NR_TIME_DIVISOR_MS;
+  opt->ss_threshold = 500 * NR_TIME_DIVISOR_MS;
   opt->cross_process_enabled = false;
   opt->tt_is_apdex_f = true;
 
