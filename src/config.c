@@ -46,6 +46,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   /* Set up the default datastore tracer configuration */
   config->datastore_tracer.instance_reporting = true;
   config->datastore_tracer.database_name_reporting = true;
+  config->datastore_tracer.slow_sql = true;
 
   return config;
 }
@@ -65,11 +66,11 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->tt_enabled = true;
   opt->ep_enabled = false;
   opt->tt_recordsql = NR_SQL_OBFUSCATED;
-  opt->tt_slowsql = false;
+  opt->tt_slowsql = true;
   opt->apdex_t = 0;
-  opt->tt_threshold = 0;
-  opt->ep_threshold = 0;
-  opt->ss_threshold = 0;
+  opt->tt_threshold = 1;
+  opt->ep_threshold = 1;
+  opt->ss_threshold = 1; // TODO
   opt->cross_process_enabled = false;
   opt->tt_is_apdex_f = true;
 
@@ -87,6 +88,7 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
         config->datastore_tracer.instance_reporting;
     opt->database_name_reporting_enabled =
         config->datastore_tracer.database_name_reporting;
+    opt->tt_slowsql = config->datastore_tracer.slow_sql;
 
     if (NEWRELIC_THRESHOLD_IS_APDEX_FAILING ==
         config->transaction_tracer.threshold) {

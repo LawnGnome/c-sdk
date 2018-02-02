@@ -121,6 +121,10 @@ typedef struct _newrelic_datastore_segment_config_t {
    * corresponding transaction is reported. */
   bool database_name_reporting;
 
+  /* If set to true for a transaction, the datastore tracer records the top-10
+   * slowest SQL calls along with a stack trace of where the call occurred. */
+  bool slow_sql;
+
 } newrelic_datastore_segment_config_t;
 
 /*!
@@ -175,8 +179,8 @@ typedef struct _newrelic_config_t {
 
   /*! Optional. The datastore tracer configuration.  By default, the
    *  configuration returned by newrelic_new_config() will enable datastore
-   *  segments with instance_reporting and database_name_reporting set
-   *  to true.
+   *  segments with instance_reporting, database_name_reporting, and slow_sql
+   *  set to true.
    */
   newrelic_datastore_segment_config_t datastore_tracer;
 
