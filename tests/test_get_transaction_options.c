@@ -233,7 +233,6 @@ static void test_get_transaction_options_datastore_reporting_threshold(
   free(config);
 }
 
-
 /*
  * Purpose: Test that affirms the datastore tracer options with the
  * instance_reporting unset are correct.
@@ -263,7 +262,8 @@ static void test_get_transaction_options_datastore_segment_instance_reporting(
  * Purpose: Test that affirms the datastore tracer options with the
  * database_name_reporting unset are correct.
  */
-static void test_get_transaction_options_datastore_segment_database_name_reporting(
+static void
+test_get_transaction_options_datastore_segment_database_name_reporting(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
@@ -293,13 +293,20 @@ int main(void) {
       cmocka_unit_test(test_get_transaction_options_tt_disabled),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_apdex),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_duration),
-      cmocka_unit_test(test_get_transaction_options_datastore_reporting_recordsql_none),
-      cmocka_unit_test(test_get_transaction_options_datastore_reporting_recordsql_raw),
-      cmocka_unit_test(test_get_transaction_options_datastore_reporting_recordsql_invalid),
-      cmocka_unit_test(test_get_transaction_options_datastore_reporting_threshold),
-      cmocka_unit_test(test_get_transaction_options_datastore_reporting_enabled),
-      cmocka_unit_test(test_get_transaction_options_datastore_segment_instance_reporting),
-      cmocka_unit_test(test_get_transaction_options_datastore_segment_database_name_reporting),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_recordsql_none),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_recordsql_raw),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_recordsql_invalid),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_threshold),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_enabled),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_segment_instance_reporting),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_segment_database_name_reporting),
   };
 
   return cmocka_run_group_tests(options_tests,  // our tests

@@ -105,8 +105,8 @@ typedef struct _newrelic_transaction_tracer_config_t {
     bool enabled;
 
     /*! Controls the format of the sql put into transaction traces for supported
-     *  sql-like products. Only relevant if the above slow_query.enabled
-     *  field is set to true.
+     *  sql-like products. Only relevant if the above
+     *  datastore_reporting.enabled field is set to true.
      *
      *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
      *  - If set to NEWRELIC_SQL_RAW, the sql is added to the transaction
@@ -124,8 +124,8 @@ typedef struct _newrelic_transaction_tracer_config_t {
     newrelic_tt_recordsql_t record_sql;
 
     /*! Specify the threshold above which a datastore query is considered
-     *  "slow", in microseconds.  Only relevant if the above slow_query.enabled
-     *  field is set to true.
+     *  "slow", in microseconds.  Only relevant if the above
+     *  datastore_reporting.enabled field is set to true.
      *  Default: 500000.
      */
     uint64_t threshold_us;
