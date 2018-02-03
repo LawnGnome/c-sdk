@@ -107,16 +107,16 @@ static void test_get_transaction_options_tt_threshold_duration(
 }
 
 /*
- * Purpose: Test that affirms the transaction options with
+ * Purpose: Test that affirms the datastore reporting options with
  * recordsql NEWRELIC_SQL_OFF are correct.
  */
-static void test_get_transaction_options_tt_recordsql_none(
+static void test_get_transaction_options_datastore_reporting_recordsql_none(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
 
-  config->transaction_tracer.record_sql = NEWRELIC_SQL_OFF;
+  config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_OFF;
 
   actual = newrelic_get_transaction_options(config);
   expected = newrelic_get_default_options();
@@ -132,16 +132,16 @@ static void test_get_transaction_options_tt_recordsql_none(
 }
 
 /*
- * Purpose: Test that affirms the transaction options with
+ * Purpose: Test that affirms the datastore reporting options with
  * recordsql NEWRELIC_SQL_RAW are correct.
  */
-static void test_get_transaction_options_tt_recordsql_raw(
+static void test_get_transaction_options_datastore_reporting_recordsql_raw(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
 
-  config->transaction_tracer.record_sql = NEWRELIC_SQL_RAW;
+  config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_RAW;
 
   actual = newrelic_get_transaction_options(config);
   expected = newrelic_get_default_options();
@@ -157,16 +157,16 @@ static void test_get_transaction_options_tt_recordsql_raw(
 }
 
 /*
- * Purpose: Test that affirms the transaction options with bad
+ * Purpose: Test that affirms the datastore reporting options with bad
  * recordsql are correctly set to the default NR_SQL_OBFUSCATED.
  */
-static void test_get_transaction_options_tt_recordsql_invalid(
+static void test_get_transaction_options_datastore_reporting_recordsql_invalid(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
 
-  config->transaction_tracer.record_sql = 1000;
+  config->transaction_tracer.datastore_reporting.record_sql = 1000;
 
   actual = newrelic_get_transaction_options(config);
   expected = newrelic_get_default_options();
@@ -182,10 +182,62 @@ static void test_get_transaction_options_tt_recordsql_invalid(
 }
 
 /*
+ * Purpose: Test that affirms that the public-facing
+ * datastore_reporting.enabled = false value gets converted to
+ * the correct transaction options.
+ */
+static void test_get_transaction_options_datastore_reporting_enabled(
+    void** state NRUNUSED) {
+  nrtxnopt_t* actual;
+  nrtxnopt_t* expected;
+  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+
+  config->transaction_tracer.datastore_reporting.enabled = false;
+
+  actual = newrelic_get_transaction_options(config);
+  expected = newrelic_get_default_options();
+
+  expected->tt_slowsql = false;
+
+  /* Assert that the options were set accordingly. */
+  assert_true(nr_txn_cmp_options(actual, expected));
+
+  nr_free(actual);
+  nr_free(expected);
+  free(config);
+}
+
+/*
+ * Purpose: Test that affirms that the public-facing
+ * datastore_reporting.threshold_us value gets converted from an
+ * uint64_t to a time value.
+ */
+static void test_get_transaction_options_datastore_reporting_threshold(
+    void** state NRUNUSED) {
+  nrtxnopt_t* actual;
+  nrtxnopt_t* expected;
+  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+
+  config->transaction_tracer.datastore_reporting.threshold_us = 10;
+
+  actual = newrelic_get_transaction_options(config);
+  expected = newrelic_get_default_options();
+
+  expected->ep_threshold = 10 * NR_TIME_DIVISOR_US;
+
+  /* Assert that the options were set accordingly. */
+  assert_true(nr_txn_cmp_options(actual, expected));
+
+  nr_free(actual);
+  nr_free(expected);
+  free(config);
+}
+
+/*
  * Purpose: Test that affirms the datastore tracer options with the
  * instance_reporting unset are correct.
  */
-static void test_get_transaction_options_instance_reporting(
+static void test_get_transaction_options_datastore_segment_instance_reporting(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
@@ -210,7 +262,8 @@ static void test_get_transaction_options_instance_reporting(
  * Purpose: Test that affirms the datastore tracer options with the
  * database_name_reporting unset are correct.
  */
-static void test_get_transaction_options_database_name_reporting(
+static void
+test_get_transaction_options_datastore_segment_database_name_reporting(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
@@ -240,11 +293,20 @@ int main(void) {
       cmocka_unit_test(test_get_transaction_options_tt_disabled),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_apdex),
       cmocka_unit_test(test_get_transaction_options_tt_threshold_duration),
-      cmocka_unit_test(test_get_transaction_options_tt_recordsql_none),
-      cmocka_unit_test(test_get_transaction_options_tt_recordsql_raw),
-      cmocka_unit_test(test_get_transaction_options_tt_recordsql_invalid),
-      cmocka_unit_test(test_get_transaction_options_instance_reporting),
-      cmocka_unit_test(test_get_transaction_options_database_name_reporting),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_recordsql_none),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_recordsql_raw),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_recordsql_invalid),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_threshold),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_reporting_enabled),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_segment_instance_reporting),
+      cmocka_unit_test(
+          test_get_transaction_options_datastore_segment_database_name_reporting),
   };
 
   return cmocka_run_group_tests(options_tests,  // our tests

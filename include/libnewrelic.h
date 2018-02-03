@@ -72,34 +72,65 @@ typedef enum _newrelic_transaction_tracer_threshold_t {
 
 /*! @brief Agent configuration used to configure transaction tracing. */
 typedef struct _newrelic_transaction_tracer_config_t {
-  /*! Whether to enable transaction traces. */
+  /*! Whether to enable transaction traces.
+   *  Default: true.
+   */
   bool enabled;
 
   /*! Whether to consider transactions for trace generation based on the apdex
    *  configuration or a specific duration.
+   *  Default: NEWRELIC_THRESHOLD_IS_APDEX_FAILING.
    */
   newrelic_transaction_tracer_threshold_t threshold;
 
   /*! If the agent configuration threshold is set to
    *  NEWRELIC_THRESHOLD_IS_OVER_DURATION, this field specifies the minimum
    *  transaction time before a trace may be generated, in microseconds.
+   *  Default: 0.
    */
   uint64_t duration_us;
 
-  /*! Controls the format of the sql put into transaction traces.
-   *
-   *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
-   *  - If set to NEWRELIC_SQL_RAW, the sql is added to the transaction
-   *    trace as-is.
-   *  - If set to NEWRELIC_SQL_OBFUSCATED, alphanumeric characters are set
-   *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
-   *    as 'SELECT * FROM table WHERE foo = ?'.  These obfuscated queries are
-   *    added to the transaction trace for supported datastore products.
-   *
-   *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
-   *  in production environments.
+  /*! Sets the threshold above which the New Relic agent will record a
+   *  stack trace for a transaction trace, in microseconds.
+   *  Default: 500000, or 0.5 seconds.
    */
-  newrelic_tt_recordsql_t record_sql;
+  uint64_t stack_trace_threshold_us;
+
+  struct {
+    /*! Controls whether slow datastore queries are recorded.  If set to true
+     *  for a transaction, the transaction tracer records the top-10 slowest
+     *  queries along with a stack trace of where the call occurred.
+     *  Default: true.
+     */
+    bool enabled;
+
+    /*! Controls the format of the sql put into transaction traces for supported
+     *  sql-like products. Only relevant if the above
+     *  datastore_reporting.enabled field is set to true.
+     *
+     *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
+     *  - If set to NEWRELIC_SQL_RAW, the sql is added to the transaction
+     *    trace as-is.
+     *  - If set to NEWRELIC_SQL_OBFUSCATED, alphanumeric characters are set
+     *    to '?'. For example 'SELECT * FROM table WHERE foo = 42' is reported
+     *    as 'SELECT * FROM table WHERE foo = ?'.  These obfuscated queries are
+     *    added to the transaction trace for supported datastore products.
+     *
+     *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
+     *  in production environments.
+     *
+     *  Default: NEWRELIC_SQL_OBFUSCATED.
+     */
+    newrelic_tt_recordsql_t record_sql;
+
+    /*! Specify the threshold above which a datastore query is considered
+     *  "slow", in microseconds.  Only relevant if the above
+     *  datastore_reporting.enabled field is set to true.
+     *  Default: 500000, or 0.5 seconds.
+     */
+    uint64_t threshold_us;
+  } datastore_reporting;
+
 } newrelic_transaction_tracer_config_t;
 
 /*!
