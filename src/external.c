@@ -64,6 +64,7 @@ newrelic_external_segment_t* newrelic_start_external_segment(
   segment->params.procedure =
       params->procedure ? nr_strdup(params->procedure) : NULL;
   segment->params.url = nr_strdup(params->uri);
+  segment->params.urllen = nr_strlen(segment->params.url);
 
   return segment;
 }
