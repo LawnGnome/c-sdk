@@ -100,6 +100,7 @@ TESTS := \
 	test_config \
 	test_connect_app \
 	test_create_app \
+	test_datastore \
 	test_destroy \
 	test_end_transaction \
 	test_external \

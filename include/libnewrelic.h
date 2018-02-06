@@ -14,6 +14,36 @@
 extern "C" {
 #endif
 
+/*! @brief Agent configuration used to indicate the datastore product being
+ * instrumented.  Used to populate the product field of a
+ * struct _newrelic_datastore_segment_params_t.  Datastore product names are
+ * used across New Relic agents and the following constants assist users in
+ * maintaining consistent product names. */
+
+/* The following product constants represent the SQL-like datastores that
+ * this agent supports.  When the struct _newrelic_tt_recordsql_t setting of the
+ * agent is set to NEWRELIC_SQL_RAW or NEWRELIC_SQL_OBFUSCATED, the query
+ * param of the struct _newrelic_datastore_segment_config_t is reported to
+ * New Relic. */
+#define NEWRELIC_DATASTORE_FIREBIRD "Firebird"
+#define NEWRELIC_DATASTORE_INFORMIX "Informix"
+#define NEWRELIC_DATASTORE_MSSQL "MSSQL"
+#define NEWRELIC_DATASTORE_MYSQL "MySQL"
+#define NEWRELIC_DATASTORE_ORACLE "Oracle"
+#define NEWRELIC_DATASTORE_POSTGRES "Postgres"
+#define NEWRELIC_DATASTORE_SQLITE "SQLite"
+#define NEWRELIC_DATASTORE_SYBASE "Sybase"
+
+/* The following product constants represent the datastores that are not
+ * SQL-like. As such, the query param of the
+ * struct _newrelic_datastore_segment_config_t is not reported to
+ * New Relic. */
+#define NEWRELIC_DATASTORE_MEMCACHE "Memcached"
+#define NEWRELIC_DATASTORE_MONGODB "MongoDB"
+#define NEWRELIC_DATASTORE_ODBC "ODBC"
+#define NEWRELIC_DATASTORE_REDIS "Redis"
+#define NEWRELIC_DATASTORE_OTHER "Other"
+
 /*!
  * @brief Application.
  *
@@ -21,13 +51,16 @@ extern "C" {
  */
 typedef struct _nr_app_and_info_t newrelic_app_t;
 
+/*! @brief The internal type used to represent a datastore segment. */
+typedef struct _newrelic_datastore_segment_t newrelic_datastore_segment_t;
+
 /*!
  * @brief Transaction. A transaction is started using
  * newrelic_start_web_transaction() or
  * newrelic_start_non_web_transaction(). A started, or active, transaction is
- * stopped using newrelic_end_transaction(). One may modify an active
- * transaction by adding custom attributes or recording errors to a
- * transaction only after it has been started.
+ * stopped using newrelic_end_transaction(). One may modify a transaction
+ * by adding custom attributes or recording errors only after it has been
+ * started.
  */
 typedef struct _nrtxn_t newrelic_txn_t;
 
@@ -214,6 +247,80 @@ typedef struct _newrelic_config_t {
 } newrelic_config_t;
 
 /*!
+ * @brief Segment configuration used to instrument calls to databases and object
+ * stores.
+ */
+typedef struct _newrelic_datastore_segment_params_t {
+  /*! Specifies the datastore type, e.g., "MySQL", to indicate that the segment
+   *  represents a query against a MySQL database. New Relic recommends using
+   *  the predefined NEWRELIC_DATASTORE_FIREBIRD through
+   *  NEWRELIC_DATASTORE_SYBASE constants for this field. If this field points
+   *  to a string that is not one of NEWRELIC_DATASTORE_FIREBIRD through
+   *  NEWRELIC_DATASTORE_SYBASE, the resulting datastore segment shall be
+   *  instrumented as an unsupported datastore.
+   *
+   *  This field is required to be a non-empty, null-terminated string that does
+   *  not include any slash characters.  Empty strings are replaced with the
+   *  string NEWRELIC_DATASTORE_OTHER.
+   */
+  char* product;
+
+  /*! Optional. Specifies the table or collection being used or queried against.
+   *
+   *  If provided, this field is required to be a null-terminated string that
+   *  does not include any slash characters. It is also valid to use the default
+   *  NULL value, in which case the default string of "other" will be attached
+   *  to the datastore segment.
+   */
+  char* collection;
+
+  /*! Optional. Specifies the operation being performed: for example, "select"
+   *  for an SQL SELECT query, or "set" for a Memcached set operation.
+   *  While operations may be specified with any case, New Relic suggests
+   *  using lowercase.
+   *
+   *  If provided, this field is required to be a null-terminated string that
+   *  does not include any slash characters. It is also valid to use the default
+   *  NULL value, in which case the default string of "other" will be attached
+   *  to the datastore segment.
+   */
+  char* operation;
+
+  /*! Optional. Specifies the datahost host name.
+   *
+   *  If provided, this field is required to be a null-terminated string that
+   *  does not include any slash characters. It is also valid to use the default
+   *  NULL value, in which case the default string of "other" will be attached
+   *  to the datastore segment.
+   */
+  char* host;
+
+  /*! Optional. Specifies the port or socket used to connect to the datastore.
+   *
+   *  If provided, this field is required to be a null-terminated string.
+   */
+  char* port_path_or_id;
+
+  /*! Optional. Specifies the database name or number in use.
+   *
+   *  If provided, this field is required to be a null-terminated string.
+   */
+  char* database_name;
+
+  /*! Optional. Specifies the database query that was sent to the server.
+   *  For security reasons, this value is only used if you set product to
+   *  a supported sql-like datastore, NEWRELIC_DATASTORE_FIREBIRD,
+   *  NEWRELIC_DATASTORE_INFORMIX, NEWRELIC_DATASTORE_MSSQL, etc. This
+   *  allows the agent to correctly obfuscate the query. When the product
+   *  is set otherwise, no query information is reported to New Relic.
+   *
+   *  If provided, this field is required to be a null-terminated string.
+   */
+  char* query;
+
+} newrelic_datastore_segment_params_t;
+
+/*!
  * @brief Create a populated agent configuration.
  *
  * Given an application name and license key, this method returns an agent
@@ -387,6 +494,45 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            int priority,
                            const char* errmsg,
                            const char* errclass);
+
+/*!
+ * @brief Record the start of a datastore segment in a transaction.
+ *
+ * Given an active transaction and valid parameters, this function
+ * creates a datastore segment to be recorded as part of the transaction.
+ * A subsequent call to newrelic_end_datastore_segment() records the
+ * ends of the segment.
+ *
+ * @param [in] transaction An active transaction.
+ * @param [in] params Valid parameters describing a datastore segment.
+ *
+ * @return A pointer to a valid datastore segment; NULL otherwise.
+ *
+ */
+newrelic_datastore_segment_t* newrelic_start_datastore_segment(
+    newrelic_txn_t* transaction,
+    const newrelic_datastore_segment_params_t* params);
+
+/*!
+ * @brief Record the completion of a datastore segment in a transaction.
+ *
+ * Given an active transaction, this function records the segment's data
+ * on the transaction, including the original information supplied
+ * in the newrelic_datastore_segment_params, the segment metrics, and
+ * the segment's stacktrace.
+ *
+ * @param [in] transaction An active transaction.
+ * @param [in,out] segment The address of a valid datastore segment.
+ * Before the function returns, any segment_ptr memory is freed;
+ * segment_ptr is set to NULL to avoid any potential double free errors.
+ *
+ * @return true if the parameters represented an active transaction
+ * and datastore segment to record as complete; false otherwise.
+ * If an error occurred, a log message will be written to the
+ * agent log at LOG_ERROR level.
+ */
+bool newrelic_end_datastore_segment(newrelic_txn_t* transaction,
+                                    newrelic_datastore_segment_t** segment_ptr);
 
 /*! @brief The internal type used to represent an external segment. */
 typedef struct _newrelic_external_segment_t newrelic_external_segment_t;
