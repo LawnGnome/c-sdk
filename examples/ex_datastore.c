@@ -37,20 +37,20 @@ int main(void) {
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
   /* Create a collection of datastore parameters */
-  newrelic_datastore_segment_params_t params = {
-      .product = NEWRELIC_DATASTORE_MYSQL,
-      .collection = "My_collection",
-      .host = "Instance",
-      .port_path_or_id = "01",
-      .query =
-          "SELECT * FROM My_collection WHERE medical_patient is 'Foo Bar' "};
+  newrelic_datastore_segment_params_t params
+      = {.product = NEWRELIC_DATASTORE_MYSQL,
+         .collection = "My_collection",
+         .host = "Instance",
+         .port_path_or_id = "01",
+         .query
+         = "SELECT * FROM My_collection WHERE medical_patient is 'Foo Bar' "};
 
   /* Fake a datastore request by sleeping for two seconds. In a more typical
    * instrumentation scenario the start() and stop() calls for the datastore
    * segment would be before and after code performing an SELECT operation,
    * for example. */
-  newrelic_datastore_segment_t* segment =
-      newrelic_start_datastore_segment(txn, &params);
+  newrelic_datastore_segment_t* segment
+      = newrelic_start_datastore_segment(txn, &params);
   sleep(2);
   newrelic_end_datastore_segment(txn, &segment);
 

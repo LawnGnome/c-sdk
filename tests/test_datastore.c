@@ -14,8 +14,8 @@
 /* Create a datastore segment interesting enough for testing purposes */
 static newrelic_datastore_segment_t* mock_datastore_segment(
     newrelic_txn_t* txn) {
-  newrelic_datastore_segment_t* segment_ptr =
-      nr_zalloc(sizeof(newrelic_datastore_segment_t));
+  newrelic_datastore_segment_t* segment_ptr
+      = nr_zalloc(sizeof(newrelic_datastore_segment_t));
   segment_ptr->txn = txn;
   segment_ptr->params.start.stamp = 1;
   segment_ptr->params.start.when = 1;
@@ -40,7 +40,7 @@ void __wrap_nr_txn_end_node_datastore(
 /*
  * Purpose: Test that newrelic_start_datastore_segment() handles invalid inputs
  * correctly.
-*/
+ */
 static void test_start_datastore_segment_invalid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_datastore_segment_params_t params = {
@@ -133,14 +133,14 @@ static void test_start_datastore_segment_valid(void** state) {
   char* database_name = "Name";
   char* query = "Query";
 
-  newrelic_datastore_segment_params_t params = {
-      .product = NEWRELIC_DATASTORE_MYSQL,
-      .collection = collection,
-      .operation = operation,
-      .host = host,
-      .port_path_or_id = port_path_or_id,
-      .database_name = database_name,
-      .query = query};
+  newrelic_datastore_segment_params_t params
+      = {.product = NEWRELIC_DATASTORE_MYSQL,
+         .collection = collection,
+         .operation = operation,
+         .host = host,
+         .port_path_or_id = port_path_or_id,
+         .database_name = database_name,
+         .query = query};
 
   newrelic_datastore_segment_t* segment;
 
@@ -204,9 +204,9 @@ static void test_end_datastore_segment_null_inputs(void** state) {
 }
 
 /*
-  * Purpose: Test that newrelic_end_datastore_segment() handles a
-  * valid segment but invalid transaction.
-  */
+ * Purpose: Test that newrelic_end_datastore_segment() handles a
+ * valid segment but invalid transaction.
+ */
 static void test_end_datastore_segment_invalid_txn(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_datastore_segment_t* segment_ptr = mock_datastore_segment(txn);
@@ -233,9 +233,9 @@ static void test_end_datastore_segment_different_txn(void** state) {
 }
 
 /*
-  * Purpose: Test that newrelic_end_datastore_segment() handles
-  * valid inputs.
-  */
+ * Purpose: Test that newrelic_end_datastore_segment() handles
+ * valid inputs.
+ */
 static void test_end_datastore_segment_valid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_datastore_segment_t* segment_ptr = mock_datastore_segment(txn);
