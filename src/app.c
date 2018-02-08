@@ -72,7 +72,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
 
   app_info->appname = nr_strdup(given_config->app_name);
   app_info->license = nr_strdup(given_config->license_key);
-  app_info->lang = nr_strdup("sdk");
+  app_info->lang = nr_strdup("c");
   app_info->environment = nro_new_hash();
   app_info->version = nr_strdup(newrelic_version());
 
