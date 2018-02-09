@@ -24,7 +24,7 @@ LIBNEWRELIC_H_LOCATION = ../include
 ## Compiling and Executing Examples
 
 Suppose you'd like to see an example of how `newrelic_notice_error()` works, to better understand how 
-users may record transaction errors.  The source file `ex_notice_error.c` offers such an example. 
+to record transaction errors.  The source file `ex_notice_error.c` offers such an example. 
 To compile and execute this example, from the `examples` directory:
 
 ```
