@@ -10,7 +10,7 @@
 /*!
  * @brief Start a transaction
  *
- * @param [in] app New Relic application.
+ * @param [in] app An application.
  * @param [in] name The name of the transaction; may be NULL.
  * @param [in] is_web_transaction true if the transaction is a web transaction;
  * false otherwise.
