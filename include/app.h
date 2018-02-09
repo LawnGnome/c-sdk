@@ -9,7 +9,7 @@
 
 #include "nr_app.h"
 
-/*! @brief The internal type used to represent application information. */
+/*! @brief The internal type used to represent an application. */
 typedef struct _nr_app_and_info_t {
   /* A variety of application state. */
   nrapp_t* app;
@@ -38,7 +38,7 @@ nrapplist_t* newrelic_init(const char* daemon_socket);
 /*!
  * @brief Connect application to New Relic.
  *
- * @param [in] app Application information.
+ * @param [in] app An application.
  * @param [in] context A list of applications.
  * @param [in] timeout_ms The amount of time, in milliseconds, for the
  * application to wait on the daemon to connect to New Relic.
