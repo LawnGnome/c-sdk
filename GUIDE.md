@@ -110,6 +110,37 @@ The agent provides several API functions for creating optional *segment* instrum
 * External Segments
 * Datastore Segments
 
+### External Segments
+
+The agent provides two functions, `newrelic_start_external_segment()` and `newrelic_end_external_segment()` that allows end-user-programmers to create external segments. External segments appear in the transaction "Breakdown table" and in the "External services" page in APM.
+
+* [More info on External Services page](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/external-services-page)
+
+Timing an external segment transaction is a three-step process.
+
+1. Create a `newrelic_external_segment_params_t` struct that describes the external segment
+
+2. Start the timer with `newrelic_start_external_segment()`
+
+3. Stop the timer with `newrelic_end_external_segment()`
+
+Here are those three steps in code.  The `txn` variable below is a transaction, created via `newrelic_start_web_transaction()` or `newrelic_start_non_web_transaction()`. Segments may only be recorded on active transactions.
+
+    newrelic_external_segment_params_t params = {
+        .procedure = "GET",
+        .uri       = "https://httpbin.org/delay/1",
+    };
+
+    newrelic_external_segment_t* segment = newrelic_start_external_segment(txn, &params);
+
+    // The external call to be timed goes here
+
+    newrelic_end_external_segment(txn, &segment);
+
+The `newrelic_external_segment_params_t` struct contains a list of parameters that New Relic will use to identify a segment. These parameters also drive the user interface in APM. Only the `.uri` field is required. Documentation for each field can be found in `libnewrelic.h`. You can also find a working code sample in `examples/ex_external.c`.
+
+**IMPORTANT**:  In order to ensure accurate timing, external segments cannot be nested within other external segments, and cannot be nested with datastore segments. You **must** call `newrelic_end_external_segment()` before starting a new external segment with `newrelic_start_external_segment()`. Starting a new segment before the previous segment has ended will produce undefined results, and should be avoided.
+
 ### Datastore Segments
 
 The agent provides two functions, `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()` that allow you to create datastore segments.  APM uses segments recorded in this manner in the [Databases and Slow Queries](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/databases-slow-queries-page) of APM.  Segments created with these functions also populate the `databaseDuration` attribute of a [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights) Transaction event.
