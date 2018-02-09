@@ -1,14 +1,18 @@
+/*!
+ * @file stack.h
+ *
+ * @brief
+ */
 #ifndef LIBNEWRELIC_STACK_H
 #define LIBNEWRELIC_STACK_H
 
 /*
- * Purpose: Returns the current stack trace as a JSON string
+ * @brief Return the current stack trace as a JSON string.
  *
- * Usage
+ * The caller should free the string subsequent to the
+ * newrelic_get_stack_trace_as_json() call.
  *
- * char* stacktrace_json;
- * stacktrace_json = newrelic_get_stack_trace_as_json();
- * nr_free(stacktrace_json);  //caller needs to free the string
+ * @return The current stack trace as a JSON string.
  *
  */
 char* newrelic_get_stack_trace_as_json(void);
