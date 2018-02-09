@@ -21,12 +21,10 @@ LIBNEWRELIC_A_LOCATION = ..
 LIBNEWRELIC_H_LOCATION = ../include
 ```
 
-## Error instrumentation
+## Compiling and Executing Examples
 
-The source file `ex_notice_error.c` offers an example of how to instrument code using the function 
-`newrelic_notice_error()`. With this function, users may record transaction errors.
-
-
+Suppose you'd like to see an example of how `newrelic_notice_error()` works, to better understand how 
+to record transaction errors.  The source file `ex_notice_error.c` offers such an example. 
 To compile and execute this example, from the `examples` directory:
 
 ```
@@ -39,3 +37,9 @@ After executing the example program, visit the New Relic Error Analytics dashboa
 corresponding to the license key set as `NEW_RELIC_LICENSE_KEY`. For each time that `ex_notice_error.out`
 is executed an error with the message "Meaningful error message" and error class "Error.class.supervalu"
 is reported to New Relic and should be subsequently available at the aforementioned dashboard.
+
+It's also possible to compile all the examples at once.  Again, from the `examples` directory:
+
+```
+$ make
+```
