@@ -30,47 +30,6 @@ void __wrap_nr_txn_set_as_web_transaction(nrtxn_t* txn,
 }
 
 /*
- * Purpose: This is a cmocka setup fixture. In this function, the
- * testing programmer (us!) can instantiate variables to use in
- * our tests.  Values are passed around via the **state double pointer
- *
- * Returns: an int indicating the success (0) or failture (non-zero)
- * of the fixture.  Used in test reporting output.
- */
-static int group_setup(void** state) {
-  newrelic_app_t* app;
-  nrapp_t* nrapp;
-  nr_app_info_t* app_info;
-
-  nrapp = (nrapp_t*)nr_zalloc(sizeof(nrapp_t));
-  nrapp->state = NR_APP_OK;
-
-  app_info = (nr_app_info_t*)nr_zalloc(sizeof(nr_app_info_t));
-
-  app = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
-  app->app_info = app_info;
-  app->app = nrapp;
-
-  *state = app;
-  return 0;  // tells cmocka setup completed, 0==OK
-}
-
-/*
- * Purpose: This is a cmocka teardown` fixture. In this function, the
- * testing programmer (us!) can free memory or perform other tear downs.
- *
- * Returns: an int indicating the success (0) or failture (non-zero)
- * of the fixture.  Used in test reporting output.
- */
-static int group_teardown(void** state) {
-  newrelic_app_t* appWithInfo;
-  appWithInfo = (newrelic_app_t*)*state;
-  nr_free(appWithInfo->app);
-  newrelic_destroy_app(&appWithInfo);
-  return 0;  // tells cmocka teardown completed, 0==OK
-}
-
-/*
  * Purpose: Tests that function can survive a null app being passed
  */
 static void test_txn_null_app(void** state NRUNUSED) {
@@ -128,8 +87,8 @@ int main(void) {
       cmocka_unit_test(test_txn_valid),
   };
 
-  return cmocka_run_group_tests(license_tests,  // our tests
-                                group_setup,    // setup fixture
-                                group_teardown  // teardown fixtures
+  return cmocka_run_group_tests(license_tests,      // our tests
+                                app_group_setup,    // setup fixture
+                                app_group_teardown  // teardown fixtures
   );
 }
