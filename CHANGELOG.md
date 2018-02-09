@@ -6,12 +6,12 @@
 
 - Added support for creating datastore segments using the new
   `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()`
-  functions. See `libnewrelic.h` and `examples/ex_datastore.c` for usage
+  functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_datastore.c` for usage
   information.
    
 - Added support for creating external segments using the new
   `newrelic_start_external_segment()` and `newrelic_end_external_segment()`
-  functions. See `libnewrelic.h` and `examples/ex_external.c` for usage
+  functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_external.c` for usage
   information.
 
 - Added configuration options to control transaction trace generation.
