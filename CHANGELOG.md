@@ -4,6 +4,16 @@
 
 ### New Features ###
 
+### Bug Fixes ###
+
+### End of Life Notices ###
+
+### Upgrade Notices ###
+
+## 0.0.4-alpha ##
+
+### New Features ###
+
 - Added support for creating datastore segments using the new
   `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()`
   functions. See `libnewrelic.h` and `examples/ex_datastore.c` for usage
@@ -15,12 +25,6 @@
   information.
 
 - Added configuration options to control transaction trace generation.
-
-### Bug Fixes ###
-
-### End of Life Notices ###
-
-### Upgrade Notices ###
 
 ## 0.0.3-alpha ##
 
