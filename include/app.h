@@ -46,7 +46,6 @@ nrapplist_t* newrelic_init(const char* daemon_socket);
  * @return NR_SUCCESS if successful; NR_FAILURE if any parameters are invalid or
  * the daemon was unable to connect.  A message at level LOG_ERROR will be
  * logged if connection fails.
- *
  */
 nr_status_t newrelic_connect_app(newrelic_app_t* app,
                                  nrapplist_t* context,
