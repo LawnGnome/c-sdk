@@ -21,7 +21,9 @@ struct _newrelic_datastore_segment_t {
 /*!
  * @brief Free memory allocated to a datastore segment.
  *
- * param [in] segment_ptr The address of a datastore segment to destroy.
+ * @param [in,out] segment_ptr The address of a datastore segment to destroy.
+ * Before the function returns, any segment_ptr memory is freed;
+ * segment_ptr is set to NULL to avoid any potential double free errors.
  *
  */
 void newrelic_destroy_datastore_segment(
