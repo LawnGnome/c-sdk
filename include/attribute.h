@@ -10,7 +10,7 @@
 #include "nr_txn.h"
 #include "util_object.h"
 
-/*
+/*!
  * @brief Add a custom attribute to a transaction.
  *
  * @param [in] transaction An active transaction.

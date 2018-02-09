@@ -6,7 +6,7 @@
 #ifndef LIBNEWRELIC_STACK_H
 #define LIBNEWRELIC_STACK_H
 
-/*
+/*!
  * @brief Return the current stack trace as a JSON string.
  *
  * The caller should free the string subsequent to the

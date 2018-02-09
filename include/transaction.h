@@ -7,7 +7,7 @@
 #ifndef LIBNEWRELIC_TRANSACTION_H
 #define LIBNEWRELIC_TRANSACTION_H
 
-/*
+/*!
  * @brief Start a transaction
  *
  * @param [in] app New Relic application information.
@@ -17,7 +17,6 @@
  *
  * @return A pointer to an active transaction; NULL if the transaction could not
  * be started.
- *
  */
 newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
                                            const char* name,

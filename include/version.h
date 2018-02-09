@@ -6,7 +6,7 @@
 #ifndef LIBNEWRELIC_VERSION_H
 #define LIBNEWRELIC_VERSION_H
 
-/*
+/*!
  * @brief Return the string in this repository's top-level VERSION file
  *
  * @return The string in this repository's top-level VERSION file, i.e. the
