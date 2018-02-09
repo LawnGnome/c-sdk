@@ -30,37 +30,6 @@ nr_status_t __wrap_nr_txn_add_user_custom_parameter(nrtxn_t* txn NRUNUSED,
   return (nr_status_t)mock();
 }
 
-/**
- * Purpose: This is a cmocka setup fixture. In this function, the
- * testing programmer (us!) can instantiate variables to use in
- * our tests.  Values are passed around via the **state double pointer
- *
- * Returns: an int indicating the success (0) or failture (non-zero)
- * of the fixture.  Used in test reporting output.
- */
-static int group_setup(void** state) {
-  newrelic_txn_t* txn;
-  txn = (newrelic_txn_t*)nr_zalloc(sizeof(newrelic_txn_t));
-
-  *state = txn;
-  return 0;  // tells cmocka setup completed, 0==OK
-}
-
-/*
- * Purpose: This is a cmocka teardown` fixture. In this function, the
- * testing programmer (us!) can free memory or perform other tear downs.
- *
- * Returns: an int indicating the success (0) or failture (non-zero)
- * of the fixture.  Used in test reporting output.
- */
-static int group_teardown(void** state) {
-  newrelic_txn_t* txn;
-  txn = (newrelic_txn_t*)*state;
-
-  nr_free(txn);
-  return 0;  // tells cmocka teardown completed, 0==OK
-}
-
 static void test_add_attribute_null_txn(void** state NRUNUSED) {
   bool ret = true;
   nrobj_t* value = nro_new_int(1);
@@ -127,5 +96,6 @@ int main(void) {
       cmocka_unit_test(test_add_attribute_string_null_value),
   };
 
-  return cmocka_run_group_tests(attribute_tests, group_setup, group_teardown);
+  return cmocka_run_group_tests(attribute_tests, txn_group_setup,
+                                txn_group_teardown);
 }
