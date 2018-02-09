@@ -37,3 +37,9 @@ After executing the example program, visit the New Relic Error Analytics dashboa
 corresponding to the license key set as `NEW_RELIC_LICENSE_KEY`. For each time that `ex_notice_error.out`
 is executed an error with the message "Meaningful error message" and error class "Error.class.supervalu"
 is reported to New Relic and should be subsequently available at the aforementioned dashboard.
+
+It's also possible to compile all the examples at once.  Again, from the `examples` directory:
+
+```
+$ make
+```
