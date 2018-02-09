@@ -13,9 +13,7 @@
 #include "util_memory.h"
 
 /* Declare prototypes for mocks */
-nrtxn_t* __wrap_nr_txn_set_as_web_transaction(const nrapp_t*,
-                                              const nrtxnopt_t*,
-                                              const nr_attribute_config_t*);
+void __wrap_nr_txn_set_as_web_transaction(nrtxn_t* txn, const char* reason);
 
 /*
  * Purpose: This is a cmocka mock. It wraps/monkey-patches
@@ -26,11 +24,9 @@ nrtxn_t* __wrap_nr_txn_set_as_web_transaction(const nrapp_t*,
  * The testing programmer (us!) uses the will_return function
  * to queue values (see tests below)
  */
-nrtxn_t* __wrap_nr_txn_set_as_web_transaction(
-    const nrapp_t* app NRUNUSED,
-    const nrtxnopt_t* opts NRUNUSED,
-    const nr_attribute_config_t* attribute_config NRUNUSED) {
-  return mock_ptr_type(nrtxn_t*);
+void __wrap_nr_txn_set_as_web_transaction(nrtxn_t* txn,
+                                          const char* reason NRUNUSED) {
+  check_expected(txn);
 }
 
 /*
@@ -41,16 +37,21 @@ nrtxn_t* __wrap_nr_txn_set_as_web_transaction(
  * Returns: an int indicating the success (0) or failture (non-zero)
  * of the fixture.  Used in test reporting output.
  */
-static int group_setup(void** state NRUNUSED) {
-  int* answer;
-  newrelic_app_t* appWithInfo;
+static int group_setup(void** state) {
+  newrelic_app_t* app;
+  nrapp_t* nrapp;
+  nr_app_info_t* app_info;
 
-  appWithInfo = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
-  answer = (int*)malloc(sizeof(int));
+  nrapp = (nrapp_t*)nr_zalloc(sizeof(nrapp_t));
+  nrapp->state = NR_APP_OK;
 
-  assert_non_null(answer);
+  app_info = (nr_app_info_t*)nr_zalloc(sizeof(nr_app_info_t));
 
-  *state = appWithInfo;
+  app = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
+  app->app_info = app_info;
+  app->app = nrapp;
+
+  *state = app;
   return 0;  // tells cmocka setup completed, 0==OK
 }
 
@@ -64,6 +65,7 @@ static int group_setup(void** state NRUNUSED) {
 static int group_teardown(void** state) {
   newrelic_app_t* appWithInfo;
   appWithInfo = (newrelic_app_t*)*state;
+  nr_free(appWithInfo->app);
   newrelic_destroy_app(&appWithInfo);
   return 0;  // tells cmocka teardown completed, 0==OK
 }
@@ -72,10 +74,11 @@ static int group_teardown(void** state) {
  * Purpose: Tests that function can survive a null app being passed
  */
 static void test_txn_null_app(void** state NRUNUSED) {
-  newrelic_app_t* app = NULL;
-  newrelic_txn_t* txn = NULL;
-  txn = newrelic_start_web_transaction(app, "aTransaction");
-  assert_null(txn);
+  // Good enough to check for NULL transaction.  The real test
+  // is that nr_txn_set_as_web_transaction never gets called.  If it did
+  // the unit test would blow up for not knowing what to return, and we
+  // expect this test to fail before ever getting to that step.
+  assert_null(newrelic_start_web_transaction(NULL, "aTransaction"));
 }
 
 /*
@@ -88,13 +91,28 @@ static void test_txn_null_name(void** state) {
   newrelic_app_t* appWithInfo;
   appWithInfo = (newrelic_app_t*)*state;
 
-  // we mock the nr_txn_set_as_web_transaction function to
-  // avoid segfaulting (or needing to completely stub
-  // out the appWithInfo struct
-  will_return(__wrap_nr_txn_set_as_web_transaction, txn);
+  expect_any(__wrap_nr_txn_set_as_web_transaction, txn);
   txn = newrelic_start_web_transaction(appWithInfo, NULL);
 
-  assert_null(txn);
+  assert_non_null(txn);
+  nr_txn_destroy(&txn);
+}
+
+/*
+ * Purpose: Tests that function can survive a null name
+ */
+static void test_txn_valid(void** state) {
+  nrtxn_t* txn = NULL;
+
+  // fetch our fixture value from the state
+  newrelic_app_t* appWithInfo;
+  appWithInfo = (newrelic_app_t*)*state;
+
+  expect_any(__wrap_nr_txn_set_as_web_transaction, txn);
+  txn = newrelic_start_web_transaction(appWithInfo, "aTransaction");
+
+  assert_non_null(txn);
+  nr_txn_destroy(&txn);
 }
 
 /*
@@ -107,10 +125,11 @@ int main(void) {
   const struct CMUnitTest license_tests[] = {
       cmocka_unit_test(test_txn_null_app),
       cmocka_unit_test(test_txn_null_name),
+      cmocka_unit_test(test_txn_valid),
   };
 
   return cmocka_run_group_tests(license_tests,  // our tests
                                 group_setup,    // setup fixture
                                 group_teardown  // teardown fixtures
-                                );
+  );
 }
