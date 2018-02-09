@@ -248,6 +248,202 @@ static void test_end_datastore_segment_valid(void** state) {
 }
 
 /*
+ * Purpose: Test that newrelic_start_datastore_segment() handles inputs from
+ * cross agent tests
+ */
+static void test_start_datastore_segment_all_params_without_query(
+    void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .collection = "users",
+      .operation = "INSERT",
+      .host = "db-server-1",
+      .port_path_or_id = "3306",
+      .database_name = "my_db",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.collection, segment->params.collection);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_equal(params.host, segment->params.instance->host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->params.instance->port_path_or_id);
+  assert_string_equal(params.database_name,
+                      segment->params.instance->database_name);
+
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
+ * Purpose: Test that newrelic_start_datastore_segment() handles a missing
+ * database name
+ */
+static void test_start_datastore_segment_database_name_missing(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .collection = "users",
+      .operation = "INSERT",
+      .host = "db-server-1",
+      .port_path_or_id = "3306",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.collection, segment->params.collection);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_equal(params.host, segment->params.instance->host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->params.instance->port_path_or_id);
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
+ * Purpose: Test that newrelic_start_datastore_segment() handles a missing port
+ */
+static void test_start_datastore_segment_host_and_port_missing(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .collection = "users",
+      .operation = "INSERT",
+      .database_name = "my_db",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.collection, segment->params.collection);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_equal(params.database_name,
+                      segment->params.instance->database_name);
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
+ * Purpose: Test that newrelic_start_datastore_segment() handles a missing host
+ */
+static void test_start_datastore_segment_host_missing(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .collection = "users",
+      .operation = "INSERT",
+      .port_path_or_id = "3306",
+      .database_name = "my_db",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.collection, segment->params.collection);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_equal(params.port_path_or_id,
+                      segment->params.instance->port_path_or_id);
+  assert_string_equal(params.database_name,
+                      segment->params.instance->database_name);
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
+ * Purpose: Test that newrelic_start_datastore_segment() handles a missing collection
+ */
+static void test_start_datastore_segment_missing_collection(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .operation = "INSERT",
+      .host = "db-server-1",
+      .port_path_or_id = "3306",
+      .database_name = "my_db",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_equal(params.host, segment->params.instance->host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->params.instance->port_path_or_id);
+  assert_string_equal(params.database_name,
+                      segment->params.instance->database_name);
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
+ * Purpose: Test that newrelic_start_datastore_segment() swaps out localhost
+ */
+static void test_start_datastore_segment_localhost_replacement(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .collection = "users",
+      .operation = "INSERT",
+      .host = "localhost",
+      .port_path_or_id = "3306",
+      .database_name = "my_db",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.collection, segment->params.collection);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_not_equal(params.host, segment->params.instance->host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->params.instance->port_path_or_id);
+  assert_string_equal(params.database_name,
+                      segment->params.instance->database_name);
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
+ * Purpose: Test that newrelic_start_datastore_segment() handles a non-numerical
+ * port (i.e for unix sockets)
+ */
+static void test_start_datastore_segment_socket_path_port(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params = {
+      .product = "MySQL",
+      .collection = "users",
+      .operation = "INSERT",
+      .host = "db-server-1",
+      .port_path_or_id = "/var/mysql/mysql.sock",
+      .database_name = "my_db",
+  };
+  newrelic_datastore_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  assert_string_equal(params.product, segment->params.datastore.string);
+  assert_string_equal(params.collection, segment->params.collection);
+  assert_string_equal(params.operation, segment->params.operation);
+  assert_string_equal(params.host, segment->params.instance->host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->params.instance->port_path_or_id);
+  assert_string_equal(params.database_name,
+                      segment->params.instance->database_name);
+  newrelic_destroy_datastore_segment(&segment);
+}
+
+/*
  * Purpose: Main entry point (i.e. runs the tests)
  */
 int main(void) {
@@ -259,6 +455,15 @@ int main(void) {
       cmocka_unit_test(test_end_datastore_segment_invalid_txn),
       cmocka_unit_test(test_end_datastore_segment_different_txn),
       cmocka_unit_test(test_end_datastore_segment_valid),
+      cmocka_unit_test(
+          test_start_datastore_segment_all_params_without_query),
+      cmocka_unit_test(test_start_datastore_segment_database_name_missing),
+      cmocka_unit_test(test_start_datastore_segment_host_and_port_missing),
+      cmocka_unit_test(test_start_datastore_segment_host_missing),
+      cmocka_unit_test(test_start_datastore_segment_missing_collection),
+      cmocka_unit_test(test_start_datastore_segment_localhost_replacement),
+      cmocka_unit_test(test_start_datastore_segment_socket_path_port),
+
   };
 
   return cmocka_run_group_tests(datastore_tests, txn_group_setup,
