@@ -10,7 +10,7 @@
 
 ### Upgrade Notices ###
 
-## 0.0.4-alpha ##
+## 0.0.4 ##
 
 ### New Features ###
 
