@@ -48,6 +48,8 @@ Check out the data in the [PHP test account](https://staging.newrelic.com/accoun
 libnewrelic
 |-- bin
 |   |-- newrelic-daemon
+|-- examples
+    |-- *
 |-- libnewrelic.h
 |-- libnewrelic.a
 |-- GUIDE.md
