@@ -1,3 +1,9 @@
+/*!
+ * @file external.h
+ *
+ * @brief Type definitions, constants, and function declarations necessary to
+ * support external segments in the C Agent.
+ */
 #ifndef LIBNEWRELIC_EXTERNAL_H
 #define LIBNEWRELIC_EXTERNAL_H
 
@@ -13,7 +19,13 @@ struct _newrelic_external_segment_t {
   nr_node_external_params_t params;
 };
 
-/*! @brief Destroy an external segment. */
+/*!
+ * @brief Free memory allocated to an external segment.
+ *
+ * @param [in,out] segment_ptr The address of an external segment to destroy.
+ * Before the function returns, any segment_ptr memory is freed;
+ * segment_ptr is set to NULL to avoid any potential double free errors.
+ */
 void newrelic_destroy_external_segment(
     newrelic_external_segment_t** segment_ptr);
 

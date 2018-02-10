@@ -1,8 +1,8 @@
 /*!
- * @file Common functionality shared by external and datastore segment support.
+ * @file segment.h
  *
+ * @brief Common functionality shared by external and datastore segment support.
  */
-
 #ifndef LIBNEWRELIC_SEGMENT_H
 #define LIBNEWRELIC_SEGMENT_H
 
@@ -17,9 +17,10 @@
  *
  * @param [in] in   The parameter value.
  * @param [in] name The parameter name (used in any error message).
+ *
  * @return True if the parameter value is valid, false otherwise. A message at
- *         level LOG_ERROR will be logged if validation fails.
+ * level LOG_ERROR will be logged if validation fails.
  */
 bool newrelic_validate_segment_param(const char* in, const char* name);
 
-#endif
+#endif /* LIBNEWRELIC_SEGMENT_H */
