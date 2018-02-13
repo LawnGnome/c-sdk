@@ -14,7 +14,7 @@ Generic library to communicate with New Relic.
 Instrument your code. Consider the brief program below or look at the `examples` directory
 for source and Makefiles highlighting particular features.
 
-```
+```c
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -83,13 +83,13 @@ for the error recorded on a transaction using `newrelic_notice_error()`.
 With these two considerations in mind, one may compile and link a simple application
 like so:
 
-```
+```sh
 gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread -rdynamic
 ```
 
 Start the daemon:
 
-```
+```sh
 ./bin/daemon -f -logfile stdout -loglevel debug
 ```
 
@@ -186,7 +186,7 @@ When you send New Relic datastore segments, those segments may be eligible for [
 
 Both the time threshold to trigger a slow query trace and whether slow query tracing is enabled are controlled via the C-Agent's **application** configuration, specifically the `datastore_reporting.*` fields.
 
-```
+```c
     config = newrelic_new_config("C Agent Test App", "<LICENSE_KEY_HERE>");
     /* ... */
     config->transaction_tracer.datastore_reporting.enabled = true;
@@ -232,7 +232,7 @@ errors on the dashboard.
 With a valid application, `app`, created using `newrelic_create_app()`, one can
 start a transaction, record an error, and end a transaction like so:
 
-```
+```c
  int priority = 50;
  newrelic_txn_t* txn = newrelic_start_non_web_transaction(app, transaction_name);
 
