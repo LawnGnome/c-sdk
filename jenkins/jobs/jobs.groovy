@@ -187,7 +187,7 @@ use(extensions) {
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
-              "make -j\$(nproc) all daemon")
+              "make -j\$(nproc) all daemon OPTIMIZE=1")
       }
 
       publishers {
