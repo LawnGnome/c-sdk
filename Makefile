@@ -60,6 +60,20 @@ C_AGENT_CFLAGS += -Wuninitialized
 C_AGENT_CFLAGS += -Wunused-label
 endif
 
+#
+# The OPTIMIZE flag should be set to 1 to enable a "release" build: that is,
+# one with appropriate optimisation and minimal debugging information.
+# Otherwise, the default is to make a "debug" build, with no optimisation and
+# full debugging information.
+#
+ifeq (1,$(OPTIMIZE))
+	C_AGENT_CFLAGS += -O3 -g1
+	C_AGENT_LDFLAGS += -O3 -g1
+else
+	C_AGENT_CFLAGS += -O0 -g3
+	C_AGENT_LDFLAGS += -O0 -g3 -rdynamic
+endif
+
 export C_AGENT_ROOT C_AGENT_CFLAGS C_AGENT_CPPFLAGS
 
 #
@@ -101,9 +115,13 @@ libnewrelic.a: combine.mri axiom src-static
 .PHONY: static
 static: libnewrelic.a
 
+# Unlike axiom, we can't use a target-specific variable to send the CFLAGS and
+# LDFLAGS, as those propagate to dependent rules and cmocka won't build with
+# all the warnings we enabled. Instead, we'll use command line variables when
+# invoking the sub-make to pass them in.
 .PHONY: run_tests
 run_tests: vendor libnewrelic.a
-	$(MAKE) -C tests run_tests
+	$(MAKE) -C tests run_tests CFLAGS="$(C_AGENT_CFLAGS) -Wno-bad-function-cast" LDFLAGS="$(C_AGENT_LDFLAGS)"
 
 .PHONY: vendor
 vendor:
@@ -112,6 +130,7 @@ vendor:
 .PHONY: axiom
 axiom: php_agent/axiom/libaxiom.a
 
+php_agent/axiom/libaxiom.a: export CFLAGS := $(C_AGENT_CFLAGS)
 php_agent/axiom/libaxiom.a: php_agent/Makefile
 	$(MAKE) -C php_agent/axiom
 
