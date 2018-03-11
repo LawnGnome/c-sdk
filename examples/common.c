@@ -53,7 +53,7 @@ char* get_app_name(void) {
     printf(
         "\nEnvironment variable NEW_RELIC_APP_NAME must be set to a meaningful "
         "application name.\n");
-    return NULL;
+    return app_name;
   }
 }
 
@@ -71,6 +71,6 @@ char* get_license_key(void) {
     printf(
         "\nEnvironment variable NEW_RELIC_LICENSE_KEY must be set to a valid New "
         "Relic license key.\n");
-    return NULL;
+    return license_key;
   }
 }
