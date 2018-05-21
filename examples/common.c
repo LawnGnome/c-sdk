@@ -40,7 +40,8 @@ bool customize_config(newrelic_config_t** config_ptr) {
 }
 
 /*!
- * @brief Get the New Relic application name from environment, NEW_RELIC_APP_NAME.
+ * @brief Get the New Relic application name from environment,
+ * NEW_RELIC_APP_NAME.
  *
  * @return A pointer to the environment variable NEW_RELIC_APP_NAME; NULL if it
  * is not defined.
@@ -70,7 +71,8 @@ char* get_license_key(void) {
   if (NULL == license_key) {
     printf(ENV_NOTICE);
     printf(
-        "\nEnvironment variable NEW_RELIC_LICENSE_KEY must be set to a valid New "
+        "\nEnvironment variable NEW_RELIC_LICENSE_KEY must be set to a valid "
+        "New "
         "Relic license key.\n");
   }
 

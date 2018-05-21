@@ -14,7 +14,7 @@ extern "C" {
 #include "libnewrelic.h"
 
 /* Common constant values */
-#define ENV_NOTICE                                                          \
+#define ENV_NOTICE                                                             \
   ("This example program depends on environment variables NEW_RELIC_APP_NAME " \
    "and NEW_RELIC_LICENSE_KEY.")
 

@@ -46,7 +46,7 @@ static void test_connect_context_is_null(void** state NRUNUSED) {
   nr_status_t result;
 
   newrelic_app_t* app;
-  app = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));  
+  app = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
 
   result = newrelic_connect_app(app, NULL, 0);
   assert_true(NR_FAILURE == result);
@@ -61,7 +61,7 @@ static void test_connect_app_nrapp_is_null(void** state NRUNUSED) {
   nrapplist_t* context;
   nrapp_t* nrapp = 0;
   nr_app_info_t* app_info;
-  
+
   app = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
   context = (nrapplist_t*)nr_zalloc(sizeof(nrapplist_t));
   app_info = (nr_app_info_t*)nr_zalloc(sizeof(nr_app_info_t));
@@ -81,11 +81,10 @@ static void test_connect_app_null_app_info(void** state NRUNUSED) {
 
   newrelic_app_t* app;
   nrapplist_t* context;
-  
+
   app = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
   context = (nrapplist_t*)nr_zalloc(sizeof(nrapplist_t));
   app->app_info = NULL;
-  
 
   result = newrelic_connect_app(app, context, 0);
   assert_true(NR_FAILURE == result);
@@ -126,7 +125,7 @@ int main(void) {
       cmocka_unit_test(test_connect_app_null_app_info),
       cmocka_unit_test(test_connect_app_successful_connect),
       cmocka_unit_test(test_connect_app_is_null),
-      cmocka_unit_test(test_connect_context_is_null),      
+      cmocka_unit_test(test_connect_context_is_null),
   };
 
   return cmocka_run_group_tests(tests, NULL, NULL);
