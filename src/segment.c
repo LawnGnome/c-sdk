@@ -15,4 +15,3 @@ bool newrelic_validate_segment_param(const char* in, const char* name) {
 
   return true;
 }
-

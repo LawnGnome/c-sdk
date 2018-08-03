@@ -16,7 +16,7 @@ static void test_version(void** state) {
   FILE* fp = fopen(NR_STR2(C_AGENT_ROOT) "/VERSION", "r");
   int len;
 
-  (void) state;
+  (void)state;
 
   if (NULL == fp) {
     fail_msg("Cannot find VERSION at %s/%s", NR_STR2(C_AGENT_ROOT), "VERSION");
@@ -37,7 +37,7 @@ static void test_version(void** state) {
 
 int main(void) {
   const struct CMUnitTest version_tests[] = {
-    cmocka_unit_test(test_version),
+      cmocka_unit_test(test_version),
   };
 
   return cmocka_run_group_tests(version_tests, NULL, NULL);

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Run clang-format against all the files (.h .c) that changed between local and diff
+# Run clang-format against all the files (.h .c) that changed between local and diff,
+# excluding vendor/ and php_agent/ folders 
 if [ "$#" -ne 1 ]; then
   echo "Usage: $0 DIFF"
   exit 1
@@ -8,7 +9,11 @@ fi
 
 printed_header=false
 
-files=(`git diff $1 --name-only --diff-filter=ACMRT | grep "\.[ch]$"`)
+# Filter for .c and .h files only, excluding vendor/ and php_agent/
+files=(`git diff $1 --name-only --diff-filter=ACMRT \
+  | grep "\.[ch]$" \
+  | grep -v "vendor/" \
+  | grep -v "php_agent/"`)
 
 for file in "${files[@]}"
 do

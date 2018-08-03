@@ -41,8 +41,8 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
     return;
   }
 
-  if (0 != transaction->error &&
-      priority < nr_error_priority(transaction->error)) {
+  if (0 != transaction->error
+      && priority < nr_error_priority(transaction->error)) {
     nrl_error(NRL_INSTRUMENT,
               "an error with a higher priority already exists on transaction");
     return;

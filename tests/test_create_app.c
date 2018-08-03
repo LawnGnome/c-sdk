@@ -84,7 +84,8 @@ static void test_create_app_license_key_lengths(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_create_app_newrelic_connect_app_returns_failure(void** state NRUNUSED) {
+static void test_create_app_newrelic_connect_app_returns_failure(
+    void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* appForMock;
   newrelic_app_t* app;
@@ -122,14 +123,15 @@ static void test_create_app_newrelic_init_returns_null(void** state NRUNUSED) {
   assert_null(app);
 }
 
-static void test_create_app_newrelic_app_correctly_populated(void** state NRUNUSED) {
+static void test_create_app_newrelic_app_correctly_populated(
+    void** state NRUNUSED) {
   newrelic_config_t* config;
   newrelic_app_t* appForMock;
   newrelic_app_t* app;
   newrelic_transaction_tracer_config_t tt_config = {
-    .enabled     = false,
-    .threshold   = NEWRELIC_THRESHOLD_IS_OVER_DURATION,
-    .duration_us = 42,
+      .enabled = false,
+      .threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION,
+      .duration_us = 42,
   };
 
   config = (newrelic_config_t*)*state;
@@ -151,8 +153,10 @@ static void test_create_app_newrelic_app_correctly_populated(void** state NRUNUS
 
   /* Ensure configuration items are populated correctly in the app structure. */
   assert_string_equal("valid app name", app->config->app_name);
-  assert_string_equal("0123456789012345678901234567890123456789", app->config->license_key);
-  assert_memory_equal(&tt_config, &app->config->transaction_tracer, sizeof(tt_config));
+  assert_string_equal("0123456789012345678901234567890123456789",
+                      app->config->license_key);
+  assert_memory_equal(&tt_config, &app->config->transaction_tracer,
+                      sizeof(tt_config));
 
   nr_free(app);
 }

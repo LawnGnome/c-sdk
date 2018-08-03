@@ -12,16 +12,16 @@
 
 static newrelic_external_segment_t* duplicate_external_segment(
     const newrelic_external_segment_t* in) {
-  newrelic_external_segment_t* out =
-      nr_zalloc(sizeof(newrelic_external_segment_t));
+  newrelic_external_segment_t* out
+      = nr_zalloc(sizeof(newrelic_external_segment_t));
 
   out->txn = in->txn;
   out->params.start = in->params.start;
   out->params.stop = in->params.stop;
-  out->params.library =
-      in->params.library ? nr_strdup(in->params.library) : NULL;
-  out->params.procedure =
-      in->params.procedure ? nr_strdup(in->params.procedure) : NULL;
+  out->params.library
+      = in->params.library ? nr_strdup(in->params.library) : NULL;
+  out->params.procedure
+      = in->params.procedure ? nr_strdup(in->params.procedure) : NULL;
   out->params.url = in->params.url ? nr_strdup(in->params.url) : NULL;
 
   return out;
@@ -128,8 +128,8 @@ static void test_end_external_segment_invalid(void** state) {
               .url = "https://httpbin.org/",
           },
   };
-  newrelic_external_segment_t* segment_ptr =
-      duplicate_external_segment(&segment);
+  newrelic_external_segment_t* segment_ptr
+      = duplicate_external_segment(&segment);
 
   assert_false(newrelic_end_external_segment(NULL, NULL));
   assert_false(newrelic_end_external_segment(txn, NULL));
@@ -160,8 +160,8 @@ static void test_end_external_segment_valid(void** state) {
               .url = "https://httpbin.org/",
           },
   };
-  newrelic_external_segment_t* segment_ptr =
-      duplicate_external_segment(&segment);
+  newrelic_external_segment_t* segment_ptr
+      = duplicate_external_segment(&segment);
 
   expect_value(__wrap_nr_txn_end_node_external, txn, txn);
   expect_value(__wrap_nr_txn_end_node_external, params, &segment_ptr->params);

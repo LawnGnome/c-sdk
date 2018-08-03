@@ -52,7 +52,8 @@ static void test_config_justright_license_key(void** state NRUNUSED) {
 
   /* Test non-zero defaults. */
   assert_true(config->transaction_tracer.enabled);
-  assert_true(NEWRELIC_THRESHOLD_IS_APDEX_FAILING == config->transaction_tracer.threshold);
+  assert_true(NEWRELIC_THRESHOLD_IS_APDEX_FAILING
+              == config->transaction_tracer.threshold);
 
   free(config);
 }

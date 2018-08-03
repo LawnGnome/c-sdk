@@ -45,8 +45,8 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
     return NULL;
   }
 
-  config =
-      newrelic_new_config(given_config->app_name, given_config->license_key);
+  config
+      = newrelic_new_config(given_config->app_name, given_config->license_key);
 
   if (0 < nr_strlen(given_config->daemon_socket)) {
     nr_strxcpy(config->daemon_socket, given_config->daemon_socket,

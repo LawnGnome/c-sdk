@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
   const char transaction_name[] = "StressTransaction_1";
   const char error_name[] = "StressTransactionError";
 
-  //date formats, pointed at because that's what strftime wants
+  // date formats, pointed at because that's what strftime wants
   char format_start_array[] = "AAAA-BB-CC DD:EE:FF";
   char* formatted_start = format_start_array;
 
@@ -105,8 +105,8 @@ int main(int argc, char** argv) {
     sleep(per_seconds);
 
     time(&raw_current_time);
-    if ((long long)raw_current_time - (long long)raw_start_time >=
-        seconds_to_run) {
+    if ((long long)raw_current_time - (long long)raw_start_time
+        >= seconds_to_run) {
       break;
     }
 

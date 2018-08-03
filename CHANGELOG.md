@@ -10,6 +10,14 @@
 
 ### Upgrade Notices ###
 
+## 0.0.5 ##
+
+### Upgrade Notices ###
+
+- To increase security, TLS will now always be used in communication between 
+the C Agent and New Relic servers.  This change should be invisible to
+customers since the C Agent did not previously offer any way to disable TLS.
+
 ## 0.0.4 ##
 
 ### New Features ###

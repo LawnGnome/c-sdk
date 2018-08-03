@@ -358,7 +358,8 @@ static void test_start_datastore_segment_host_missing(void** state) {
 }
 
 /*
- * Purpose: Test that newrelic_start_datastore_segment() handles a missing collection
+ * Purpose: Test that newrelic_start_datastore_segment() handles a missing
+ * collection
  */
 static void test_start_datastore_segment_missing_collection(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
@@ -455,8 +456,7 @@ int main(void) {
       cmocka_unit_test(test_end_datastore_segment_invalid_txn),
       cmocka_unit_test(test_end_datastore_segment_different_txn),
       cmocka_unit_test(test_end_datastore_segment_valid),
-      cmocka_unit_test(
-          test_start_datastore_segment_all_params_without_query),
+      cmocka_unit_test(test_start_datastore_segment_all_params_without_query),
       cmocka_unit_test(test_start_datastore_segment_database_name_missing),
       cmocka_unit_test(test_start_datastore_segment_host_and_port_missing),
       cmocka_unit_test(test_start_datastore_segment_host_missing),

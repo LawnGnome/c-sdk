@@ -45,8 +45,8 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
   /* Set up the default datastore reporting configuration */
   config->transaction_tracer.datastore_reporting.enabled = true;
   config->transaction_tracer.datastore_reporting.threshold_us = 500000;
-  config->transaction_tracer.datastore_reporting.record_sql =
-      NEWRELIC_SQL_OBFUSCATED;
+  config->transaction_tracer.datastore_reporting.record_sql
+      = NEWRELIC_SQL_OBFUSCATED;
 
   /* Set up the default datastore tracer configuration */
   config->datastore_tracer.instance_reporting = true;
@@ -86,10 +86,10 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
 
   if (NULL != config) {
     /* Convert public datastore tracer settings to transaction options. */
-    opt->instance_reporting_enabled =
-        config->datastore_tracer.instance_reporting;
-    opt->database_name_reporting_enabled =
-        config->datastore_tracer.database_name_reporting;
+    opt->instance_reporting_enabled
+        = config->datastore_tracer.instance_reporting;
+    opt->database_name_reporting_enabled
+        = config->datastore_tracer.database_name_reporting;
 
     /* Convert public transaction tracer settings to transaction options. */
     opt->tt_enabled = (int)config->transaction_tracer.enabled;
@@ -97,14 +97,14 @@ nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
         config->transaction_tracer.datastore_reporting.record_sql);
     opt->tt_slowsql = config->transaction_tracer.datastore_reporting.enabled;
 
-    opt->ep_threshold =
-        config->transaction_tracer.datastore_reporting.threshold_us *
-        NR_TIME_DIVISOR_US;
-    opt->ss_threshold = config->transaction_tracer.stack_trace_threshold_us *
-                        NR_TIME_DIVISOR_US;
+    opt->ep_threshold
+        = config->transaction_tracer.datastore_reporting.threshold_us
+          * NR_TIME_DIVISOR_US;
+    opt->ss_threshold = config->transaction_tracer.stack_trace_threshold_us
+                        * NR_TIME_DIVISOR_US;
 
-    if (NEWRELIC_THRESHOLD_IS_APDEX_FAILING ==
-        config->transaction_tracer.threshold) {
+    if (NEWRELIC_THRESHOLD_IS_APDEX_FAILING
+        == config->transaction_tracer.threshold) {
       opt->tt_is_apdex_f = 1;
       /* tt_threshold will be overwritten in nr_txn_begin() if tt_is_apdex_f is
        * set. */
