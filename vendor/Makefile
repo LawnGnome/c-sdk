@@ -6,7 +6,7 @@
 # $ make vendor
 CMOCKA_CMAKE_OPTIONS = -DWITH_STATIC_LIB=true
 
-.PHONY: cmocka cmocka-clean
+.PHONY: cmocka cmocka-clean clean
 
 cmocka:	$(CMOCKA_LIB)
 
@@ -17,8 +17,7 @@ vendor/cmocka/build/Makefile:
 	mkdir -p cmocka/build
 	cd cmocka/build && cmake .. $(CMOCKA_CMAKE_OPTIONS)
 
-# This clean rule is currently not available from the top-level make
-# command.  It doesn't seem that developers want to rebuild a vendor
-# library from scratch on a regular basis.
 cmocka-clean:
 	rm -rf cmocka/build
+
+clean: cmocka-clean

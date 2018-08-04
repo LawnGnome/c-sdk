@@ -101,6 +101,7 @@ use(extensions) {
 
     steps {
       phase("Test Agent", 'SUCCESSFUL') {
+        job("$project-release-check-clang")
         job("$project-release-tests-cmocka")
         job("$project-release-tests-axiom")
         job("$project-release-tests-axiom-valgrind")
@@ -186,7 +187,7 @@ use(extensions) {
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
-              "make -j\$(nproc) all daemon")
+              "make -j\$(nproc) all daemon OPTIMIZE=1")
       }
 
       publishers {
@@ -266,6 +267,36 @@ use(extensions) {
 
         shell('./jenkins/build/archive-artifacts.sh')
       }
+    }
+  }
+
+  baseJob("$project-release-check-clang") {
+    label executeOn
+
+    configure {
+      description('Run the clang-format binary against all .c and .h files in the repo.')
+
+      parameters {
+        stringParam('GIT_REPO_BRANCH', '', gitrepoDescription)
+      }
+
+      scm {
+        git {
+          remote {
+            url("git@" + host + ":" + _repo + ".git")
+            credentials("artifactory-jenkins-build-bot")
+            refspec("+refs/pull/*/head:refs/remotes/origin/pr/*")
+          }
+          branch('$GIT_REPO_BRANCH')
+        }
+      }
+
+      steps {
+        shell('PATH="$PATH":/bin' + "\n" +
+              './jenkins/build/clang-check.sh origin/master')
+      }
+
+      buildInDockerImage('./jenkins/docker-files/clang-format')
     }
   }
 

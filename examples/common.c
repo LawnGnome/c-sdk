@@ -19,7 +19,7 @@
  * @return false if config_ptr or *config_ptr are NULL; true otherwise.
  */
 bool customize_config(newrelic_config_t** config_ptr) {
-  if (config_ptr != NULL && *config_ptr != NULL) {
+  if (NULL != config_ptr && NULL != *config_ptr) {
     newrelic_config_t* config = *config_ptr;
 
     strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
@@ -28,7 +28,7 @@ bool customize_config(newrelic_config_t** config_ptr) {
 
     char* collector = getenv("NEW_RELIC_HOST");
 
-    if (collector != NULL) {
+    if (NULL != collector) {
       strcpy(config->redirect_collector, collector);
     } else {
       printf("Using default agent configuration for collector...\n");
@@ -40,7 +40,8 @@ bool customize_config(newrelic_config_t** config_ptr) {
 }
 
 /*!
- * @brief Get the New Relic application name from environment, NEW_RELIC_APP_NAME.
+ * @brief Get the New Relic application name from environment,
+ * NEW_RELIC_APP_NAME.
  *
  * @return A pointer to the environment variable NEW_RELIC_APP_NAME; NULL if it
  * is not defined.
@@ -48,13 +49,14 @@ bool customize_config(newrelic_config_t** config_ptr) {
 char* get_app_name(void) {
   char* app_name = getenv("NEW_RELIC_APP_NAME");
 
-  if (app_name == NULL) {
+  if (NULL == app_name) {
     printf(ENV_NOTICE);
     printf(
         "\nEnvironment variable NEW_RELIC_APP_NAME must be set to a meaningful "
         "application name.\n");
-    return NULL;
   }
+
+  return app_name;
 }
 
 /*!
@@ -66,11 +68,13 @@ char* get_app_name(void) {
 char* get_license_key(void) {
   char* license_key = getenv("NEW_RELIC_LICENSE_KEY");
 
-  if (license_key == NULL) {
+  if (NULL == license_key) {
     printf(ENV_NOTICE);
     printf(
-        "\nEnvironment variable NEW_RELIC_LICENSE_KEY must be set to a valid New "
+        "\nEnvironment variable NEW_RELIC_LICENSE_KEY must be set to a valid "
+        "New "
         "Relic license key.\n");
-    return NULL;
   }
+
+  return license_key;
 }

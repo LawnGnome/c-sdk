@@ -16,7 +16,9 @@ OBJS := \
 	app_internal.o \
 	attribute.o \
 	config.o \
+	datastore.o \
 	error.o \
+	external.o \
 	segment.o \
 	stack.o \
 	transaction.o \

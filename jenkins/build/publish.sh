@@ -109,16 +109,26 @@ aws s3 sync \
 # job, they will be copied into the directory.
 cp libnewrelic*.tgz incoming/c_agent
 
-# create a sha1sum for any tgz that doesn't have one
-# drop into folder so sha1sum files don't have full filepath
-# return to top directory one we're done
+# Create a sha1sum for any tgz that does not have one or
+# is no longer valid. Drop into folder so sha1sum files
+# don't have full filepath. Return to top directory once
+# we're done.
 cd incoming/c_agent
 for f in *.tgz
 do
+    sha1sum $f > temp.sha1sum
+
+    compare=$(cmp $f.sha1sum temp.sha1sum 2>/dev/null)
+
     if [ ! -f $f.sha1sum ]
     then
-      sha1sum $f > $f.sha1sum
+      mv temp.sha1sum $f.sha1sum
+    elif [ "$compare" != "" ]
+    then
+      mv temp.sha1sum $f.sha1sum
     fi
+
+    rm temp.sha1sum 2> /dev/null
 done
 cd ../..
 

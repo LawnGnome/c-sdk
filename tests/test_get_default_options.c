@@ -23,6 +23,14 @@ static void test_get_default_options(void** state NRUNUSED) {
   correct->error_events_enabled = true;
   correct->tt_enabled = true;
   correct->tt_is_apdex_f = true;
+  correct->tt_recordsql = NR_SQL_OBFUSCATED;
+  correct->tt_slowsql = true;
+
+  correct->ep_threshold = 500 * NR_TIME_DIVISOR_MS;
+  correct->ss_threshold = 500 * NR_TIME_DIVISOR_MS;
+
+  correct->instance_reporting_enabled = true;
+  correct->database_name_reporting_enabled = true;
 
   /* Assert that the true portion of the default options were set accordingly.
    */

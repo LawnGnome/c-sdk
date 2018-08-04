@@ -24,21 +24,22 @@
 static void test_backtrace_is_jsonish(void** state NRUNUSED) {
   char* stacktrace_json;
   char* stacktrace_json2;
-  nrobj_t *obj;
+  nrobj_t* obj;
 
   stacktrace_json = newrelic_get_stack_trace_as_json();
 
   // does the string begining and end look like JSON
   assert_true(stacktrace_json[0] == '[');
   assert_true(stacktrace_json[1] == '"');
-  assert_true(stacktrace_json[strlen(stacktrace_json)-1] == ']');
-  assert_true(stacktrace_json[strlen(stacktrace_json)-2] == '"');
+  assert_true(stacktrace_json[strlen(stacktrace_json) - 1] == ']');
+  assert_true(stacktrace_json[strlen(stacktrace_json) - 2] == '"');
 
   // are we bigger than an empty JSON string
   assert_true(strlen(stacktrace_json) > 4);
 
   // does the string survive a trip through a JSON parsing routine
-  obj = nro_create_from_json_unterminated(stacktrace_json, strlen(stacktrace_json));
+  obj = nro_create_from_json_unterminated(stacktrace_json,
+                                          strlen(stacktrace_json));
   stacktrace_json2 = nro_to_json(obj);
   assert_string_equal(stacktrace_json2, stacktrace_json);
 

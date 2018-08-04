@@ -100,8 +100,10 @@ TESTS := \
 	test_config \
 	test_connect_app \
 	test_create_app \
+	test_datastore \
 	test_destroy \
 	test_end_transaction \
+	test_external \
 	test_get_default_options \
   test_get_stack_trace_as_json \
 	test_get_transaction_options \
@@ -157,8 +159,8 @@ tests: $(TESTS)
 # must be taken when mocking libnewrelic functions that those functions are not
 # called from within the same source file.
 #
-test_%: test_%.o ../libnewrelic.a Makefile .deps/link_flags
-	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')
+test_%: test_%.o common.o ../libnewrelic.a Makefile .deps/link_flags
+	$(CC) $(TEST_LDFLAGS) $(LDFLAGS) -o $@ $< common.o $(TEST_LDLIBS) $(PCRE_LDLIBS) $(LDLIBS) $(shell nm $< | grep -o "__wrap\w*" | sed 's/__wrap_/-Wl,--wrap=/g')
 
 #
 # The top level rule to run the tests.

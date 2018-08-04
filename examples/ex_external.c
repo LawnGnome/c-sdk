@@ -8,17 +8,15 @@
 #include "common.h"
 #include "libnewrelic.h"
 
-void record_error(newrelic_txn_t* txn) {
-  int priority = 50;
-  newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class.supervalu");
-  return;
-}
-
 int main(void) {
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
+  newrelic_external_segment_params_t params = {
+      .procedure = "GET",
+      .uri = "https://httpbin.org/delay/1",
+  };
+  newrelic_external_segment_t* segment = 0;
 
   char* app_name = get_app_name();
   if (NULL == app_name)
@@ -32,6 +30,10 @@ int main(void) {
 
   customize_config(&config);
 
+  /* Change the transaction tracer threshold to ensure a trace is generated */
+  config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
+  config->transaction_tracer.duration_us = 1;
+
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   free(config);
@@ -39,17 +41,13 @@ int main(void) {
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  newrelic_add_attribute_int(txn, "Custom_int", INT_MAX);
-
-  sleep(5);
-
-  /* Record an error.
-   * Note the nested call to newrelic_notice_error() so that something
-   * interesting appears in the backtrace.
-   */
-  record_error(txn);
-
-  sleep(5);
+  /* Fake a web request by sleeping for one second. In a more typical
+   * instrumentation scenario the start() and stop() calls for the external
+   * segment would be before and after code performing an HTTP or SOAP
+   * operation, for example. */
+  segment = newrelic_start_external_segment(txn, &params);
+  sleep(1);
+  newrelic_end_external_segment(txn, &segment);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);

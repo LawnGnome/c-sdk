@@ -4,13 +4,35 @@
 
 ### New Features ###
 
-- Added configuration options to control transaction trace generation.
-
 ### Bug Fixes ###
 
 ### End of Life Notices ###
 
 ### Upgrade Notices ###
+
+## 0.0.5 ##
+
+### Upgrade Notices ###
+
+- To increase security, TLS will now always be used in communication between 
+the C Agent and New Relic servers.  This change should be invisible to
+customers since the C Agent did not previously offer any way to disable TLS.
+
+## 0.0.4 ##
+
+### New Features ###
+
+- Added support for creating datastore segments using the new
+  `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()`
+  functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_datastore.c` for usage
+  information.
+   
+- Added support for creating external segments using the new
+  `newrelic_start_external_segment()` and `newrelic_end_external_segment()`
+  functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_external.c` for usage
+  information.
+
+- Added configuration options to control transaction trace generation.
 
 ## 0.0.3-alpha ##
 

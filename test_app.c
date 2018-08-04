@@ -58,8 +58,8 @@ int main(void) {
   newrelic_end_transaction(&txn);
 
   /* Start and end a non-web transaction */
-  txn =
-      newrelic_start_non_web_transaction(app, "veryImportantOtherTransaction");
+  txn = newrelic_start_non_web_transaction(app,
+                                           "veryImportantOtherTransaction");
   sleep(1);
 
   newrelic_end_transaction(&txn);

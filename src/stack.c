@@ -21,8 +21,8 @@ char* newrelic_get_stack_trace_as_json(void) {
 
   // grab the backtrace lines
   size_of_backtrace_array = backtrace(backtrace_pointers, NUM_BACKTRACE_FRAMES);
-  backtrace_lines =
-      backtrace_symbols(backtrace_pointers, size_of_backtrace_array);
+  backtrace_lines
+      = backtrace_symbols(backtrace_pointers, size_of_backtrace_array);
 
   // for each line in the backtrace, add to our nro_array
   arr_backtrace = nro_new_array();
@@ -40,5 +40,4 @@ char* newrelic_get_stack_trace_as_json(void) {
 #else
   return nr_strdup("[\"No backtrace on this platform.\"]");
 #endif
-
 }

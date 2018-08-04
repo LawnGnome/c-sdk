@@ -25,8 +25,8 @@ nrapplist_t* newrelic_init(const char* daemon_socket) {
     return NULL;
   }
 
-  if (NR_FAILURE ==
-      nr_agent_initialize_daemon_connection_parameters(daemon_socket, 0)) {
+  if (NR_FAILURE
+      == nr_agent_initialize_daemon_connection_parameters(daemon_socket, 0)) {
     nrl_error(NRL_INSTRUMENT, "failed to initialize daemon connection");
     return NULL;
   }
