@@ -100,12 +100,13 @@ TESTS := \
 	test_config \
 	test_connect_app \
 	test_create_app \
+	test_custom_segment \
 	test_datastore \
 	test_destroy \
 	test_end_transaction \
 	test_external \
 	test_get_default_options \
-  test_get_stack_trace_as_json \
+	test_get_stack_trace_as_json \
 	test_get_transaction_options \
 	test_init \
 	test_notice_error \
