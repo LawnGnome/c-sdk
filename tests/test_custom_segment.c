@@ -17,8 +17,7 @@
  * correctly.
  */
 static void test_start_segment_invalid(void** state NRUNUSED) {
-  //newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  const char *name = "bob";
+  const char* name = "bob";
 
   assert_null(newrelic_start_segment(NULL, NULL));
   assert_null(newrelic_start_segment(NULL, name));
@@ -31,20 +30,20 @@ static void test_start_segment_invalid(void** state NRUNUSED) {
 static void test_start_segment_name_null(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
 
-  newrelic_segment_t *seg = newrelic_start_segment(txn, NULL);
+  newrelic_segment_t* seg = newrelic_start_segment(txn, NULL);
   assert_string_equal("Unnamed Segment", seg->name);
 }
 
 /*
- * Purpose: Test that newrelic_start_segment() stores the name 
+ * Purpose: Test that newrelic_start_segment() stores the name
  * and the transaction.
  */
 static void test_start_segment_name_txn(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  const char *name = "bob";
-  nrtime_t *cur_kids_duration = txn->cur_kids_duration;
+  const char* name = "bob";
+  nrtime_t* cur_kids_duration = txn->cur_kids_duration;
 
-  newrelic_segment_t *seg = newrelic_start_segment(txn, name);
+  newrelic_segment_t* seg = newrelic_start_segment(txn, name);
   assert_string_equal(name, seg->name);
   assert_ptr_not_equal(name, seg->name);
   assert_ptr_equal(txn, seg->transaction);
@@ -59,7 +58,7 @@ static void test_start_segment_name_txn(void** state) {
  */
 static void test_end_segment_invalid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_segment_t *seg = NULL;
+  newrelic_segment_t* seg = NULL;
   newrelic_txn_t othertxn;
 
   assert_null(newrelic_end_segment(NULL, NULL));
@@ -83,20 +82,20 @@ static void test_end_segment_invalid(void** state) {
  */
 static void test_end_segment_free(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_segment_t *seg = newrelic_start_segment(txn, NULL);
+  newrelic_segment_t* seg = newrelic_start_segment(txn, NULL);
 
   assert_non_null(newrelic_end_segment(txn, &seg));
   assert_null(seg);
 }
 
 /*
- * Purpose: Test that newrelic_end_segment() updates metrics 
+ * Purpose: Test that newrelic_end_segment() updates metrics
  * and trace nodes in the transaction.
  */
 static void test_end_segment_metric_trace(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_segment_t *seg = newrelic_start_segment(txn, NULL);
-  nrtxnnode_t *node = txn->last_added;
+  newrelic_segment_t* seg = newrelic_start_segment(txn, NULL);
+  nrtxnnode_t* node = txn->last_added;
 
   assert_non_null(newrelic_end_segment(txn, &seg));
   assert_int_equal(1, nrm_table_size(txn->scoped_metrics));
@@ -110,9 +109,9 @@ static void test_end_segment_metric_trace(void** state) {
  */
 static void test_end_segment_duration(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_segment_t *seg = newrelic_start_segment(txn, NULL);
+  newrelic_segment_t* seg = newrelic_start_segment(txn, NULL);
   nrtime_t duration = *(txn->cur_kids_duration);
- 
+
   nr_msleep(5); /* To see a change in duration */
 
   assert_non_null(newrelic_end_segment(txn, &seg));
