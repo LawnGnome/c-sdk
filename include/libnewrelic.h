@@ -497,11 +497,12 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
 
 typedef struct _newrelic_segment_t newrelic_segment_t;
 
-newrelic_segment_t *newrelic_start_segment(newrelic_txn_t *transaction,
-                                           const char *name);
+newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
+                                           const char* name,
+                                           const char* category);
 
 bool newrelic_end_segment(newrelic_txn_t* transaction,
-                          newrelic_segment_t **segment_ptr);
+                          newrelic_segment_t** segment_ptr);
 
 /*!
  * @brief Record the start of a datastore segment in a transaction.

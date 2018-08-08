@@ -18,9 +18,9 @@ bool newrelic_validate_segment_param(const char* in, const char* name) {
   return true;
 }
 
-// TODO: category?
 newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
-                                           const char* name) {
+                                           const char* name,
+                                           const char* category) {
   newrelic_segment_t* segment;
 
   if (NULL == transaction) {
@@ -32,6 +32,7 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   segment->transaction = transaction;
   // TODO: validate
   segment->name = nr_strdup(name ? name : "Unnamed Segment");
+  segment->category = nr_strdup(category ? category : "Custom");
 
   /* Set up the fields so that we can correctly track child segment duration.
    *
@@ -83,7 +84,7 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
   nr_txn_adjust_exclusive_time(transaction, duration);
 
   /* Add a custom metric. */
-  metric_name = nr_formatf("Custom/%s", segment->name);
+  metric_name = nr_formatf("%s/%s", segment->category, segment->name);
   nrm_add_ex(transaction->scoped_metrics, metric_name, duration, exclusive);
   // TODO: the PHP agent also adds an unscoped metric; ascertain if that's
   // actually useful.

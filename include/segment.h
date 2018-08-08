@@ -12,6 +12,7 @@
 typedef struct _newrelic_segment_t {
   nrtxn_t*    transaction;
   char*       name;
+  char*       category;
   nrtxntime_t start;
   nrtime_t    kids_duration;
   nrtime_t*   kids_duration_save;
