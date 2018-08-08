@@ -30,9 +30,16 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
 
   segment = nr_zalloc(sizeof(newrelic_segment_t));
   segment->transaction = transaction;
-  // TODO: validate
-  segment->name = nr_strdup(name ? name : "Unnamed Segment");
-  segment->category = nr_strdup(category ? category : "Custom");
+
+  if (!name || !newrelic_validate_segment_param(name, NULL)) {
+    name = "Unnamed Segment";
+  }
+  segment->name = nr_strdup(name);
+
+  if (!category || !newrelic_validate_segment_param(category, NULL)) {
+    category = "Custom";
+  }
+  segment->category = nr_strdup(category);
 
   /* Set up the fields so that we can correctly track child segment duration.
    *
