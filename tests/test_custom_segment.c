@@ -121,7 +121,6 @@ static void test_end_segment_metric_trace(void** state) {
 
   assert_non_null(newrelic_end_segment(txn, &seg));
   assert_int_equal(1, nrm_table_size(txn->scoped_metrics));
-  assert_int_equal(1, nrm_table_size(txn->unscoped_metrics));
   assert_ptr_not_equal(node, txn->last_added);
 }
 
