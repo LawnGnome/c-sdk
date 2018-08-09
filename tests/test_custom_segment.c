@@ -38,6 +38,22 @@ static void test_start_segment_name_cat_null(void** state) {
 }
 
 /*
+ * Purpose: Test that newrelic_start_segment() handles invalid segment
+ * and category names correctly.
+ */
+static void test_start_segment_name_cat_invalid(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_segment_t* seg = newrelic_start_segment(txn, "a/b", "c");
+  assert_string_equal("Unnamed Segment", seg->name);
+  assert_string_equal("c", seg->category);
+
+  seg = newrelic_start_segment(txn, "a", "b/c");
+  assert_string_equal("a", seg->name);
+  assert_string_equal("Custom", seg->category);
+}
+
+/*
  * Purpose: Test that newrelic_start_segment() stores the name
  * and the transaction.
  */
@@ -131,6 +147,7 @@ int main(void) {
   const struct CMUnitTest segment_tests[] = {
       cmocka_unit_test(test_start_segment_invalid),
       cmocka_unit_test(test_start_segment_name_cat_null),
+      cmocka_unit_test(test_start_segment_name_cat_invalid),
       cmocka_unit_test(test_start_segment_name_cat_txn),
       cmocka_unit_test(test_end_segment_invalid),
       cmocka_unit_test(test_end_segment_free),
