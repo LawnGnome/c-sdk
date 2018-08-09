@@ -42,10 +42,7 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   }
   segment->category = nr_strdup(category);
 
-  /* Set up the fields so that we can correctly track child segment duration.
-   *
-   * FIXME: this only works for custom segments right now.
-   */
+  /* Set up the fields so that we can correctly track child segment duration. */
   segment->kids_duration_save = transaction->cur_kids_duration;
   transaction->cur_kids_duration = &segment->kids_duration;
 
@@ -94,9 +91,6 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
   /* Add a custom metric. */
   metric_name = nr_formatf("%s/%s", segment->category, segment->name);
   nrm_add_ex(transaction->scoped_metrics, metric_name, duration, exclusive);
-  // TODO: the PHP agent also adds an unscoped metric; ascertain if that's
-  // actually useful.
-  nrm_add_ex(transaction->unscoped_metrics, metric_name, duration, exclusive);
 
   /* Add a trace node. */
   nr_txn_save_trace_node(transaction, &segment->start, &stop, metric_name,
