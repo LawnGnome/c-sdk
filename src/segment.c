@@ -31,12 +31,13 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   segment = nr_zalloc(sizeof(newrelic_segment_t));
   segment->transaction = transaction;
 
-  if (!name || !newrelic_validate_segment_param(name, NULL)) {
+  if (!name || !newrelic_validate_segment_param(name, "segment name")) {
     name = "Unnamed Segment";
   }
   segment->name = nr_strdup(name);
 
-  if (!category || !newrelic_validate_segment_param(category, NULL)) {
+  if (!category
+      || !newrelic_validate_segment_param(category, "segment category")) {
     category = "Custom";
   }
   segment->category = nr_strdup(category);
