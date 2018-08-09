@@ -101,6 +101,7 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 end:
   nr_free(metric_name);
   nr_free(segment->name);
+  nr_free(segment->category);
   nr_realfree((void**) segment_ptr);
 
   return status;

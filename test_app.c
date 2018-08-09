@@ -1,23 +1,29 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <limits.h>
 #include <float.h>
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "libnewrelic.h"
 
-int main (void) {
+int main(void) {
   int priority = 50;
-  newrelic_app_t *app = 0;
-  newrelic_txn_t *txn = 0;
-  newrelic_config_t *config = 0;
-  newrelic_segment_t *segment1, *segment2;
+  newrelic_app_t* app = 0;
+  newrelic_txn_t* txn = 0;
+  newrelic_config_t* config = 0;
+  newrelic_segment_t* segment1 = 0;
+  newrelic_segment_t* segment2 = 0;
 
-  config = newrelic_new_config("Your Application Name", "<LICENSE_KEY_HERE>");
+  /* Staging account 432507 */
+  config = newrelic_new_config("C-Agent Test App 0.0.6",
+                               "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
+  strcpy(config->redirect_collector, "staging-collector.newrelic.com");
   strcpy(config->log_filename, "./c_agent.log");
   config->log_level = LOG_INFO;
+  config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
+  config->transaction_tracer.duration_us = 1;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
@@ -39,19 +45,23 @@ int main (void) {
 
   /* Add segments */
   segment1 = newrelic_start_segment(txn, "Stuff", "Secret");
-  sleep (1);
-  newrelic_end_segment (txn, &segment1);
+  sleep(1);
+  newrelic_end_segment(txn, &segment1);
 
   segment2 = newrelic_start_segment(txn, "More Stuff", "Secret");
-  sleep (2);
-  newrelic_end_segment (txn, &segment2);
+  sleep(1);
+  segment1 = newrelic_start_segment(txn, "Nested Stuff", "Secret");
+  sleep(1);
+  newrelic_end_segment(txn, &segment1);
+  sleep(1);
+  newrelic_end_segment(txn, &segment2);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
 
   /* Start and end a non-web transaction */
-  txn =
-      newrelic_start_non_web_transaction(app, "veryImportantOtherTransaction");
+  txn = newrelic_start_non_web_transaction(app,
+                                           "veryImportantOtherTransaction");
   sleep(1);
 
   newrelic_end_transaction(&txn);

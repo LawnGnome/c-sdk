@@ -10,6 +10,15 @@
 
 ### Upgrade Notices ###
 
+## 0.0.6 ##
+
+### New Features ###
+
+- Added support for creating custom segments using the new
+  `newrelic_start_segment()` and `newrelic_end_segment()` functions. See 
+  `libnewrelic.h`, `GUIDE.md` and `examples/ex_segment.c` for usage
+  information.
+
 ## 0.0.5 ##
 
 ### Upgrade Notices ###
