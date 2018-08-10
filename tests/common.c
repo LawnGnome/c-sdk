@@ -35,6 +35,9 @@ int txn_group_setup(void** state) {
   nr_free(opts);
   txn->status.recording = 1;
 
+  txn->scoped_metrics = nrm_table_create(5);
+  txn->unscoped_metrics = nrm_table_create(5);
+
   *state = txn;
   return 0;  // tells cmocka setup completed, 0==OK
 }

@@ -12,14 +12,18 @@ int main(void) {
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
+  newrelic_segment_t* segment1 = 0;
+  newrelic_segment_t* segment2 = 0;
 
   /* Staging account 432507 */
-  config = newrelic_new_config("C-Agent Test App",
+  config = newrelic_new_config("C-Agent Test App 0.0.6",
                                "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");
   strcpy(config->log_filename, "./c_agent.log");
   config->log_level = LOG_INFO;
+  config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
+  config->transaction_tracer.duration_us = 1;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
@@ -38,6 +42,19 @@ int main(void) {
   /* Record an error */
   newrelic_notice_error(txn, priority, "Meaningful error message",
                         "Error.class");
+
+  /* Add segments */
+  segment1 = newrelic_start_segment(txn, "Stuff", "Secret");
+  sleep(1);
+  newrelic_end_segment(txn, &segment1);
+
+  segment2 = newrelic_start_segment(txn, "More Stuff", "Secret");
+  sleep(1);
+  segment1 = newrelic_start_segment(txn, "Nested Stuff", "Secret");
+  sleep(1);
+  newrelic_end_segment(txn, &segment1);
+  sleep(1);
+  newrelic_end_segment(txn, &segment2);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);

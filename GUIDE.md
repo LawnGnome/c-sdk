@@ -29,6 +29,7 @@ int main (void) {
   newrelic_app_t *app = 0;
   newrelic_txn_t *txn = 0;
   newrelic_config_t *config = 0;
+  newrelic_segment_t *segment1, *segment2;
 
   config = newrelic_new_config("Your Application Name", "<LICENSE_KEY_HERE>");
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
@@ -52,6 +53,15 @@ int main (void) {
   /* Record an error */
   newrelic_notice_error(txn, priority, "Meaningful error message",
                         "Error.class");
+
+  /* Add segments */
+  segment1 = newrelic_start_segment(txn, "Stuff", "Secret");
+  sleep (1);
+  newrelic_end_segment(txn, &segment1);
+
+  segment2 = newrelic_start_segment(txn, "More Stuff", "Secret");
+  sleep (2);
+  newrelic_end_segment(txn, &segment2);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
@@ -101,6 +111,7 @@ Run your test application and check the `c-agent.log` file for output.
   * Web and non-web transactions
   * Custom attributes
   * Error instrumentation
+  * Segments
 * Logging levels
 
 ### Segment Instrumentation

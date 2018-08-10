@@ -495,6 +495,47 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            const char* errmsg,
                            const char* errclass);
 
+typedef struct _newrelic_segment_t newrelic_segment_t;
+
+/*!
+ * @brief Record the start of a custom segment in a transaction.
+ *
+ * Given an active transaction this function creates a custom segment to be
+ * recorded as part of the transaction. A subsequent call to
+ * newrelic_end_segment() records the end of the segment.
+ *
+ * @param [in] transaction An active transaction.
+ * @param [in] name The segment name. If NULL or an invalid name is passed,
+ * this defaults to "Unnamed segment".
+ * @param [in] category The segment category. If NULL or an invalid category is
+ * passed, this defaults to "Custom".
+ *
+ * @return A pointer to a valid custom segment; NULL otherwise.
+ *
+ */
+newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
+                                           const char* name,
+                                           const char* category);
+
+/*!
+ * @brief Record the completion of a custom segment in a transaction.
+ *
+ * Given an active transaction, this function records the segment's metrics
+ * on the transaction.
+ *
+ * @param [in] transaction An active transaction.
+ * @param [in,out] segment The address of a valid custom segment.
+ * Before the function returns, any segment_ptr memory is freed;
+ * segment_ptr is set to NULL to avoid any potential double free errors.
+ *
+ * @return true if the parameters represented an active transaction
+ * and custom segment to record as complete; false otherwise.
+ * If an error occurred, a log message will be written to the
+ * agent log at LOG_ERROR level.
+ */
+bool newrelic_end_segment(newrelic_txn_t* transaction,
+                          newrelic_segment_t** segment_ptr);
+
 /*!
  * @brief Record the start of a datastore segment in a transaction.
  *
