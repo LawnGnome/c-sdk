@@ -118,7 +118,9 @@ for f in *.tgz
 do
     sha1sum $f > temp.sha1sum
 
-    compare=$(cmp $f.sha1sum temp.sha1sum 2>/dev/null)
+    # In case of a failed comparison ensure a 0 return value so that Jenkins
+    # does not abort.
+    compare=$(cmp $f.sha1sum temp.sha1sum 2>/dev/null || true)
 
     if [ ! -f $f.sha1sum ]
     then
