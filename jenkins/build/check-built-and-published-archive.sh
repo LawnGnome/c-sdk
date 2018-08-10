@@ -73,6 +73,8 @@ main () {
     wait -n
     rc=$?; if [[ $rc != 0 ]]; then echo "Daemon or test_app failed to run"; exit $rc; fi
 
+    sleep 60
+
     echo "Terminating child process(es)!"
     pkill -P $$
     rc=$?; if [[ $rc != 0 ]]; then echo "Failed to kill child processes"; exit $rc; fi
