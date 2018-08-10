@@ -130,7 +130,7 @@ do
       mv temp.sha1sum $f.sha1sum
     fi
 
-    rm temp.sha1sum 2> /dev/null
+    rm -f temp.sha1sum 2> /dev/null
 done
 cd ../..
 
