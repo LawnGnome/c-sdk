@@ -8,7 +8,7 @@ Generic library to communicate with New Relic.
 * cmake
 * cmocka 1.1.1, (available in the `vendor` directory)
 * golang 1.4+
-* libpcre 8.13+
+* libpcre 8.20+
 
 ### Getting started
 
