@@ -1,5 +1,10 @@
 # C Agent Release Checklist
 
+0. Are we ready to release?
+
+- Are there any [new agent features](https://newrelic.jiveon.com/people/zkay@newrelic.com/blog/2018/06/22/your-agent-features-are-our-ui-features-too)?
+  - If so, have [`agent_features.rb`](https://source.datanerd.us/APM/rpm_site/blob/master/app/models/agent_feature.rb) and [`agent_features.json`](https://source.datanerd.us/APM/agent-feature-list/blob/master/public-html/agent_features.json) been updated?  (For *all* the new features?)
+
 1. Make a release commit.
 
 - Ensure New Feature and Bug Fix section of [CHANGELOG.md](https://source.datanerd.us/c-agent/c-agent/blob/master/CHANGELOG.md) reflects the reality of the new release
