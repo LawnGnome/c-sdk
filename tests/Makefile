@@ -48,7 +48,7 @@ ifeq (1,$(HAVE_BACKTRACE))
 endif
 
 TEST_LDFLAGS :=
-TEST_LDLIBS := $(C_AGENT_ROOT)/libnewrelic.a $(CMOCKA_LIB)
+TEST_LDLIBS := $(C_AGENT_ROOT)/libnewrelic.a $(CMOCKA_LIB) -lm
 
 # -pthread must be passed to the compiler, but not the linker when using Clang.
 ifneq (1,$(HAVE_CLANG))
