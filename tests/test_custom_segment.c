@@ -1,4 +1,3 @@
-
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -33,8 +32,9 @@ static void test_start_segment_name_cat_null(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
 
   newrelic_segment_t* seg = newrelic_start_segment(txn, NULL, NULL);
-  assert_string_equal("Unnamed Segment", seg->name);
-  assert_string_equal("Custom", seg->category);
+  assert_string_equal("Custom/Unnamed Segment",
+                      nr_string_get(txn->trace_strings, seg->segment->name));
+  assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
 }
 
 /*
@@ -45,12 +45,14 @@ static void test_start_segment_name_cat_invalid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
 
   newrelic_segment_t* seg = newrelic_start_segment(txn, "a/b", "c");
-  assert_string_equal("Unnamed Segment", seg->name);
-  assert_string_equal("c", seg->category);
+  assert_string_equal("c/Unnamed Segment",
+                      nr_string_get(txn->trace_strings, seg->segment->name));
+  assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
 
   seg = newrelic_start_segment(txn, "a", "b/c");
-  assert_string_equal("a", seg->name);
-  assert_string_equal("Custom", seg->category);
+  assert_string_equal("Custom/a",
+                      nr_string_get(txn->trace_strings, seg->segment->name));
+  assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
 }
 
 /*
@@ -64,10 +66,9 @@ static void test_start_segment_name_cat_txn(void** state) {
   nrtime_t* cur_kids_duration = txn->cur_kids_duration;
 
   newrelic_segment_t* seg = newrelic_start_segment(txn, name, category);
-  assert_string_equal(name, seg->name);
-  assert_ptr_not_equal(name, seg->name);
-  assert_string_equal(category, seg->category);
-  assert_ptr_not_equal(category, seg->category);
+  assert_string_equal("bee/bob",
+                      nr_string_get(txn->trace_strings, seg->segment->name));
+  assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
   assert_ptr_equal(txn, seg->transaction);
 
   assert_ptr_equal(seg->kids_duration_save, cur_kids_duration);
@@ -117,11 +118,9 @@ static void test_end_segment_free(void** state) {
 static void test_end_segment_metric_trace(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_segment_t* seg = newrelic_start_segment(txn, NULL, NULL);
-  nrtxnnode_t* node = txn->last_added;
 
   assert_non_null(newrelic_end_segment(txn, &seg));
   assert_int_equal(1, nrm_table_size(txn->scoped_metrics));
-  assert_ptr_not_equal(node, txn->last_added);
 }
 
 /*
