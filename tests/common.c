@@ -61,6 +61,8 @@ int txn_group_teardown(void** state) {
 
   nr_stack_destroy_fields(&txn->parent_stack);
   nr_string_pool_destroy(&txn->trace_strings);
+  nrm_table_destroy(&txn->scoped_metrics);
+  nrm_table_destroy(&txn->unscoped_metrics);
 
   nr_free(txn);
   return 0;  // tells cmocka teardown completed, 0==OK
