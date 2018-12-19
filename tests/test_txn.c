@@ -44,7 +44,7 @@ static void test_txn_null_app(void** state NRUNUSED) {
  * Purpose: Tests that function can survive a null name
  */
 static void test_txn_null_name(void** state) {
-  nrtxn_t* txn = NULL;
+  newrelic_txn_t* txn = NULL;
 
   // fetch our fixture value from the state
   newrelic_app_t* appWithInfo;
@@ -54,14 +54,15 @@ static void test_txn_null_name(void** state) {
   txn = newrelic_start_web_transaction(appWithInfo, NULL);
 
   assert_non_null(txn);
-  nr_txn_destroy(&txn);
+  assert_non_null(txn->txn);
+  newrelic_end_transaction(&txn);
 }
 
 /*
  * Purpose: Tests that function can survive a null name
  */
 static void test_txn_valid(void** state) {
-  nrtxn_t* txn = NULL;
+  newrelic_txn_t* txn = NULL;
 
   // fetch our fixture value from the state
   newrelic_app_t* appWithInfo;
@@ -71,7 +72,8 @@ static void test_txn_valid(void** state) {
   txn = newrelic_start_web_transaction(appWithInfo, "aTransaction");
 
   assert_non_null(txn);
-  nr_txn_destroy(&txn);
+  assert_non_null(txn->txn);
+  newrelic_end_transaction(&txn);
 }
 
 /*

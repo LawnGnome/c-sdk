@@ -11,6 +11,7 @@
 
 #include "nr_txn.h"
 #include "test.h"
+#include "transaction.h"
 #include "util_memory.h"
 
 static void test_notice_error_null_transaction(void** state NRUNUSED) {
@@ -22,46 +23,46 @@ static void test_notice_error_null_error_msg(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, 0, NULL, "class");
-  assert_null(txn->error);
+  assert_null(txn->txn->error);
 }
 
 static void test_notice_error_empty_error_msg(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, 0, "", "class");
-  assert_null(txn->error);
+  assert_null(txn->txn->error);
 }
 
 static void test_notice_error_null_error_class(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, 0, "message", NULL);
-  assert_null(txn->error);
+  assert_null(txn->txn->error);
 }
 
 static void test_notice_error_empty_error_class(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, 0, "message", "");
-  assert_false(txn->error);
+  assert_false(txn->txn->error);
 }
 
 static void test_notice_error_disabled(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
-  txn->options.err_enabled = 0;  // Force failure by disabling
+  txn->txn->options.err_enabled = 0;  // Force failure by disabling
   newrelic_notice_error(txn, 0, "message", "class");
-  txn->options.err_enabled = 1;  // Undo change
-  assert_null(txn->error);
+  txn->txn->options.err_enabled = 1;  // Undo change
+  assert_null(txn->txn->error);
 }
 
 static void test_notice_error_recording_disabled(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
-  txn->status.recording = 0;  // Force failure by turning off recording
+  txn->txn->status.recording = 0;  // Force failure by turning off recording
   newrelic_notice_error(txn, 0, "message", "class");
-  txn->status.recording = 1;  // Undo change
-  assert_null(txn->error);
+  txn->txn->status.recording = 1;  // Undo change
+  assert_null(txn->txn->error);
 }
 
 static void test_notice_error_success(void** state) {
@@ -69,9 +70,9 @@ static void test_notice_error_success(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, priority, "message", "class");
-  assert_non_null(txn->error);
-  assert_int_equal(priority, nr_error_priority(txn->error));
-  nr_error_destroy(&txn->error);
+  assert_non_null(txn->txn->error);
+  assert_int_equal(priority, nr_error_priority(txn->txn->error));
+  nr_error_destroy(&txn->txn->error);
 }
 
 static void test_notice_error_add_lower_priority(void** state) {
@@ -80,10 +81,10 @@ static void test_notice_error_add_lower_priority(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, priority_first, "message", "class");
-  assert_int_equal(priority_first, nr_error_priority(txn->error));
+  assert_int_equal(priority_first, nr_error_priority(txn->txn->error));
   newrelic_notice_error(txn, priority_second, "message", "class");
-  assert_int_equal(priority_first, nr_error_priority(txn->error));
-  nr_error_destroy(&txn->error);
+  assert_int_equal(priority_first, nr_error_priority(txn->txn->error));
+  nr_error_destroy(&txn->txn->error);
 }
 
 static void test_notice_error_add_higher_priority(void** state) {
@@ -92,10 +93,10 @@ static void test_notice_error_add_higher_priority(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
   newrelic_notice_error(txn, priority_first, "message", "class");
-  assert_int_equal(priority_first, nr_error_priority(txn->error));
+  assert_int_equal(priority_first, nr_error_priority(txn->txn->error));
   newrelic_notice_error(txn, priority_second, "message", "class");
-  assert_int_equal(priority_second, nr_error_priority(txn->error));
-  nr_error_destroy(&txn->error);
+  assert_int_equal(priority_second, nr_error_priority(txn->txn->error));
+  nr_error_destroy(&txn->txn->error);
 }
 
 int main(void) {

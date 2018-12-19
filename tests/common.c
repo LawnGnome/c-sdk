@@ -1,6 +1,7 @@
 #include "test.h"
 #include "libnewrelic.h"
 #include "config.h"
+#include "transaction.h"
 
 #include "app.h"
 #include "nr_txn.h"
@@ -30,16 +31,18 @@ int txn_group_setup(void** state) {
   newrelic_txn_t* txn = 0;
   nrtxnopt_t* opts = 0;
   txn = (newrelic_txn_t*)nr_zalloc(sizeof(newrelic_txn_t));
+  nrt_mutex_init(&txn->lock, 0);
+  txn->txn = (nrtxn_t*)nr_zalloc(sizeof(nrtxn_t));
   opts = newrelic_get_default_options();
-  txn->options = *opts;
+  txn->txn->options = *opts;
   nr_free(opts);
-  txn->status.recording = 1;
+  txn->txn->status.recording = 1;
 
-  txn->scoped_metrics = nrm_table_create(5);
-  txn->unscoped_metrics = nrm_table_create(5);
+  txn->txn->scoped_metrics = nrm_table_create(5);
+  txn->txn->unscoped_metrics = nrm_table_create(5);
 
-  txn->trace_strings = nr_string_pool_create();
-  nr_stack_init(&txn->parent_stack, NR_STACK_DEFAULT_CAPACITY);
+  txn->txn->trace_strings = nr_string_pool_create();
+  nr_stack_init(&txn->txn->parent_stack, NR_STACK_DEFAULT_CAPACITY);
 
   *state = txn;
   return 0;  // tells cmocka setup completed, 0==OK
@@ -59,11 +62,13 @@ int txn_group_teardown(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
 
-  nr_stack_destroy_fields(&txn->parent_stack);
-  nr_string_pool_destroy(&txn->trace_strings);
-  nrm_table_destroy(&txn->scoped_metrics);
-  nrm_table_destroy(&txn->unscoped_metrics);
+  nrt_mutex_destroy(&txn->lock);
 
-  nr_free(txn);
+  nr_stack_destroy_fields(&txn->txn->parent_stack);
+  nr_string_pool_destroy(&txn->txn->trace_strings);
+  nrm_table_destroy(&txn->txn->scoped_metrics);
+  nrm_table_destroy(&txn->txn->unscoped_metrics);
+  nr_free(txn->txn);
+
   return 0;  // tells cmocka teardown completed, 0==OK
 }

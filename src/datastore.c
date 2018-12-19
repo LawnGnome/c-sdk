@@ -2,6 +2,7 @@
 #include "datastore.h"
 #include "segment.h"
 #include "stack.h"
+#include "transaction.h"
 
 #include "util_logging.h"
 #include "util_memory.h"
@@ -106,10 +107,7 @@ newrelic_datastore_segment_t* newrelic_start_datastore_segment(
   segment = nr_zalloc(sizeof(newrelic_datastore_segment_t));
   segment->collection = nr_strdup_or(params->collection, "other");
   segment->operation = nr_strdup_or(params->operation, "other");
-  segment->txn = transaction;
-
-  /* Start the generic segment. */
-  segment->segment = nr_segment_start(transaction, NULL, NULL);
+  segment->txn = transaction->txn;
 
   /* Get the datastore product type, since we need it to figure out SQL
    * behaviour. */
@@ -128,8 +126,8 @@ newrelic_datastore_segment_t* newrelic_start_datastore_segment(
     nrl_info(NRL_INSTRUMENT, "instrumenting unsupported datastore product");
   }
 
-  /* Build out the appropriate nr_datastore_instance_t.  The axiom calls do the
-   * work of taking care that a NULL port_or_path_id value is set to its
+  /* Build out the appropriate nr_datastore_instance_t.  The axiom calls do
+   * the work of taking care that a NULL port_or_path_id value is set to its
    * default value, "unknown" */
   nr_datastore_instance_set_host(&sp.instance, params->host);
   nr_datastore_instance_set_port_path_or_id(&sp.instance,
@@ -139,7 +137,7 @@ newrelic_datastore_segment_t* newrelic_start_datastore_segment(
   /* Is this an SQL datastore type?  Then add the query information. */
   if (nr_datastore_is_sql(ds_type)) {
     /* Perform obfuscation if required. */
-    switch (nr_txn_sql_recording_level(transaction)) {
+    switch (nr_txn_sql_recording_level(transaction->txn)) {
       case NR_SQL_RAW:
         sp.sql = params->query;
         break;
@@ -157,12 +155,21 @@ newrelic_datastore_segment_t* newrelic_start_datastore_segment(
     }
   }
 
-  /* Finally, set the segment type. */
-  nr_segment_set_datastore(segment->segment, &sp);
+  /* Actually start the segment. */
+  nrt_mutex_lock(&transaction->lock);
+  {
+    segment->segment = nr_segment_start(transaction->txn, NULL, NULL);
+    nr_segment_set_datastore(segment->segment, &sp);
+  }
+  nrt_mutex_unlock(&transaction->lock);
 
   /* Clean up and return. */
   nr_datastore_instance_destroy_fields(&sp.instance);
   nr_free(sql_obfuscated);
+
+  if (NULL == segment->segment) {
+    newrelic_destroy_datastore_segment(&segment);
+  }
 
   return segment;
 }
@@ -171,7 +178,6 @@ bool newrelic_end_datastore_segment(
     newrelic_txn_t* transaction,
     newrelic_datastore_segment_t** segment_ptr) {
   nrtime_t duration;
-  char* name;
   bool status = false;
   newrelic_datastore_segment_t* segment = NULL;
 
@@ -192,7 +198,7 @@ bool newrelic_end_datastore_segment(
 
   /* Sanity check that the datastore segment is being ended on the same
    * transaction it was started on. */
-  if (transaction != segment->txn) {
+  if (transaction->txn != segment->txn) {
     nrl_error(NRL_INSTRUMENT,
               "cannot end a datastore segment on a different transaction to "
               "the one it was created on");
@@ -207,21 +213,27 @@ bool newrelic_end_datastore_segment(
     goto end;
   }
 
-  /* Stop the transaction and save the node. */
-  nr_segment_end(segment->segment);
-  duration = nr_time_duration(segment->segment->start_time,
-                              segment->segment->stop_time);
+  nrt_mutex_lock(&transaction->lock);
+  {
+    char* name;
 
-  /* Create metrics. */
-  name = newrelic_create_datastore_segment_metrics(
-      transaction, duration,
-      segment->segment->typed_attributes.datastore.component,
-      segment->collection, segment->operation);
-  nr_segment_set_name(segment->segment, name);
-  nr_free(name);
+    /* Stop the transaction and save the node. */
+    nr_segment_end(segment->segment);
+    duration = nr_time_duration(segment->segment->start_time,
+                                segment->segment->stop_time);
+
+    /* Create metrics. */
+    name = newrelic_create_datastore_segment_metrics(
+        transaction->txn, duration,
+        segment->segment->typed_attributes.datastore.component,
+        segment->collection, segment->operation);
+    nr_segment_set_name(segment->segment, name);
+    nr_free(name);
+  }
+  nrt_mutex_unlock(&transaction->lock);
 
   /* Add backtrace, if required. */
-  if (nr_txn_node_datastore_stack_worthy(transaction, duration)) {
+  if (nr_txn_node_datastore_stack_worthy(transaction->txn, duration)) {
     char* backtrace_json = newrelic_get_stack_trace_as_json();
 
     if (backtrace_json) {

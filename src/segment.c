@@ -1,5 +1,6 @@
 #include "libnewrelic.h"
 #include "segment.h"
+#include "transaction.h"
 
 #include "util_logging.h"
 #include "util_memory.h"
@@ -21,18 +22,10 @@ bool newrelic_validate_segment_param(const char* in, const char* name) {
 newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
                                            const char* name,
                                            const char* category) {
-  char* metric_name = NULL;
   newrelic_segment_t* segment = NULL;
-  nr_segment_t* txn_segment = NULL;
 
   if (NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "unable to start segment with NULL transaction");
-    return NULL;
-  }
-
-  /* Create the axiom segment. */
-  txn_segment = nr_segment_start(transaction, NULL, NULL);
-  if (NULL == txn_segment) {
     return NULL;
   }
 
@@ -45,19 +38,34 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
     category = "Custom";
   }
 
-  metric_name = nr_formatf("%s/%s", category, name);
-  nr_segment_set_name(txn_segment, metric_name);
-  nr_free(metric_name);
-
   /* Now create the wrapper type. */
   segment = nr_malloc(sizeof(newrelic_segment_t));
   segment->kids_duration = 0;
-  segment->segment = txn_segment;
-  segment->transaction = transaction;
+  segment->transaction = transaction->txn;
 
   /* Set up the fields so that we can correctly track child segment duration. */
-  segment->kids_duration_save = transaction->cur_kids_duration;
-  transaction->cur_kids_duration = &segment->kids_duration;
+  nrt_mutex_lock(&transaction->lock);
+  {
+    char* metric_name;
+
+    /* Create the axiom segment. */
+    segment->segment = nr_segment_start(transaction->txn, NULL, NULL);
+    if (NULL == segment->segment) {
+      nrt_mutex_unlock(&transaction->lock);
+      nr_free(segment);
+
+      return NULL;
+    }
+
+    segment->kids_duration_save = transaction->txn->cur_kids_duration;
+    transaction->txn->cur_kids_duration = &segment->kids_duration;
+
+    /* Set the segment name. */
+    metric_name = nr_formatf("%s/%s", category, name);
+    nr_segment_set_name(segment->segment, metric_name);
+    nr_free(metric_name);
+  }
+  nrt_mutex_unlock(&transaction->lock);
 
   return segment;
 }
@@ -75,7 +83,7 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
   }
   segment = *segment_ptr;
 
-  if (NULL == segment->transaction) {
+  if (NULL == segment->transaction || NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "unable to end a segment of a NULL transaction");
     goto end;
   }
@@ -84,27 +92,33 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
    * was started on. Transitioning a segment between transactions would be
    * problematic, since times are transaction-specific.
    * */
-  if (transaction != segment->transaction) {
+  if (transaction->txn != segment->transaction) {
     nrl_error(NRL_INSTRUMENT,
               "cannot end a segment on a different transaction to the one it "
               "was created on");
     goto end;
   }
 
-  /* Stop the segment. */
-  nr_segment_end(segment->segment);
+  nrt_mutex_lock(&transaction->lock);
+  {
+    /* Stop the segment. */
+    nr_segment_end(segment->segment);
 
-  /* Calculate exclusive time and restore the previous child duration field. */
-  duration = nr_time_duration(segment->segment->start_time,
-                              segment->segment->stop_time);
-  exclusive = duration - segment->kids_duration;
-  transaction->cur_kids_duration = segment->kids_duration_save;
-  nr_txn_adjust_exclusive_time(transaction, duration);
+    /* Calculate exclusive time and restore the previous child duration field.
+     */
+    duration = nr_time_duration(segment->segment->start_time,
+                                segment->segment->stop_time);
+    exclusive = duration - segment->kids_duration;
+    transaction->txn->cur_kids_duration = segment->kids_duration_save;
+    nr_txn_adjust_exclusive_time(transaction->txn, duration);
 
-  /* Add a custom metric. */
-  nrm_add_ex(transaction->scoped_metrics,
-             nr_string_get(transaction->trace_strings, segment->segment->name),
-             duration, exclusive);
+    /* Add a custom metric. */
+    nrm_add_ex(
+        transaction->txn->scoped_metrics,
+        nr_string_get(transaction->txn->trace_strings, segment->segment->name),
+        duration, exclusive);
+  }
+  nrt_mutex_unlock(&transaction->lock);
 
   status = true;
 

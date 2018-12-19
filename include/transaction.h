@@ -7,6 +7,14 @@
 #ifndef LIBNEWRELIC_TRANSACTION_H
 #define LIBNEWRELIC_TRANSACTION_H
 
+#include "nr_txn.h"
+#include "util_threads.h"
+
+typedef struct _newrelic_txn_t {
+  nrtxn_t* txn;
+  nrthread_mutex_t lock;
+} newrelic_txn_t;
+
 /*!
  * @brief Start a transaction
  *

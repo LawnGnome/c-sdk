@@ -1,5 +1,6 @@
 #include "libnewrelic.h"
 #include "attribute.h"
+#include "transaction.h"
 
 #include "nr_axiom.h"
 #include "nr_attributes.h"
@@ -8,27 +9,37 @@
 bool newrelic_add_attribute(newrelic_txn_t* transaction,
                             const char* key,
                             nrobj_t* obj) {
+  bool success = false;
+
   if (NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "unable to add attribute for a NULL transaction");
-    return false;
+    return success;
   }
 
-  if (NULL == key) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL key");
-    return false;
-  }
+  nrt_mutex_lock(&transaction->lock);
+  {
+    if (NULL == key) {
+      nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL key");
+      goto end;
+    }
 
-  if (NULL == obj) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL value");
-    return false;
-  }
+    if (NULL == obj) {
+      nrl_error(NRL_INSTRUMENT, "unable to add attribute with a NULL value");
+      goto end;
+    }
 
-  if (NR_FAILURE == nr_txn_add_user_custom_parameter(transaction, key, obj)) {
-    nrl_error(NRL_INSTRUMENT, "unable to add attribute for key=\"%s\"", key);
-    return false;
-  }
+    if (NR_FAILURE
+        == nr_txn_add_user_custom_parameter(transaction->txn, key, obj)) {
+      nrl_error(NRL_INSTRUMENT, "unable to add attribute for key=\"%s\"", key);
+      goto end;
+    }
 
-  return true;
+    success = true;
+  }
+end:
+  nrt_mutex_unlock(&transaction->lock);
+
+  return success;
 }
 
 bool newrelic_add_attribute_int(newrelic_txn_t* transaction,

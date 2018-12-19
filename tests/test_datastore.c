@@ -8,6 +8,7 @@
 #include "datastore.h"
 
 #include "nr_segment.h"
+#include "transaction.h"
 #include "util_memory.h"
 
 #include "test.h"
@@ -17,9 +18,9 @@ static newrelic_datastore_segment_t* mock_datastore_segment(
     newrelic_txn_t* txn) {
   newrelic_datastore_segment_t* segment_ptr
       = nr_zalloc(sizeof(newrelic_datastore_segment_t));
-  segment_ptr->txn = txn;
+  segment_ptr->txn = txn->txn;
 
-  segment_ptr->segment = nr_segment_start(txn, NULL, NULL);
+  segment_ptr->segment = nr_segment_start(txn->txn, NULL, NULL);
   nr_segment_set_datastore(segment_ptr->segment,
                            &((nr_segment_datastore_t){.component = "product"}));
 
@@ -78,7 +79,7 @@ static void test_start_datastore_segment_empty_product(void** state) {
   assert_non_null(segment);
   assert_non_null(segment->segment);
   assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
-  assert_ptr_equal(txn, segment->txn);
+  assert_ptr_equal(txn->txn, segment->txn);
 
   /* Affirm that the product string was properly set. An empty string should be
    * transformed to NEWRELIC_DATASTORE_OTHER. */
@@ -130,7 +131,7 @@ static void test_start_datastore_segment_valid(void** state) {
   assert_non_null(segment);
   assert_non_null(segment->segment);
   assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
-  assert_ptr_equal(txn, segment->txn);
+  assert_ptr_equal(txn->txn, segment->txn);
 
   /* Affirm that the product string was properly set. */
   assert_string_equal(NEWRELIC_DATASTORE_MYSQL,
@@ -242,8 +243,9 @@ static void test_end_datastore_segment_valid(void** state) {
 
   assert_true(newrelic_end_datastore_segment(txn, &segment_ptr));
 
-  assert_string_equal("Datastore/statement/product/collection/operation",
-                      nr_string_get(txn->trace_strings, axiom_segment->name));
+  assert_string_equal(
+      "Datastore/statement/product/collection/operation",
+      nr_string_get(txn->txn->trace_strings, axiom_segment->name));
 
   assert_null(segment_ptr);
 }
