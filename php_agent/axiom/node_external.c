@@ -157,6 +157,7 @@ void nr_txn_end_node_external(nrtxn_t* txn,
   char* external_guid = NULL;
   nrobj_t* data_hash = NULL;
   int urllen;
+  nr_txnnode_attributes_t* node_attributes;
 
   /*
    * nr_txn_valid_node_end() also checks if txn is NULL.
@@ -205,8 +206,11 @@ void nr_txn_end_node_external(nrtxn_t* txn,
     nro_set_hash_string(data_hash, "procedure", params->procedure);
   }
 
+  node_attributes = nr_txnnode_attributes_create();
+  node_attributes->type = NR_EXTERNAL;
   nr_txn_save_trace_node(txn, &params->start, &params->stop, node_name,
-                         params->async_context, data_hash);
+                         params->async_context, data_hash, node_attributes);
+  nr_txnnode_attributes_destroy(node_attributes);
 
   /* Fall through to */
 leave:

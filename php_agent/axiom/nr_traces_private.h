@@ -23,7 +23,10 @@ extern int nr_traces_json_print_segments(nrbuf_t* buf,
                                          const nrtxnnode_t* node,
                                          int next,
                                          const nr_harvest_trace_node_t* nodes,
-                                         nrpool_t* node_names);
+                                         nrpool_t* node_names,
+                                         nr_span_event_t* span_events[],
+                                         int span_events_size,
+                                         const nr_span_event_t* parent_span);
 
 /*
  * Purpose : Sorts the nodes within the transaction, taking execution contexts

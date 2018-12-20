@@ -22,15 +22,28 @@ nr_datastore_instance_t* nr_datastore_instance_create(
   return instance;
 }
 
+static inline void nr_datastore_instance_destroy_fields_impl(
+    nr_datastore_instance_t* instance) {
+  nr_free(instance->host);
+  nr_free(instance->port_path_or_id);
+  nr_free(instance->database_name);
+}
+
 void nr_datastore_instance_destroy(nr_datastore_instance_t** instance_ptr) {
   if ((NULL == instance_ptr) || (NULL == *instance_ptr)) {
     return;
   }
 
-  nr_free((*instance_ptr)->host);
-  nr_free((*instance_ptr)->port_path_or_id);
-  nr_free((*instance_ptr)->database_name);
+  nr_datastore_instance_destroy_fields_impl(*instance_ptr);
   nr_realfree((void**)instance_ptr);
+}
+
+void nr_datastore_instance_destroy_fields(nr_datastore_instance_t* instance) {
+  if (NULL == instance) {
+    return;
+  }
+
+  nr_datastore_instance_destroy_fields_impl(instance);
 }
 
 /*
@@ -93,7 +106,7 @@ void nr_datastore_instance_set_host(nr_datastore_instance_t* instance,
   if (nr_datastore_instance_is_localhost(host)) {
     instance->host = nr_system_get_hostname();
   } else {
-    if ((NULL == host) || (nr_strlen(host) <= 0)) {
+    if (nr_strempty(host)) {
       instance->host = nr_strdup("unknown");
     } else {
       instance->host = nr_strdup(host);
@@ -109,7 +122,7 @@ void nr_datastore_instance_set_port_path_or_id(
   }
 
   nr_free(instance->port_path_or_id);
-  if ((NULL == port_path_or_id) || (nr_strlen(port_path_or_id) <= 0)) {
+  if (nr_strempty(port_path_or_id)) {
     instance->port_path_or_id = nr_strdup("unknown");
   } else {
     instance->port_path_or_id = nr_strdup(port_path_or_id);
@@ -123,7 +136,7 @@ void nr_datastore_instance_set_database_name(nr_datastore_instance_t* instance,
   }
 
   nr_free(instance->database_name);
-  if ((NULL == database_name) || (nr_strlen(database_name) <= 0)) {
+  if (nr_strempty(database_name)) {
     instance->database_name = nr_strdup("unknown");
   } else {
     instance->database_name = nr_strdup(database_name);

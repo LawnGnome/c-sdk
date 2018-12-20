@@ -30,6 +30,16 @@ extern void nr_datastore_instance_destroy(
     nr_datastore_instance_t** instance_ptr);
 
 /*
+ * Purpose : Destroy just the fields within a datastore instance struct. Useful
+ *           for datastore instances that were not created with
+ *           nr_datastore_instance_create().
+ *
+ * Params  : 1. The datastore instance.
+ */
+extern void nr_datastore_instance_destroy_fields(
+    nr_datastore_instance_t* instance);
+
+/*
  * Purpose : Determine whether a host is a known local address.
  *
  * Params  : 1. The host

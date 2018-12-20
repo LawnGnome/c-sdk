@@ -75,11 +75,13 @@ NR_PHP_WRAPPER(nr_kohana_name_the_wt) {
     name[0] = '\0';
     snprintf(
         name, sizeof(name), "%.*s/%.*s",
-        nr_php_is_zval_non_empty_string(controller) ? Z_STRLEN_P(controller)
-                                                    : 32,
+        nr_php_is_zval_non_empty_string(controller)
+            ? NRSAFELEN(Z_STRLEN_P(controller))
+            : 32,
         nr_php_is_zval_non_empty_string(controller) ? Z_STRVAL_P(controller)
                                                     : "NoController",
-        nr_php_is_zval_non_empty_string(action) ? Z_STRLEN_P(action) : 32,
+        nr_php_is_zval_non_empty_string(action) ? NRSAFELEN(Z_STRLEN_P(action))
+                                                : 32,
         nr_php_is_zval_non_empty_string(action) ? Z_STRVAL_P(action)
                                                 : "NoAction");
     nr_php_zval_free(&controller);

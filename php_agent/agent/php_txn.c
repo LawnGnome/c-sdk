@@ -2,11 +2,14 @@
  * This file contains PHP specific callbacks and functions for transactions.
  */
 #include "php_agent.h"
+#include "php_api_distributed_trace.h"
 #include "php_execute.h"
+#include "php_globals.h"
 #include "php_hash.h"
 #include "php_header.h"
 #include "php_samplers.h"
 #include "php_user_instrument.h"
+#include "php_txn_private.h"
 #include "nr_agent.h"
 #include "nr_async_context.h"
 #include "nr_commands.h"
@@ -83,7 +86,7 @@ static void nr_php_set_initial_path(nrtxn_t* txn TSRMLS_DC) {
                != (uri = nr_php_zend_hash_find(Z_ARRVAL_P(server),
                                                "SCRIPT_NAME"))) {
       whence = "WT_IS_FILENAME & SCRIPT_NAME";
-      /* uri has a zval with the name of the script */
+/* uri has a zval with the name of the script */
 #ifdef PHP7
     } else if (CG(active_op_array)) {
       /*
@@ -91,12 +94,12 @@ static void nr_php_set_initial_path(nrtxn_t* txn TSRMLS_DC) {
        */
       whence = "WT_IS_FILENAME & op_array";
       suri = nr_php_op_array_file_name(CG(active_op_array));
-      /* suri has a char* to the name of the script */
+/* suri has a char* to the name of the script */
 #else
     } else if (EG(active_op_array)) {
       whence = "WT_IS_FILENAME & op_array";
       suri = nr_php_op_array_file_name(EG(active_op_array));
-      /* suri has a char* to the name of the script */
+/* suri has a char* to the name of the script */
 #endif /* PHP7 */
     }
 
@@ -203,7 +206,7 @@ static int nr_php_capture_request_parameter(zval* element,
       break;
 
     case IS_LONG:
-      snprintf(datastr, sizeof(datastr), "%ld", Z_LVAL_P(element));
+      snprintf(datastr, sizeof(datastr), "%ld", (long)Z_LVAL_P(element));
       break;
 
     case IS_DOUBLE:
@@ -252,20 +255,22 @@ static int nr_php_capture_request_parameter(zval* element,
       nr_strcpy(datastr, "[resource]");
       break;
 
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
     case IS_CONSTANT:
       nr_strcpy(datastr, "[constant]");
       break;
+#endif /* PHP < 7.3 */
 
-      /*
-       * PHP 5.6.0 beta 2 replaced IS_CONSTANT_ARRAY and IS_CONSTANT_INDEX with
-       * IS_CONSTANT_AST. For the purposes of this function, it can be
-       * considered the same thing.
-       */
-#ifdef IS_CONSTANT_AST
+/*
+ * PHP 5.6.0 beta 2 replaced IS_CONSTANT_ARRAY and IS_CONSTANT_INDEX with
+ * IS_CONSTANT_AST. For the purposes of this function, it can be
+ * considered the same thing.
+ */
+#if ZEND_MODULE_API_NO >= ZEND_5_6_X_API_NO
     case IS_CONSTANT_AST:
 #else
     case IS_CONSTANT_ARRAY:
-#endif
+#endif /* PHP >= 5.6 */
       nr_strcpy(datastr, "[constants]");
       break;
 
@@ -525,6 +530,73 @@ static void nr_php_txn_prepared_statement_destroy(void* sql) {
   nr_free(sql);
 }
 
+bool nr_php_txn_is_policy_secure(const char* policy_name,
+                                 const nrtxnopt_t* opts) {
+  if (NULL == policy_name) {
+    return false;
+  }
+
+  if (NULL == opts) {
+    return false;
+  }
+
+  if (0 == strcmp("record_sql", policy_name)) {
+    // record_sql is considered more secure only when there's no
+    // sql reporting.  NR_SQL_RAW and NR_SQL_OBFUSCATED are
+    // considered the less secure values
+    return NR_SQL_NONE == opts->tt_recordsql;
+  }
+
+  if (0 == strcmp("allow_raw_exception_messages", policy_name)) {
+    // allow_raw_exception_messages is considered insecure when
+    // the private newrelic.allow_raw_exception_messages ini value is 1
+    return 0 == opts->allow_raw_exception_messages;
+  }
+
+  if (0 == strcmp("custom_events", policy_name)) {
+    // custom_events is considered insecure when the
+    // newrelic.custom_events_enabled ini value is 1
+    return 0 == opts->custom_events_enabled;
+  }
+
+  if (0 == strcmp("custom_parameters", policy_name)) {
+    // custom_parameters is considered insecure when the
+    // newrelic.custom_parameters_enabled ini value is 1
+    return 0 == opts->custom_parameters_enabled;
+  }
+
+  // We reach this point when the policy name is unknown
+  nrl_debug(NRL_INIT, "Request unknown security policy: %s", policy_name);
+  return false;
+}
+
+nrobj_t* nr_php_txn_get_supported_security_policy_settings(nrtxnopt_t* opts) {
+  nrobj_t* supported_policy_settings = nro_new(NR_OBJECT_HASH);
+  int i;
+  int count_supported_policy_names;
+
+  // the policies we support.  Non supported policies are omitted to save
+  // space on the wire (vs. sending them with support/enabled of 0
+  const char* supported_policy_names[]
+      = {"record_sql", "allow_raw_exception_messages", "custom_events",
+         "custom_parameters"};
+
+  count_supported_policy_names = sizeof(supported_policy_names) / sizeof(char*);
+  // setup default values and object structure for supported policies
+  for (i = 0; i < count_supported_policy_names; i++) {
+    nrobj_t* tmp;
+    tmp = nro_new(NR_OBJECT_HASH);
+    nro_set_hash_boolean(
+        tmp, "enabled",
+        !nr_php_txn_is_policy_secure(supported_policy_names[i], opts));
+    nro_set_hash_boolean(tmp, "supported", 1);
+    nro_set_hash(supported_policy_settings, supported_policy_names[i], tmp);
+    nro_delete(tmp);
+  }
+
+  return supported_policy_settings;
+}
+
 nr_status_t nr_php_txn_begin(const char* appnames,
                              const char* license TSRMLS_DC) {
   nrtxnopt_t opts;
@@ -590,6 +662,10 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   opts.ss_threshold = NRINI(ss_threshold);
   opts.cross_process_enabled = (int)NRINI(cross_process_enabled);
   opts.tt_is_apdex_f = NRPRG(tt_threshold_is_apdex_f);
+  opts.allow_raw_exception_messages = NRINI(allow_raw_exception_messages);
+  opts.custom_parameters_enabled = NRINI(custom_parameters_enabled);
+  opts.distributed_tracing_enabled = NRINI(distributed_tracing_enabled);
+  opts.span_events_enabled = NRINI(span_events_enabled);
 
   if ((0 == appnames) || (0 == appnames[0])) {
     appnames = NRINI(appnames);
@@ -606,6 +682,9 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   info.version = nr_strdup(nr_version());
   info.appname = nr_strdup(appnames);
   info.redirect_collector = nr_strdup(NR_PHP_PROCESS_GLOBALS(collector));
+  info.security_policies_token = nr_strdup(NRINI(security_policies_token));
+  info.supported_security_policies
+      = nr_php_txn_get_supported_security_policy_settings(&opts);
 
   app = nr_agent_find_or_add_app(nr_agent_applist, &info,
                                  /*
@@ -640,6 +719,8 @@ nr_status_t nr_php_txn_begin(const char* appnames,
 
   NRPRG(predis_commands) = 0;
   NRPRG(predis_ctx) = 0;
+  NRPRG(curl_headers) = 0;
+  NRPRG(curl_method) = 0;
 
   attribute_config = nr_php_create_attribute_config(TSRMLS_C);
   NRPRG(txn) = nr_txn_begin(app, &opts, attribute_config);
@@ -677,7 +758,16 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   NRPRG(prepared_statements)
       = nr_hashmap_create(nr_php_txn_prepared_statement_destroy);
 
-  if (NRPRG(txn)->options.cross_process_enabled) {
+  if (NRPRG(txn)->options.distributed_tracing_enabled) {
+    char* payload = nr_php_get_request_header("HTTP_NEWRELIC" TSRMLS_CC);
+
+    if (payload) {
+      nr_php_api_accept_distributed_trace_payload_httpsafe(NRPRG(txn), payload,
+                                                           "HTTP");
+    }
+
+    nr_free(payload);
+  } else if (NRPRG(txn)->options.cross_process_enabled) {
     char* x_newrelic_id = NULL;
     char* x_newrelic_transaction = NULL;
 
@@ -699,6 +789,23 @@ nr_status_t nr_php_txn_begin(const char* appnames,
     (void)nr_header_set_synthetics_txn(NRPRG(txn), encoded);
 
     nr_free(encoded);
+  }
+
+  if (NRPRG(txn)->options.distributed_tracing_enabled
+      && !NRPRG(txn)->options.tt_enabled) {
+    nrl_error(NRL_INIT,
+              "newrelic.transaction_tracer.enabled must be enabled in order "
+              "to use distributed tracing");
+  }
+  
+  if (NRPRG(txn)->options.distributed_tracing_enabled && NRINI(tt_detail)) {
+    NRINI(tt_detail) = 0;
+
+    nrl_verbose(NRL_INIT,
+                "Enabling distributed tracing automatically disables "
+                "transaction tracer detail. To add specific function calls to "
+                "the tracer use the API method newrelic_add_custom_tracer or "
+                "the newrelic.transaction_tracer.custom configuration value.");
   }
 
   return NR_SUCCESS;
@@ -837,6 +944,8 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
   nr_hashmap_destroy(&NRPRG(predis_commands));
 
   nr_hashmap_destroy(&NRPRG(prepared_statements));
+  nr_hashmap_destroy(&NRPRG(curl_headers));
+  nr_hashmap_destroy(&NRPRG(curl_method));
 
   nr_mysqli_metadata_destroy(&NRPRG(mysqli_links));
 

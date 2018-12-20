@@ -8,25 +8,28 @@ import (
 func TestCreateFinalMetricsWithLotsOfMetrics(t *testing.T) {
 	harvest := NewHarvest(time.Date(2015, time.November, 11, 1, 2, 0, 0, time.UTC))
 
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), stamp: eventStamp(1)})
-	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
-	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
-	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
-	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
-	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), stamp: eventStamp(1)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.TxnEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"z":42},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.CustomEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.ErrorEvents.AddEvent(AnalyticsEvent{data: []byte(`[{"y":5},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.SpanEvents.AddEvent(AnalyticsEvent{data:  []byte(`[{"w":7},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.SpanEvents.AddEvent(AnalyticsEvent{data:  []byte(`[{"w":7},{},{}]`), priority: SamplingPriority(0.8)})
+	harvest.SpanEvents.AddEvent(AnalyticsEvent{data:  []byte(`[{"w":7},{},{}]`), priority: SamplingPriority(0.8)})
 
 	harvest.createFinalMetrics()
 
@@ -37,7 +40,9 @@ func TestCreateFinalMetricsWithLotsOfMetrics(t *testing.T) {
 		`[{"name":"Supportability/Events/Customer/Seen"},[4,0,0,0,0,0]],` +
 		`[{"name":"Supportability/Events/Customer/Sent"},[4,0,0,0,0,0]],` +
 		`[{"name":"Supportability/Events/TransactionError/Seen"},[7,0,0,0,0,0]],` +
-		`[{"name":"Supportability/Events/TransactionError/Sent"},[7,0,0,0,0,0]]]]`
+		`[{"name":"Supportability/Events/TransactionError/Sent"},[7,0,0,0,0,0]],` +
+		`[{"name":"Supportability/SpanEvent/TotalEventsSeen"},[3,0,0,0,0,0]],` +
+		`[{"name":"Supportability/SpanEvent/TotalEventsSent"},[3,0,0,0,0,0]]]]`
 
 	json, err := harvest.Metrics.CollectorJSONSorted(AgentRunID(`12345`), end)
 	if nil != err {
@@ -60,7 +65,9 @@ func TestCreateFinalMetricsWithNoMetrics(t *testing.T) {
 		`[{"name":"Supportability/Events/Customer/Seen"},[0,0,0,0,0,0]],` +
 		`[{"name":"Supportability/Events/Customer/Sent"},[0,0,0,0,0,0]],` +
 		`[{"name":"Supportability/Events/TransactionError/Seen"},[0,0,0,0,0,0]],` +
-		`[{"name":"Supportability/Events/TransactionError/Sent"},[0,0,0,0,0,0]]]]`
+		`[{"name":"Supportability/Events/TransactionError/Sent"},[0,0,0,0,0,0]],` +
+		`[{"name":"Supportability/SpanEvent/TotalEventsSeen"},[0,0,0,0,0,0]],` +
+		`[{"name":"Supportability/SpanEvent/TotalEventsSent"},[0,0,0,0,0,0]]]]`
 
 	json, err := harvest.Metrics.CollectorJSONSorted(AgentRunID(`12345`), end)
 	if nil != err {
@@ -87,19 +94,19 @@ func TestHarvestEmpty(t *testing.T) {
 	}
 
 	h = NewHarvest(startTime)
-	h.CustomEvents.AddEvent(AnalyticsEvent{stamp: 42})
+	h.CustomEvents.AddEvent(AnalyticsEvent{priority: 0.42})
 	if h.empty() {
 		t.Errorf("Harvest.empty() = true, want false")
 	}
 
 	h = NewHarvest(startTime)
-	h.ErrorEvents.AddEvent(AnalyticsEvent{stamp: 42})
+	h.ErrorEvents.AddEvent(AnalyticsEvent{priority: 0.42})
 	if h.empty() {
 		t.Errorf("Harvest.empty() = true, want false")
 	}
 
 	h = NewHarvest(startTime)
-	h.Errors.AddError(42, []byte{})
+	h.Errors.AddError(51, []byte{}) /* Error priority = 51 */
 	if h.empty() {
 		t.Errorf("Harvest.empty() = true, want false")
 	}
@@ -117,13 +124,13 @@ func TestHarvestEmpty(t *testing.T) {
 	}
 
 	h = NewHarvest(startTime)
-	h.TxnEvents.AddEvent(AnalyticsEvent{stamp: 42})
+	h.TxnEvents.AddEvent(AnalyticsEvent{priority: 0.42})
 	if h.empty() {
 		t.Errorf("Harvest.empty() = true, want false")
 	}
 
 	h = NewHarvest(startTime)
-	h.TxnTraces.AddTxnTrace(&TxnTrace{DurationMillis: 42})
+	h.TxnTraces.AddTxnTrace(&TxnTrace{DurationMillis: 42}) /* Transactions traces are sampled by duration */
 	if h.empty() {
 		t.Errorf("Harvest.empty() = true, want false")
 	}

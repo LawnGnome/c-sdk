@@ -8,13 +8,16 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "nr_agent.h"
 #include "nr_analytics_events.h"
 #include "nr_app.h"
 #include "nr_commands.h"
 #include "nr_commands_private.h"
+#include "nr_distributed_trace.h"
 #include "nr_slowsqls.h"
+#include "nr_span_event.h"
 #include "nr_synthetics.h"
 #include "nr_traces.h"
 #include "nr_txn.h"
@@ -25,7 +28,12 @@
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_network.h"
+#include "util_strings.h"
 #include "util_syscalls.h"
+
+#ifdef NR_CAGENT
+#include "nr_segment_traces.h"
+#endif
 
 char* nr_txndata_error_to_json(const nrtxn_t* txn) {
   nrobj_t* agent_attributes;
@@ -94,6 +102,240 @@ static uint32_t nr_txndata_prepend_custom_events(nr_flatbuffer_t* fb,
 
   nr_free(offsets);
   return events;
+}
+
+static void nr_txndata_prepend_span_specific_json(nr_span_event_t* event,
+                                                  nrbuf_t* buf,
+                                                  const char* category,
+                                                  const nrtxn_t* txn) {
+  const nr_span_event_t* parent = nr_span_event_get_parent(event);
+  long timestamp = nr_span_event_get_timestamp(event) / NR_TIME_DIVISOR_MS;
+  double duration = nr_span_event_get_duration(event) / NR_TIME_DIVISOR_D;
+  char duration_str[32];
+
+  /*
+   * Adding the specific part for each span event.
+   */
+  nr_buffer_add(buf, NR_PSTR("\"name\":"));
+  nr_buffer_add_escape_json(buf, nr_span_event_get_name(event));
+  nr_buffer_add(buf, NR_PSTR(","));
+
+  nr_buffer_add(buf, NR_PSTR("\"guid\":"));
+  nr_buffer_add_escape_json(buf, nr_span_event_get_guid(event));
+  nr_buffer_add(buf, NR_PSTR(","));
+
+  nr_buffer_add(buf, NR_PSTR("\"timestamp\":"));
+  nr_buffer_write_uint64_t_as_text(buf, timestamp);
+  nr_buffer_add(buf, NR_PSTR(","));
+
+  nr_buffer_add(buf, NR_PSTR("\"duration\":"));
+  snprintf(duration_str, sizeof(duration_str), "%f", duration);
+  nr_buffer_add(buf, duration_str, nr_strlen(duration_str));
+  nr_buffer_add(buf, NR_PSTR(","));
+
+  nr_buffer_add(buf, NR_PSTR("\"category\":"));
+  nr_buffer_add_escape_json(buf, category);
+  nr_buffer_add(buf, NR_PSTR(","));
+
+  if (NULL == parent) {
+    const char* inbound_guid
+        = nr_distributed_trace_inbound_get_guid(txn->distributed_trace);
+    if (NULL != inbound_guid) {
+      nr_buffer_add(buf, NR_PSTR("\"parentId\":"));
+      nr_buffer_add_escape_json(buf, inbound_guid);
+      nr_buffer_add(buf, NR_PSTR(","));
+    }
+    nr_buffer_add(buf, NR_PSTR("\"nr.entryPoint\":true"));
+  } else {
+    nr_buffer_add(buf, NR_PSTR("\"parentId\":"));
+    nr_buffer_add_escape_json(buf, nr_span_event_get_guid(parent));
+  }
+}
+
+static void nr_txndata_prepend_span_datastore(nr_span_event_t* event,
+                                              nrbuf_t* buf) {
+  const char* component;
+  const char* statement;
+  const char* instance;
+  const char* hostname;
+  /*
+   * A generic event won't have more to add to the first hash but datastore does
+   * so we add an additional comma here
+   */
+  nr_buffer_add(buf, NR_PSTR(","));
+
+  nr_buffer_add(buf, NR_PSTR("\"span.kind\":\"client\""));
+
+  component = nr_span_event_get_datastore(event, NR_SPAN_DATASTORE_COMPONENT);
+  if (NULL != component) {
+    nr_buffer_add(buf, NR_PSTR(","));
+    nr_buffer_add(buf, NR_PSTR("\"component\":"));
+    nr_buffer_add_escape_json(buf, component);
+  }
+
+  // This is the end of the first hash
+  nr_buffer_add(buf, NR_PSTR("},{},{"));
+
+  statement
+      = nr_span_event_get_datastore(event, NR_SPAN_DATASTORE_DB_STATEMENT);
+  if (NULL != statement) {
+    nr_buffer_add(buf, NR_PSTR("\"db.statement\":"));
+    nr_buffer_add_escape_json(buf, statement);
+    nr_buffer_add(buf, NR_PSTR(","));
+  }
+
+  instance = nr_span_event_get_datastore(event, NR_SPAN_DATASTORE_DB_INSTANCE);
+  if (NULL != instance) {
+    nr_buffer_add(buf, NR_PSTR("\"db.instance\":"));
+    nr_buffer_add_escape_json(buf, instance);
+    nr_buffer_add(buf, NR_PSTR(","));
+  }
+
+  hostname
+      = nr_span_event_get_datastore(event, NR_SPAN_DATASTORE_PEER_HOSTNAME);
+  if (NULL != hostname) {
+    nr_buffer_add(buf, NR_PSTR("\"peer.hostname\":"));
+    nr_buffer_add_escape_json(buf, hostname);
+    nr_buffer_add(buf, NR_PSTR(","));
+  }
+
+  nr_buffer_add(buf, NR_PSTR("\"peer.address\":"));
+  nr_buffer_add_escape_json(
+      buf, nr_span_event_get_datastore(event, NR_SPAN_DATASTORE_PEER_ADDRESS));
+}
+
+static void nr_txndata_prepend_span_external(nr_span_event_t* span,
+                                             nrbuf_t* buf) {
+  const char* method;
+  const char* url;
+  const char* component;
+
+  /*
+   * A generic event won't have more to add to the first hash but external does
+   * so we add an additional comma here
+   */
+  nr_buffer_add(buf, NR_PSTR(","));
+  nr_buffer_add(buf, NR_PSTR("\"span.kind\":\"client\""));
+
+  component = nr_span_event_get_external(span, NR_SPAN_EXTERNAL_COMPONENT);
+  if (component) {
+    nr_buffer_add(buf, NR_PSTR(","));
+    nr_buffer_add(buf, NR_PSTR("\"component\":"));
+    nr_buffer_add_escape_json(buf, component);
+  }
+
+  // This is the end of the first hash
+  nr_buffer_add(buf, NR_PSTR("},{},{"));
+
+  url = nr_span_event_get_external(span, NR_SPAN_EXTERNAL_URL);
+  if (url) {
+    nr_buffer_add(buf, NR_PSTR("\"http.url\":"));
+    nr_buffer_add_escape_json(buf, url);
+  }
+
+  method = nr_span_event_get_external(span, NR_SPAN_EXTERNAL_METHOD);
+  if (url && method) {
+    nr_buffer_add(buf, NR_PSTR(","));
+  }
+  if (method) {
+    nr_buffer_add(buf, NR_PSTR("\"http.method\":"));
+    nr_buffer_add_escape_json(buf, method);
+  }
+}
+
+static uint32_t nr_txndata_prepend_span_events(nr_flatbuffer_t* fb,
+                                               const nrtxn_t* txn,
+                                               nr_span_event_t* span_events[],
+                                               int span_events_size) {
+  int event_count = 0;
+  const size_t event_size = sizeof(uint32_t);
+  const size_t event_align = sizeof(uint32_t);
+  uint32_t data;
+  uint32_t* offsets;
+  char* spanevt_json_common;
+  nrbuf_t* buf;
+
+  if (NULL == span_events || 0 == span_events_size) {
+    return 0;
+  }
+
+  /*
+   * Count the number of span events in the buffer.
+   */
+  while (event_count < span_events_size && span_events[event_count]) {
+    event_count++;
+  }
+
+  if (event_count == 0) {
+    return 0;
+  }
+
+  buf = nr_buffer_create(1024, 0);
+  offsets = (uint32_t*)nr_calloc(event_count, sizeof(uint32_t));
+
+  /*
+   * This part is the same for all of this transaction's span events.
+   */
+  spanevt_json_common = nr_formatf(
+      "[{"
+      "\"type\":\"Span\","
+      "\"traceId\":\"%s\","
+      "\"transactionId\":\"%s\","
+      "\"sampled\":%s,"
+      "\"priority\":%f,",
+      nr_distributed_trace_get_trace_id(txn->distributed_trace),
+      nr_txn_get_guid(txn),
+      nr_distributed_trace_is_sampled(txn->distributed_trace) ? "true"
+                                                              : "false",
+      nr_distributed_trace_get_priority(txn->distributed_trace));
+
+  for (int i = 0; i < event_count; i++) {
+    nr_span_event_t* evt = span_events[i];
+
+    nr_buffer_reset(buf);
+    nr_buffer_add(buf, spanevt_json_common, nr_strlen(spanevt_json_common));
+
+    switch (nr_span_event_get_category(evt)) {
+      case NR_SPAN_HTTP:
+        nr_txndata_prepend_span_specific_json(evt, buf, "http", txn);
+        nr_txndata_prepend_span_external(evt, buf);
+        nr_buffer_add(buf, NR_PSTR("}]"));
+        break;
+      case NR_SPAN_DATASTORE:
+        nr_txndata_prepend_span_specific_json(evt, buf, "datastore", txn);
+        nr_txndata_prepend_span_datastore(evt, buf);
+        nr_buffer_add(buf, NR_PSTR("}]"));
+        break;
+      case NR_SPAN_GENERIC:
+      default:
+        nr_txndata_prepend_span_specific_json(evt, buf, "generic", txn);
+        nr_buffer_add(buf, NR_PSTR("},{},{}]"));
+        break;
+    }
+
+    nr_buffer_add(buf, NR_PSTR("\0"));
+
+    data = nr_flatbuffers_prepend_string(fb, (const char*)nr_buffer_cptr(buf));
+
+    nr_flatbuffers_object_begin(fb, EVENT_NUM_FIELDS);
+    nr_flatbuffers_object_prepend_uoffset(fb, EVENT_FIELD_DATA, data, 0);
+    offsets[i] = nr_flatbuffers_object_end(fb);
+  }
+
+  /*
+   * Adding all offsets to the flatbuffer vector.
+   */
+  nr_flatbuffers_vector_begin(fb, event_size, event_count, event_align);
+  for (int i = (event_count - 1); i >= 0; i--) {
+    nr_flatbuffers_prepend_uoffset(fb, offsets[i]);
+  }
+  data = nr_flatbuffers_vector_end(fb, event_count);
+
+  nr_buffer_destroy(&buf);
+  nr_free(spanevt_json_common);
+  nr_free(offsets);
+
+  return data;
 }
 
 static uint32_t nr_txndata_prepend_errors(nr_flatbuffer_t* fb,
@@ -287,7 +529,16 @@ static uint32_t nr_txndata_prepend_slowsqls(nr_flatbuffer_t* fb,
   return slowsqls;
 }
 
-static char* nr_txndata_trace_data_json(const nrtxn_t* txn) {
+#ifdef NR_CAGENT
+static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
+                                        nr_span_event_t* span_events[] NRUNUSED,
+                                        int span_events_size NRUNUSED) {
+#else
+static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
+                                        nr_span_event_t* span_events[],
+                                        int span_events_size) {
+#endif
+
   nrobj_t* agent_attributes;
   nrobj_t* user_attributes;
   nrtime_t duration;
@@ -303,8 +554,20 @@ static char* nr_txndata_trace_data_json(const nrtxn_t* txn) {
       txn->attributes, NR_ATTRIBUTE_DESTINATION_TXN_TRACE);
   user_attributes = nr_attributes_user_to_obj(
       txn->attributes, NR_ATTRIBUTE_DESTINATION_TXN_TRACE);
+
+  /* The C Agent, leveraging the Axiom library, currently uses a tree of
+   * segments to represent a transaction trace.  Thus, its assembly of a trace
+   * is substantively different than that of the PHP Agent.  Conditionally
+   * compile the appropriate call for trace assembly based on the agent in use.
+   */
+#ifdef NR_CAGENT
+  data_json = nr_segment_traces_create_data(txn, duration, agent_attributes,
+                                            user_attributes, txn->intrinsics);
+#else
   data_json = nr_harvest_trace_create_data(txn, duration, agent_attributes,
-                                           user_attributes, txn->intrinsics);
+                                           user_attributes, txn->intrinsics,
+                                           span_events, span_events_size);
+#endif
   nro_delete(agent_attributes);
   nro_delete(user_attributes);
 
@@ -354,7 +617,9 @@ static uint32_t nr_txndata_prepend_error_events(nr_flatbuffer_t* fb,
 }
 
 static uint32_t nr_txndata_prepend_trace(nr_flatbuffer_t* fb,
-                                         const nrtxn_t* txn) {
+                                         const nrtxn_t* txn,
+                                         nr_span_event_t* span_events[],
+                                         int span_events_size) {
   double duration_ms;
   double timestamp_ms;
   char* data_json;
@@ -362,14 +627,14 @@ static uint32_t nr_txndata_prepend_trace(nr_flatbuffer_t* fb,
   uint32_t guid;
   int force_persist;
 
-  data_json = nr_txndata_trace_data_json(txn);
+  data_json = nr_txndata_trace_data_json(txn, span_events, span_events_size);
   if (NULL == data_json) {
     return 0;
   }
 
   data = nr_flatbuffers_prepend_string(fb, data_json);
   nr_free(data_json);
-  guid = nr_flatbuffers_prepend_string(fb, txn->guid);
+  guid = nr_flatbuffers_prepend_string(fb, nr_txn_get_guid(txn));
 
   timestamp_ms = nr_txn_start_time(txn) / NR_TIME_DIVISOR_MS_D;
   duration_ms = nr_txn_duration(txn) / NR_TIME_DIVISOR_MS_D;
@@ -437,12 +702,17 @@ static uint32_t nr_txndata_prepend_transaction(nr_flatbuffer_t* fb,
   uint32_t slowsqls;
   uint32_t txn_event;
   uint32_t txn_trace;
+  uint32_t span_events;
+  nr_span_event_t* spans[NR_TXN_MAX_NODES + 1] = {NULL};
+  int span_events_size = sizeof(spans) / sizeof(spans[0]);
 
   /*
    * Because of its size, txn_trace should be assembled first to optimize memory
    * locality for the daemon.
    */
-  txn_trace = nr_txndata_prepend_trace(fb, txn);
+  txn_trace = nr_txndata_prepend_trace(fb, txn, spans, span_events_size);
+  span_events
+      = nr_txndata_prepend_span_events(fb, txn, spans, span_events_size);
   error_events = nr_txndata_prepend_error_events(fb, txn);
   custom_events = nr_txndata_prepend_custom_events(fb, txn);
   slowsqls = nr_txndata_prepend_slowsqls(fb, txn);
@@ -454,6 +724,9 @@ static uint32_t nr_txndata_prepend_transaction(nr_flatbuffer_t* fb,
   name = nr_flatbuffers_prepend_string(fb, txn->name);
 
   nr_flatbuffers_object_begin(fb, TRANSACTION_NUM_FIELDS);
+  nr_flatbuffers_object_prepend_f64(
+      fb, TRANSACTION_FIELD_SAMPLING_PRIORITY,
+      (double)nr_distributed_trace_get_priority(txn->distributed_trace), 0);
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_ERROR_EVENTS,
                                         error_events, 0);
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_TRACE, txn_trace,
@@ -474,6 +747,13 @@ static uint32_t nr_txndata_prepend_transaction(nr_flatbuffer_t* fb,
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_URI, request_uri,
                                         0);
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_NAME, name, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_SPAN_EVENTS,
+                                        span_events, 0);
+
+  for (int i = 0; i < span_events_size && spans[i]; i++) {
+    nr_span_event_destroy(&spans[i]);
+  }
+
   return nr_flatbuffers_object_end(fb);
 }
 
@@ -524,14 +804,15 @@ nr_status_t nr_cmd_txndata_tx(int daemon_fd, const nrtxn_t* txn) {
     return NR_FAILURE;
   }
 
-  nrl_verbosedebug(NRL_TXN,
-                   "sending txnname='%.64s'"
-                   " agent_run_id=" NR_AGENT_RUN_ID_FMT
-                   " nodes_used=%d"
-                   " duration=" NR_TIME_FMT " threshold=" NR_TIME_FMT,
-                   txn->name ? txn->name : "unknown", txn->agent_run_id,
-                   txn->nodes_used, nr_txn_duration(txn),
-                   txn->options.tt_threshold);
+  nrl_verbosedebug(
+      NRL_TXN,
+      "sending txnname='%.64s'"
+      " agent_run_id=" NR_AGENT_RUN_ID_FMT
+      " nodes_used=%d"
+      " duration=" NR_TIME_FMT " threshold=" NR_TIME_FMT " priority=%f",
+      txn->name ? txn->name : "unknown", txn->agent_run_id, txn->nodes_used,
+      nr_txn_duration(txn), txn->options.tt_threshold,
+      (double)nr_distributed_trace_get_priority(txn->distributed_trace));
 
   msg = nr_txndata_encode(txn);
   msglen = nr_flatbuffers_len(msg);

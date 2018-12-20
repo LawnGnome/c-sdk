@@ -13,21 +13,23 @@ var (
 		Appname:           "PHP Application",
 		AgentLanguage:     "php",
 		AgentVersion:      "0.0.1",
-		Settings:          newrelic.JSONString(`{"newrelic.analytics_events.capture_attributes":"1","newrelic.analytics_events.enabled":"1","newrelic.appname":"one;two;three","newrelic.attributes.enabled":"1","newrelic.attributes.exclude":"no value","newrelic.attributes.include":"no value","newrelic.browser_monitoring.attributes.enabled":"0","newrelic.browser_monitoring.attributes.exclude":"no value","newrelic.browser_monitoring.attributes.include":"no value","newrelic.browser_monitoring.auto_instrument":"1","newrelic.browser_monitoring.capture_attributes":"0","newrelic.browser_monitoring.debug":false,"newrelic.browser_monitoring.loader":"rum","newrelic.capture_params":"0","newrelic.cross_application_tracer.enabled":"1","newrelic.custom_insights_events.enabled":"1","newrelic.daemon.collector_host":"staging-collector.newrelic.com","newrelic.daemon.location":"\/php\/php_agent\/releases\/linux\/daemon\/newrelic-daemon","newrelic.daemon.logfile":"\/opt\/nr\/logs\/newrelic-daemon.log","newrelic.daemon.loglevel":"verbosedebug","newrelic.daemon.port":"\/tmp\/.newrelic.sock","newrelic.daemon.special.integration":"1","newrelic.daemon.ssl":"1","newrelic.enabled":"1","newrelic.error_collector.attributes.enabled":"1","newrelic.error_collector.attributes.exclude":"no value","newrelic.error_collector.attributes.include":"no value","newrelic.error_collector.capture_attributes":"1","newrelic.error_collector.enabled":"1","newrelic.error_collector.prioritize_api_errors":"0","newrelic.error_collector.record_database_errors":"1","newrelic.feature_flag":"no value","newrelic.framework":"no value","newrelic.framework.drupal.modules":"1","newrelic.high_security":"0","newrelic.ignored_params":"no value","newrelic.labels":"no value","newrelic.license":"4e...3b","newrelic.logfile":"\/opt\/nr\/logs\/php_agent.log","newrelic.loglevel":"verbosedebug","newrelic.special.expensive_node_min":"0","newrelic.special.max_nesting_level":"-1","newrelic.synthetics.enabled":"1","newrelic.transaction_events.attributes.enabled":"1","newrelic.transaction_events.attributes.exclude":"no value","newrelic.transaction_events.attributes.include":"no value","newrelic.transaction_events.enabled":"1","newrelic.transaction_tracer.attributes.enabled":"1","newrelic.transaction_tracer.attributes.exclude":"no value","newrelic.transaction_tracer.attributes.include":"no value","newrelic.transaction_tracer.capture_attributes":"1","newrelic.transaction_tracer.custom":"no value","newrelic.transaction_tracer.detail":"1","newrelic.transaction_tracer.enabled":"1","newrelic.transaction_tracer.explain_enabled":"1","newrelic.transaction_tracer.explain_threshold":"1","newrelic.transaction_tracer.record_sql":"obfuscated","newrelic.transaction_tracer.slow_sql":"1","newrelic.transaction_tracer.stack_trace_threshold":"1","newrelic.transaction_tracer.threshold":"1","newrelic.webtransaction.name.files":"no value","newrelic.webtransaction.name.functions":"no value","newrelic.webtransaction.name.remove_trailing_path":"0"}`),
+		Settings:          map[string]interface{}{"newrelic.analytics_events.capture_attributes": "1", "newrelic.analytics_events.enabled": "1", "newrelic.appname": "one;two;three", "newrelic.attributes.enabled": "1", "newrelic.attributes.exclude": "no value", "newrelic.attributes.include": "no value", "newrelic.browser_monitoring.attributes.enabled": "0", "newrelic.browser_monitoring.attributes.exclude": "no value", "newrelic.browser_monitoring.attributes.include": "no value", "newrelic.browser_monitoring.auto_instrument": "1", "newrelic.browser_monitoring.capture_attributes": "0", "newrelic.browser_monitoring.debug": false, "newrelic.browser_monitoring.loader": "rum", "newrelic.capture_params": "0", "newrelic.cross_application_tracer.enabled": "1", "newrelic.custom_insights_events.enabled": "1", "newrelic.daemon.collector_host": "staging-collector.newrelic.com", "newrelic.daemon.location": "/php/php_agent/releases/linux/daemon/newrelic-daemon", "newrelic.daemon.logfile": "/opt/nr/logs/newrelic-daemon.log", "newrelic.daemon.loglevel": "verbosedebug", "newrelic.daemon.port": "/tmp/.newrelic.sock", "newrelic.daemon.special.integration": "1", "newrelic.daemon.ssl": "1", "newrelic.enabled": "1", "newrelic.error_collector.attributes.enabled": "1", "newrelic.error_collector.attributes.exclude": "no value", "newrelic.error_collector.attributes.include": "no value", "newrelic.error_collector.capture_attributes": "1", "newrelic.error_collector.enabled": "1", "newrelic.error_collector.prioritize_api_errors": "0", "newrelic.error_collector.record_database_errors": "1", "newrelic.feature_flag": "no value", "newrelic.framework": "no value", "newrelic.framework.drupal.modules": "1", "newrelic.high_security": "0", "newrelic.ignored_params": "no value", "newrelic.labels": "no value", "newrelic.license": "4e...3b", "newrelic.logfile": "/opt/nr/logs/php_agent.log", "newrelic.loglevel": "verbosedebug", "newrelic.special.expensive_node_min": "0", "newrelic.special.max_nesting_level": "-1", "newrelic.synthetics.enabled": "1", "newrelic.transaction_events.attributes.enabled": "1", "newrelic.transaction_events.attributes.exclude": "no value", "newrelic.transaction_events.attributes.include": "no value", "newrelic.transaction_events.enabled": "1", "newrelic.transaction_tracer.attributes.enabled": "1", "newrelic.transaction_tracer.attributes.exclude": "no value", "newrelic.transaction_tracer.attributes.include": "no value", "newrelic.transaction_tracer.capture_attributes": "1", "newrelic.transaction_tracer.custom": "no value", "newrelic.transaction_tracer.detail": "1", "newrelic.transaction_tracer.enabled": "1", "newrelic.transaction_tracer.explain_enabled": "1", "newrelic.transaction_tracer.explain_threshold": "1", "newrelic.transaction_tracer.record_sql": "obfuscated", "newrelic.transaction_tracer.slow_sql": "1", "newrelic.transaction_tracer.stack_trace_threshold": "1", "newrelic.transaction_tracer.threshold": "1", "newrelic.webtransaction.name.files": "no value", "newrelic.webtransaction.name.functions": "no value", "newrelic.webtransaction.name.remove_trailing_path": "0"},
 		Environment:       newrelic.JSONString(`[]`),
 		HighSecurity:      false,
 		Labels:            newrelic.JSONString(`[]`),
 		RedirectCollector: "staging-collector.newrelic.com",
 	}
 	SampleTxn = Txn{
-		Name:          "WebTransaction/Action/heyo",
-		Metrics:       SampleMetrics,
-		Errors:        []*newrelic.Error{SampleError},
-		Trace:         SampleTrace,
-		SlowSQLs:      SampleSlowSQLs,
-		AnalyticEvent: SampleAnalyticEvent,
-		CustomEvents:  SampleCustomEvents,
-		ErrorEvents:   SampleErrorEvents,
+		Name:             "WebTransaction/Action/heyo",
+		SamplingPriority: 0.80000,
+		Metrics:          SampleMetrics,
+		Errors:           []*newrelic.Error{SampleError},
+		Trace:            SampleTrace,
+		SlowSQLs:         SampleSlowSQLs,
+		AnalyticEvent:    SampleAnalyticEvent,
+		CustomEvents:     SampleCustomEvents,
+		ErrorEvents:      SampleErrorEvents,
+		SpanEvents:       SampleSpanEvents,
 	}
 	SampleAnalyticEvent = json.RawMessage(`[{"type":"Transaction","name":"OtherTransaction\/php\/php\/willhf\/heyo.php","timestamp":1421910689.96993,"duration":2.06631},{"zip":"zap"},{}]`)
 	SampleCustomEvents  = []json.RawMessage{
@@ -40,6 +42,11 @@ var (
 			`"timestamp": 1445290225.1948,"error.class": "HeyoException",` +
 			`"error.message": "Uncaught exception 'HeyoException' with message 'foo!' in /Users/earnold/workspace/php_integration_tests/integration/errors/heyo.php:6",` +
 			`"transactionName": "OtherTransaction/php/heyo.php","duration": 0.00101,"nr.transactionGuid": "390b8adab3b435c2"}]`),
+	}
+	SampleSpanEvents = []json.RawMessage{
+		json.RawMessage(`[{"Span1":1}]`),
+		json.RawMessage(`[{"Span2":2}]`),
+		json.RawMessage(`[{"Span3":3}]`),
 	}
 	SampleError = &newrelic.Error{
 		Priority: 100,

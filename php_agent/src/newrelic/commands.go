@@ -1,6 +1,7 @@
 package newrelic
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -73,6 +74,8 @@ func (t FlatTxn) AggregateInto(h *Harvest) {
 
 	txnName := string(txn.Name())
 	requestURI := string(txn.Uri())
+	samplingPriority := SamplingPriority(txn.SamplingPriority())
+
 	if x := txn.SyntheticsResourceId(); len(x) > 0 {
 		syntheticsResourceID = string(x)
 	}
@@ -83,12 +86,11 @@ func (t FlatTxn) AggregateInto(h *Harvest) {
 	}
 
 	if event := txn.TxnEvent(nil); event != nil {
-		// TODO(msl): Save a copy by computing event stamp and checking if it would be kept?
 		cpy := copySlice(event.Data())
 		if syntheticsResourceID == "" {
-			h.TxnEvents.AddTxnEvent(cpy)
+			h.TxnEvents.AddTxnEvent(cpy, samplingPriority)
 		} else {
-			h.TxnEvents.AddSyntheticsEvent(cpy)
+			h.TxnEvents.AddSyntheticsEvent(cpy, samplingPriority)
 		}
 	}
 
@@ -135,7 +137,17 @@ func (t FlatTxn) AggregateInto(h *Harvest) {
 		for i := 0; i < n; i++ {
 			txn.CustomEvents(&e, i)
 			data := copySlice(e.Data())
-			h.CustomEvents.AddEventFromData(data)
+			h.CustomEvents.AddEventFromData(data, samplingPriority)
+		}
+	}
+
+	if n := txn.SpanEventsLength(); n > 0 {
+		var e protocol.Event
+
+		for i := 0; i < n; i++ {
+			txn.SpanEvents(&e, i)
+			data := copySlice(e.Data())
+			h.SpanEvents.AddEventFromData(data, samplingPriority)
 		}
 	}
 
@@ -166,7 +178,7 @@ func (t FlatTxn) AggregateInto(h *Harvest) {
 		for i := 0; i < n; i++ {
 			txn.ErrorEvents(&e, i)
 			data := copySlice(e.Data())
-			h.ErrorEvents.AddEventFromData(data)
+			h.ErrorEvents.AddEventFromData(data, samplingPriority)
 		}
 	}
 }
@@ -180,13 +192,21 @@ func MarshalAppInfoReply(reply AppInfoReply) []byte {
 
 		protocol.MessageStart(buf)
 		protocol.MessageAddDataType(buf, protocol.MessageBodyAppReply)
+		protocol.AppReplyAddConnectTimestamp(buf, reply.ConnectTimestamp)
+		protocol.AppReplyAddHarvestFrequency(buf, reply.HarvestFrequency)
+		protocol.AppReplyAddSamplingTarget(buf, reply.SamplingTarget)
 		protocol.MessageAddData(buf, dataOffset)
 		buf.Finish(protocol.MessageEnd(buf))
 	} else if reply.State == AppStateConnected {
 		replyPos := buf.CreateByteVector(reply.ConnectReply)
+		replyPoliciesPos := buf.CreateByteVector(reply.SecurityPolicies)
 		protocol.AppReplyStart(buf)
 		protocol.AppReplyAddStatus(buf, protocol.AppStatusConnected)
 		protocol.AppReplyAddConnectReply(buf, replyPos)
+		protocol.AppReplyAddSecurityPolicies(buf, replyPoliciesPos)
+		protocol.AppReplyAddConnectTimestamp(buf, reply.ConnectTimestamp)
+		protocol.AppReplyAddHarvestFrequency(buf, reply.HarvestFrequency)
+		protocol.AppReplyAddSamplingTarget(buf, reply.SamplingTarget)
 		dataOffset := protocol.AppReplyEnd(buf)
 
 		protocol.MessageStart(buf)
@@ -219,17 +239,23 @@ func UnmarshalAppInfo(tbl flatbuffers.Table) *AppInfo {
 
 	app.Init(tbl.Bytes, tbl.Pos)
 
+	policies := AgentPolicies{}
+	json.Unmarshal(copySlice(app.SupportedSecurityPolicies()), &policies.Policies)
+
 	info := &AppInfo{
-		License:           collector.LicenseKey(app.License()),
-		Appname:           string(app.AppName()),
-		AgentLanguage:     string(app.AgentLanguage()),
-		AgentVersion:      string(app.AgentVersion()),
-		RedirectCollector: string(app.RedirectCollector()),
-		Environment:       JSONString(copySlice(app.Environment())),
-		Labels:            JSONString(copySlice(app.Labels())),
-		HostDisplayName:   string(app.DisplayHost()),
-		Settings:          JSONString(copySlice(app.Settings())),
+		License:                   collector.LicenseKey(app.License()),
+		Appname:                   string(app.AppName()),
+		AgentLanguage:             string(app.AgentLanguage()),
+		AgentVersion:              string(app.AgentVersion()),
+		RedirectCollector:         string(app.RedirectCollector()),
+		Environment:               JSONString(copySlice(app.Environment())),
+		Labels:                    JSONString(copySlice(app.Labels())),
+		HostDisplayName:           string(app.DisplayHost()),
+		SecurityPolicyToken:       string(app.SecurityPolicyToken()),
+		SupportedSecurityPolicies: policies,
 	}
+
+	info.initSettings(app.Settings())
 
 	if app.HighSecurity() != 0 {
 		info.HighSecurity = true

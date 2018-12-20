@@ -26,26 +26,22 @@
  *   hadrosaurus             05Jul2013 (3.7)
  *   iguanodon               12Jul2013 (3.8)
  *   juratyrant              13Aug2013 (3.9)
- *   khaan                   03Sep2013 (4.0) (rolled from 3.10 to 4.0 on
- * 17Sep2013 because of PHP5.1 out and PHP5.5 in) lexovisaurus
- * 14Oct2013 (4.1) micropachycephalosaurus 07Nov2013 (4.2) (branch taken on
- * 07Nov2013) nqwebasaurus            25Nov2013 (4.3) (branch taken on
- * 25Nov2013) (Adam named this one) ozraptor                29Dec2013 (4.4)
- * (branch taken on 29Dec2013) (Adam named this one) pyroraptor
- * 31Jan2014 (4.5) (branch taken on 31Jan2014) (Mike named this one)
- *   quetzalcoatlus          24Feb2014 (4.6) (branch taken on 24Feb2014)
- * (Robert's niece named, studying dinosaurs, named this one) richardoestesia
- * 24Feb2014 (4.7) (branch taken on 25Feb2014) (Richard England named this
- * one) spinops                 21Apr2014 (4.8) (branch taken on 20Mar2014)
- * (Rich Vanderwal named this one) trex                    15May2014 (4.9)
- * (branch taken on 15May2014) (Common consent named this one) unenlagia
- * 18May2014 (4.10) (branch taken on 18Jun2014) (Robert named this one)
- *   vandersaur              18Jun2014 (4.11) (Rich named this one) (branch
- * taken on 23Jul2014) wannanosaurus           23Jul2014 (4.12) (Robert named
- * this one) (branch taken on 23Jul2014) xiaotingia              29Aug2014
- * (4.13) (Aaron named this one) yulong                  10Sep2014 (4.14)
- * (Adam named this one) (branch taken on 22Sep2014) zanabazar
- * 22Sep2014 (4.15) (Rich named this one) (branch taken on 22Oct2014)
+ *   khaan                   03Sep2013 (4.0)
+ *   lexovisaurus            14Oct2013 (4.1)
+ *   micropachycephalosaurus 07Nov2013 (4.2)
+ *   nqwebasaurus            25Nov2013 (4.3)  (Adam)
+ *   ozraptor                29Dec2013 (4.4)  (Adam)
+ *   pyroraptor              31Jan2014 (4.5)  (Mike)
+ *   quetzalcoatlus          24Feb2014 (4.6)  (Robert's niece)
+ *   richardoestesia         24Feb2014 (4.7)  (Richard England)
+ *   spinops                 21Apr2014 (4.8)  (Rich)
+ *   trex                    15May2014 (4.9)  (everyone)
+ *   unenlagia               18May2014 (4.10) (Robert)
+ *   vandersaur              18Jun2014 (4.11) (Rich)
+ *   wannanosaurus           23Jul2014 (4.12) (Robert)
+ *   xiaotingia              29Aug2014 (4.13) (Aaron)
+ *   yulong                  10Sep2014 (4.14) (Adam)
+ *   zanabazar               22Sep2014 (4.15) (Rich)
  *
  * On 22Oct2014 we switched to the naming scheme based on bird genera.
  * Here's an exhaustive list:
@@ -57,13 +53,13 @@
  *   http://checklist.aou.org/taxa/
  *
  *   aquila                  22Oct2014 (4.16) (Robert named this one)
- *   barnardius              25Nov2014 (4.17) (Adam named this one after parrots
- * he grew up with) (branch taken on 16Dec2014) corvid
- * 17Dec2014 (4.18) (Walden 2nd Robert's suggestion) drepanis
- * 20Jan2015 (4.19) (Will named this one) emberiza                26Feb2015
- * (4.20) (Adam named this one) fregata                 27Mar2015 (4.21)
- * (Galen named this one) gallus                  23Apr2015 (4.22) (Adam named
- * this one) hydrobatidae            27May2015 (4.23) (Robert named this one)
+ *   barnardius              25Nov2014 (4.17) (Adam named this one)
+ *   corvid                  17Dec2014 (4.18) (Walden 2nd Robert's suggestion)
+ *   drepanis                20Jan2015 (4.19) (Will named this one)
+ *   emberiza                26Feb2015 (4.20) (Adam named this one)
+ *   fregata                 27Mar2015 (4.21) (Galen named this one)
+ *   gallus                  23Apr2015 (4.22) (Adam named this one)
+ *   hydrobatidae            27May2015 (4.23) (Robert named this one)
  *   ispidina                01Jul2015 (4.24) (Erika named this one)
  *   jacana                  14Oct2015 (5.0)  (Will named this one)
  *
@@ -79,9 +75,10 @@
  *   freitag                 24Feb2016 (6.0) (Tyler named this one)
  *   gordon                  14Mar2016 (6.1) (Will named this one)
  *   harizanov               22Mar2016 (6.2) (Will named this one)
- *   iyengar                 11Apr2016 (6.3) (Tyler, Rich, and Erika named this
- * one) jitomirskaya            11May2016 (6.4) (Tyler) krieger
- * 22Jun2016 (6.5) (Tyler) lacampagne              25Jul2016 (6.6) (Mike)
+ *   iyengar                 11Apr2016 (6.3) (Tyler, Rich, and Erika)
+ *   jitomirskaya            11May2016 (6.4) (Tyler)
+ *   krieger                 22Jun2016 (6.5) (Tyler)
+ *   lacampagne              25Jul2016 (6.6) (Mike)
  *   maslennikova            23Aug2016 (6.7) (Aidan)
  *   noether                 20Sep2016 (6.8) (Erika)
  *   owens                   13Dec2016 (6.9) (Rich)
@@ -93,9 +90,19 @@
  *   vaughan                 05Jul2017 (7.5) (Tanya)
  *   weber                   06Sep2017 (7.6) (Erika)
  *   yershova                20Nov2017 (7.7) (Tanya)
- *   zahedi                  25Jan2018 (7.8) (Tanya)
+ *   zahedi                  25Jan2018 (8.0) (Tanya)
+ *
+ * For release 8.1, we moved to color names that are also food.
+ * Here's a list:
+ *  https://en.wikipedia.org/wiki/List_of_colors_(compact)
+ *
+ *   avocado                 12Mar2018 (8.1) (Tanya)
+ *   bisque                  30Apr2018 (8.2) (Tanya)
+ *   carrot                  05Sep2018 (8.3) (Alan)
+ *   dill                    17Oct2018 (8.4) (Tanya and Amanda)
+ *   eggplant                01Dec2018 (8.5) (Alan)
  */
-#define NR_CODENAME "zahedi"
+#define NR_CODENAME "eggplant"
 
 const char* nr_version(void) {
   return NR_STR2(NR_VERSION);

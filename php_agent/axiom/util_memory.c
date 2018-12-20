@@ -10,6 +10,11 @@
 #include "util_logging.h"
 #include "util_memory.h"
 
+#ifndef HAVE_REALLOCARRAY
+#include <sys/types.h>
+#include <errno.h>
+#endif /* !HAVE_REALLOCARRAY */
+
 #undef free
 
 void nr_realfree(void** oldptr) {
@@ -20,7 +25,7 @@ void nr_realfree(void** oldptr) {
   *oldptr = 0;
 }
 
-void* NRMALLOC NRMALLOCSZ(1) nr_malloc(int size) {
+void* NRMALLOC NRMALLOCSZ(1) nr_malloc(size_t size) {
   void* ret;
 
   if (nrunlikely(size <= 0)) {
@@ -29,50 +34,50 @@ void* NRMALLOC NRMALLOCSZ(1) nr_malloc(int size) {
 
   ret = (malloc)(size);
   if (nrunlikely(0 == ret)) {
-    nrl_error(NRL_MEMORY, "failed to allocate %d byte(s)", size);
+    nrl_error(NRL_MEMORY, "failed to allocate %zu byte(s)", size);
     exit(3);
   }
 
   return ret;
 }
 
-void* NRMALLOC NRMALLOCSZ(1) nr_zalloc(int size) {
+void* NRMALLOC NRMALLOCSZ(1) nr_zalloc(size_t size) {
   void* ret;
 
-  if (nrunlikely(size <= 0)) {
+  if (nrunlikely(size == 0)) {
     size = 8;
   }
 
   ret = (calloc)(1, size);
   if (nrunlikely(0 == ret)) {
-    nrl_error(NRL_MEMORY, "failed to allocate %d byte(s)", size);
+    nrl_error(NRL_MEMORY, "failed to allocate %zu byte(s)", size);
     exit(3);
   }
 
   return ret;
 }
 
-void* NRMALLOC NRCALLOCSZ(1, 2) nr_calloc(int nelem, int elsize) {
+void* NRMALLOC NRCALLOCSZ(1, 2) nr_calloc(size_t nelem, size_t elsize) {
   void* ret;
 
-  if (nrunlikely(nelem <= 0)) {
+  if (nrunlikely(nelem == 0)) {
     nelem = 1;
   }
 
-  if (nrunlikely(elsize <= 0)) {
+  if (nrunlikely(elsize == 0)) {
     elsize = 1;
   }
 
   ret = (calloc)(nelem, elsize);
   if (nrunlikely(0 == ret)) {
-    nrl_error(NRL_MEMORY, "failed to allocate %d x %d bytes", nelem, elsize);
+    nrl_error(NRL_MEMORY, "failed to allocate %zu x %zu bytes", nelem, elsize);
     exit(3);
   }
 
   return ret;
 }
 
-void* NRMALLOCSZ(2) nr_realloc(void* oldptr, int newsize) {
+void* NRMALLOCSZ(2) nr_realloc(void* oldptr, size_t newsize) {
   void* ret;
 
   if (nrunlikely(0 == oldptr)) {
@@ -85,12 +90,56 @@ void* NRMALLOCSZ(2) nr_realloc(void* oldptr, int newsize) {
 
   ret = (realloc)(oldptr, newsize);
   if (nrunlikely(0 == ret)) {
-    nrl_error(NRL_MEMORY, "failed to reallocate %p for %d bytes", oldptr,
+    nrl_error(NRL_MEMORY, "failed to reallocate %p for %zu bytes", oldptr,
               newsize);
     exit(3);
   }
 
   return ret;
+}
+
+void* NRMALLOC NRCALLOCSZ(2, 3)
+    nr_reallocarray(void* ptr, size_t nmemb, size_t size) {
+#ifdef HAVE_REALLOCARRAY
+  /*
+   * Our semantics are exactly the same as the underlying reallocarray() call as
+   * defined by BSD, so we can just let it do all the checks.
+   */
+  return (reallocarray)(ptr, nmemb, size);
+#else
+  /*
+   * This implementation is adapted from OpenSSH's OpenBSD compatibility layer:
+   * https://github.com/openssh/openssh-portable/blob/285310b897969a63ef224d39e7cc2b7316d86940/openbsd-compat/reallocarray.c#L39-L44
+   */
+#define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
+
+  if (nrunlikely((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW)
+                 && nmemb > 0 && SIZE_MAX / nmemb < size)) {
+    errno = ENOMEM;
+    nrl_error(NRL_MEMORY,
+              "reallocating %zu x %zu bytes would result in overflow", nmemb,
+              size);
+    return NULL;
+  }
+
+  /*
+   * Delegating down to nr_realloc() results in different behaviour between the
+   * BSD reallocarray() and our wrapper. We'll be consistent with the reference
+   * implementation, rather than the nr_realloc() wrapper.
+   *
+   * In general, the reference implementation has the same behaviour as
+   * realloc() on all of our supported platforms, with one exception: realloc()
+   * with a non-NULL pointer and a zero length size is equivalent to free() on
+   * glibc, but not on all platforms.  For consistency, we'll use the glibc
+   * behaviour.
+   */
+  if (nrunlikely(NULL != ptr && (0 == size || 0 == nmemb))) {
+    (free)(ptr);
+    return NULL;
+  }
+
+  return (realloc)(ptr, size * nmemb);
+#endif /* HAVE_REALLOCARRAY */
 }
 
 char* NRMALLOC nr_strdup(const char* orig) {
@@ -131,12 +180,12 @@ char* NRMALLOC nr_strdup_or(const char* string_if_not_null,
   return nr_strdup("");
 }
 
-char* NRMALLOC nr_strndup(const char* orig, int len) {
+char* NRMALLOC nr_strndup(const char* orig, size_t len) {
   char* ret;
   int olen;
   const char* np;
 
-  if (nrunlikely(len <= 0)) {
+  if (nrunlikely(len == 0)) {
     return nr_strdup("");
   }
 
@@ -144,7 +193,7 @@ char* NRMALLOC nr_strndup(const char* orig, int len) {
     return nr_strdup("");
   }
 
-  np = (const char*)(memchr)(orig, 0, (size_t)len);
+  np = (const char*)(memchr)(orig, 0, len);
   if (nrlikely(0 != np)) {
     olen = np - orig;
   } else {
@@ -154,8 +203,8 @@ char* NRMALLOC nr_strndup(const char* orig, int len) {
   ret = (char*)nr_malloc(olen + 1);
 
   if (nrunlikely(0 == ret)) {
-    nrl_error(NRL_MEMORY | NRL_STRING, "failed to duplicate string %p %d", orig,
-              len);
+    nrl_error(NRL_MEMORY | NRL_STRING, "failed to duplicate string %p %zu",
+              orig, len);
     exit(3);
   }
 

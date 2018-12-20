@@ -85,7 +85,8 @@ REQUEST_METHOD=GET
         "timestamp": "??",
         "duration": "??",
         "totalTime": "??",
-        "nr.apdexPerfZone": "F"
+        "nr.apdexPerfZone": "F",
+        "error": true
       },
       {
       },

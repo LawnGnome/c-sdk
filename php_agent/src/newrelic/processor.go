@@ -16,9 +16,13 @@ type TxnData struct {
 }
 
 type AppInfoReply struct {
-	RunIDValid   bool
-	State        AppState
-	ConnectReply []byte
+	RunIDValid       bool
+	State            AppState
+	ConnectReply     []byte
+	SecurityPolicies []byte
+	ConnectTimestamp uint64
+	HarvestFrequency uint16
+	SamplingTarget   uint16
 }
 
 type AppInfoMessage struct {
@@ -28,11 +32,12 @@ type AppInfoMessage struct {
 }
 
 type ConnectAttempt struct {
-	Key       AppKey
-	Collector string
-	Reply     *ConnectReply
-	RawReply  []byte
-	Err       error
+	Key                 AppKey
+	Collector           string
+	Reply               *ConnectReply
+	RawReply            []byte
+	Err                 error
+	RawSecurityPolicies []byte
 }
 
 type HarvestError struct {
@@ -52,8 +57,9 @@ const (
 	HarvestTxnEvents    HarvestType = (1 << 4)
 	HarvestCustomEvents HarvestType = (1 << 5)
 	HarvestErrorEvents  HarvestType = (1 << 6)
+	HarvestSpanEvents   HarvestType = (1 << 7)
 	HarvestDefaultData  HarvestType = HarvestMetrics | HarvestErrors | HarvestSlowSQLs | HarvestTxnTraces
-	HarvestAll          HarvestType = HarvestDefaultData | HarvestTxnEvents | HarvestCustomEvents | HarvestErrorEvents
+	HarvestAll          HarvestType = HarvestDefaultData | HarvestTxnEvents | HarvestCustomEvents | HarvestErrorEvents | HarvestSpanEvents
 )
 
 // This type represents a processor harvest event: when this is received by a
@@ -106,50 +112,118 @@ func (p *Processor) processTxnData(d TxnData) {
 }
 
 type ConnectArgs struct {
-	RedirectCollector string
-	Payload           []byte
-	License           collector.LicenseKey
-	Client            collector.Client
-	AppKey            AppKey
+	RedirectCollector            string
+	Payload                      []byte
+	PayloadRaw                   *RawConnectPayload
+	License                      collector.LicenseKey
+	SecurityPolicyToken          string
+	Client                       collector.Client
+	AppKey                       AppKey
+	AgentLanguage                string
+	AgentVersion                 string
+	PayloadPreconnect            []byte
+	AppSupportedSecurityPolicies AgentPolicies
 }
 
 func ConnectApplication(args *ConnectArgs) ConnectAttempt {
+	var err error
 	rep := ConnectAttempt{Key: args.AppKey}
+	preconnectReply := PreconnectReply{}
+
+	args.Payload, err = EncodePayload(&RawPreconnectPayload{SecurityPolicyToken: args.SecurityPolicyToken})
+	if err != nil {
+		log.Errorf("unable to connect application: %v", err)
+		return rep
+	}
+
+	// Prepare preconnect call
 	collectorHostname := collector.CalculatePreconnectHost(args.License, args.RedirectCollector)
 	call := collector.Cmd{
-		Name:      collector.CommandPreconnect,
-		Collector: collectorHostname,
-		License:   args.License,
+		Name:          collector.CommandPreconnect,
+		Collector:     collectorHostname,
+		License:       args.License,
+		AgentLanguage: args.AgentLanguage,
+		AgentVersion:  args.AgentVersion,
 		Collectible: collector.CollectibleFunc(func(auditVersion bool) ([]byte, error) {
-			return []byte("[]"), nil
+			return args.Payload, nil
 		}),
 	}
 
-	out, err := args.Client.Execute(call)
-	if nil != err {
-		rep.Err = err
-		return rep
-	}
-
-	rep.Err = json.Unmarshal(out, &rep.Collector)
-	if nil != rep.Err {
-		return rep
-	}
-
-	call.Collector = rep.Collector
-	call.Collectible = collector.CollectibleFunc(func(auditVersion bool) ([]byte, error) {
-		return args.Payload, nil
-	})
-
-	call.Name = collector.CommandConnect
-
+	// Make call to preconnect
 	rep.RawReply, rep.Err = args.Client.Execute(call)
 	if nil != rep.Err {
 		return rep
 	}
 
-	processConnectMessages(rep.RawReply)
+	rep.Err = json.Unmarshal(rep.RawReply, &preconnectReply)
+	if nil != rep.Err {
+		return rep
+	}
 
+	// If there's a token that's part of the request, we need to check supported
+	// policies vs. what we got back from preconnect
+	err = nil
+	if "" != args.SecurityPolicyToken {
+		_, err = args.AppSupportedSecurityPolicies.verifySecurityPolicies(preconnectReply)
+	}
+
+	// Was there disagreement in the agent and preconnect policies? If
+	// so, return early with an error on
+	if nil != err {
+		log.Errorf("%s", err.Error())
+		rep.Err = err
+		return rep
+	}
+
+	// Marshal preconnect security policies to send back to agent on successful connection
+	policyReturnMap := make(map[string]bool)
+	for k, v := range preconnectReply.SecurityPolicies {
+		policyReturnMap[k] = v.Enabled
+	}
+
+	// Marshal security policies
+	rep.RawSecurityPolicies, rep.Err = json.Marshal(policyReturnMap)
+	if nil != rep.Err {
+		return rep
+	}
+
+	// Prepare the connect call
+	// If this is a LASP request, add the supported policies
+	// and their enabled/disabled value to the payload
+	err = nil
+	if "" != args.SecurityPolicyToken {
+		err = args.AppSupportedSecurityPolicies.addPoliciesToPayload(preconnectReply.SecurityPolicies, args.PayloadRaw)
+	}
+
+	// If something went wrong while adding the policies, bail with an error
+	if nil != err {
+		log.Errorf("%s", err.Error())
+		rep.Err = err
+		return rep
+	}
+
+	args.Payload, err = EncodePayload(&args.PayloadRaw)
+	if err != nil {
+		log.Errorf("unable to connect application: %v", err)
+		return rep
+	}
+
+	rep.Collector = preconnectReply.Collector
+	call.Collector = rep.Collector
+
+	call.Collectible = collector.CollectibleFunc(func(auditVersion bool) ([]byte, error) {
+		return args.Payload, nil
+	})
+	call.Name = collector.CommandConnect
+
+	// Make call to connect
+	rep.RawReply, rep.Err = args.Client.Execute(call)
+	if nil != rep.Err {
+		return rep
+	}
+
+	// Process the connect reply
+	processConnectMessages(rep.RawReply)
 	rep.Reply, rep.Err = parseConnectReply(rep.RawReply)
 
 	return rep
@@ -184,18 +258,18 @@ func (p *Processor) considerConnect(app *App) {
 	}
 	app.lastConnectAttempt = now
 
-	data, err := app.info.ConnectJSON(p.util)
-	if err != nil {
-		log.Errorf("unable to connect application: %v", err)
-		return
-	}
+	dataRaw := app.info.ConnectPayload(p.util)
 
 	args := &ConnectArgs{
-		RedirectCollector: app.info.RedirectCollector,
-		Payload:           data,
-		License:           app.info.License,
-		Client:            p.cfg.Client,
-		AppKey:            app.Key(),
+		RedirectCollector:            app.info.RedirectCollector,
+		PayloadRaw:                   dataRaw,
+		License:                      app.info.License,
+		SecurityPolicyToken:          app.info.SecurityPolicyToken,
+		Client:                       p.cfg.Client,
+		AppKey:                       app.Key(),
+		AgentLanguage:                app.info.AgentLanguage,
+		AgentVersion:                 app.info.AgentVersion,
+		AppSupportedSecurityPolicies: app.info.SupportedSecurityPolicies,
 	}
 
 	go func() {
@@ -212,6 +286,10 @@ func (p *Processor) processAppInfo(m AppInfoMessage) {
 			r.State = app.state
 			if AppStateConnected == app.state {
 				r.ConnectReply = app.RawConnectReply
+				r.SecurityPolicies = app.RawSecurityPolicies
+				r.ConnectTimestamp = uint64(app.connectTime.Unix())
+				r.HarvestFrequency = uint16(app.harvestFrequency.Seconds())
+				r.SamplingTarget = uint16(app.samplingTarget)
 			}
 		}
 		// Send the response back before attempting to connect the application
@@ -232,6 +310,9 @@ func (p *Processor) processAppInfo(m AppInfoMessage) {
 	key := m.Info.Key()
 	app = p.apps[key]
 	if nil != app {
+		//set LastActivity so we treat an AppInfo request for
+		//a known app as activity (Re: PHP-1585)
+		app.LastActivity = time.Now()
 		return
 	}
 
@@ -297,7 +378,23 @@ func (p *Processor) processConnectAttempt(rep ConnectAttempt) {
 	app.RawConnectReply = rep.RawReply
 	app.state = AppStateConnected
 	app.collector = rep.Collector
+	app.RawSecurityPolicies = rep.RawSecurityPolicies
 
+	// Set up the timing data to send to the agent for harvest estimation during event sampling.
+	app.connectTime = time.Now()
+
+	// The sampling_target and sampling_target_period have default values of 10 samples per 60 seconds.
+	app.harvestFrequency = time.Duration(app.connectReply.SamplingFrequency) * time.Second
+	app.samplingTarget = uint16(app.connectReply.SamplingTarget)
+
+	if 0 == app.samplingTarget {
+		app.samplingTarget = 10
+	}
+	if 0 == app.harvestFrequency {
+		app.harvestFrequency = 60 * time.Second
+	}
+
+	// Set up the trigger that controls how often the daemon harvests all data.
 	app.HarvestTrigger = getHarvestTrigger(app.info.License, app.connectReply)
 
 	log.Infof("app '%s' connected with run id '%s'", app, app.connectReply.ID)
@@ -311,17 +408,22 @@ type harvestArgs struct {
 	id                  AgentRunID
 	license             collector.LicenseKey
 	collector           string
+	agentLanguage       string
+	agentVersion        string
 	rules               MetricRules
 	harvestErrorChannel chan<- HarvestError
 	client              collector.Client
+	splitLargePayloads  bool
 }
 
 func harvestPayload(p PayloadCreator, args *harvestArgs) {
 	call := collector.Cmd{
-		Name:      p.Cmd(),
-		Collector: args.collector,
-		License:   args.license,
-		RunID:     args.id.String(),
+		Name:          p.Cmd(),
+		Collector:     args.collector,
+		License:       args.license,
+		AgentLanguage: args.agentLanguage,
+		AgentVersion:  args.agentVersion,
+		RunID:         args.id.String(),
 		Collectible: collector.CollectibleFunc(func(auditVersion bool) ([]byte, error) {
 			if auditVersion {
 				return p.Audit(args.id, args.HarvestStart)
@@ -353,6 +455,16 @@ func considerHarvestPayload(p PayloadCreator, args *harvestArgs) {
 	}
 }
 
+func considerHarvestPayloadTxnEvents(txnEvents *TxnEvents, args *harvestArgs) {
+	if args.splitLargePayloads && (txnEvents.events.Len() >= (MaxTxnEvents / 2)) {
+		events1, events2 := txnEvents.Split()
+		considerHarvestPayload(&TxnEvents{events1}, args)
+		considerHarvestPayload(&TxnEvents{events2}, args)
+	} else {
+		considerHarvestPayload(txnEvents, args)
+	}
+}
+
 func harvestAll(harvest *Harvest, args *harvestArgs) {
 	log.Debugf("harvesting %d commands processed", harvest.commandsProcessed)
 
@@ -365,7 +477,8 @@ func harvestAll(harvest *Harvest, args *harvestArgs) {
 	considerHarvestPayload(harvest.Errors, args)
 	considerHarvestPayload(harvest.SlowSQLs, args)
 	considerHarvestPayload(harvest.TxnTraces, args)
-	considerHarvestPayload(harvest.TxnEvents, args)
+	considerHarvestPayloadTxnEvents(harvest.TxnEvents, args)
+	considerHarvestPayload(harvest.SpanEvents, args)
 }
 
 func harvestByType(ah *AppHarvest, args *harvestArgs, ht HarvestType) {
@@ -437,7 +550,15 @@ func harvestByType(ah *AppHarvest, args *harvestArgs, ht HarvestType) {
 
 		txnEvents := harvest.TxnEvents
 		harvest.TxnEvents = NewTxnEvents(MaxTxnEvents)
-		considerHarvestPayload(txnEvents, args)
+		considerHarvestPayloadTxnEvents(txnEvents, args)
+	}
+
+	if ht&HarvestSpanEvents == HarvestSpanEvents {
+		log.Debugf("harvesting span events")
+
+		spanEvents := harvest.SpanEvents
+		harvest.SpanEvents = NewSpanEvents(MaxSpanEvents)
+		considerHarvestPayload(spanEvents, args)
 	}
 }
 
@@ -460,9 +581,16 @@ func (p *Processor) doHarvest(ph ProcessorHarvest) {
 		id:                  id,
 		license:             app.info.License,
 		collector:           app.collector,
+		agentLanguage:       app.info.AgentLanguage,
+		agentVersion:        app.info.AgentVersion,
 		rules:               app.connectReply.MetricRules,
 		harvestErrorChannel: p.harvestErrorChannel,
 		client:              p.cfg.Client,
+		// Splitting large payloads is limited to applications that have
+		// distributed tracing on. That restriction is a saftey measure
+		// to not overload the backend by sending two payloads instead
+		// of one every 60 seconds.
+		splitLargePayloads: app.info.Settings["newrelic.distributed_tracing_enabled"] == true,
 	}
 
 	go harvestByType(ph.AppHarvest, &args, harvestType)
@@ -590,6 +718,7 @@ func (p *Processor) IncomingTxnData(id AgentRunID, sample AggregaterInto) {
 		integrationLog(now, id, h.ErrorEvents)
 		integrationLog(now, id, h.Errors)
 		integrationLog(now, id, h.SlowSQLs)
+		integrationLog(now, id, h.SpanEvents)
 		integrationLog(now, id, h.TxnTraces)
 		integrationLog(now, id, h.TxnEvents)
 	}
@@ -598,7 +727,6 @@ func (p *Processor) IncomingTxnData(id AgentRunID, sample AggregaterInto) {
 
 func (p *Processor) IncomingAppInfo(id *AgentRunID, info *AppInfo) AppInfoReply {
 	resultChan := make(chan AppInfoReply, 1)
-
 	p.appInfoChannel <- AppInfoMessage{ID: id, Info: info, ResultChan: resultChan}
 	out := <-resultChan
 	close(resultChan)

@@ -42,23 +42,26 @@ extern void nr_realfree(void** oldptr);
 /*
  * Semantics: malloc(0) always succeeds. Memory is not initialized to 0.
  */
-extern void* nr_malloc(int size) NRMALLOC NRMALLOCSZ(1);
+extern void* nr_malloc(size_t size) NRMALLOC NRMALLOCSZ(1);
 
 /*
  * Semantics: malloc(0) always succeeds. Memory IS initialized to 0.
  */
-extern void* nr_zalloc(int size) NRMALLOC NRMALLOCSZ(1);
+extern void* nr_zalloc(size_t size) NRMALLOC NRMALLOCSZ(1);
 
 /*
  * Semantics: calloc (x,0) or calloc (0, x) always succeeds. Memory is
  * initialized to 0.
  */
-extern void* nr_calloc(int numelt, int eltsize) NRMALLOC NRCALLOCSZ(1, 2);
+extern void* nr_calloc(size_t numelt, size_t eltsize) NRMALLOC NRCALLOCSZ(1, 2);
 
 /*
  * Semantics: realloc (NULL, x) always succeeds. realloc (x,0) always succeeds.
  */
-extern void* nr_realloc(void* oldptr, int newsize) NRMALLOCSZ(2);
+extern void* nr_realloc(void* oldptr, size_t newsize) NRMALLOCSZ(2);
+
+extern void* nr_reallocarray(void* ptr, size_t nmemb, size_t size) NRMALLOC
+    NRCALLOCSZ(2, 3);
 
 /*
  * Semantics: strdup (NULL) always succeeds.
@@ -81,12 +84,12 @@ extern char* nr_strdup_or(const char* string_if_not_null,
  * allocated to be just big enough to hold the string. strndup (x, 0) always
  * a valid empty allocated string.
  */
-extern char* nr_strndup(const char* orig, int len) NRMALLOC;
+extern char* nr_strndup(const char* orig, size_t len) NRMALLOC;
 
 /*
  * Semantics: memset (NULL, x, y) always safe.
  */
-static inline void* nr_memset(void* buf, int val, int count) {
+static inline void* nr_memset(void* buf, int val, size_t count) {
   if (nrlikely(buf && (count > 0))) {
     return memset(buf, val, count);
   }
@@ -99,7 +102,7 @@ static inline void* nr_memset(void* buf, int val, int count) {
  *            memcpy (x, y, 0) always safe
  *            Overlapping copies not guaranteed to work.
  */
-static inline void* nr_memcpy(void* dest, const void* src, int len) {
+static inline void* nr_memcpy(void* dest, const void* src, size_t len) {
   if (nrlikely(dest && src && (len > 0))) {
     return memcpy(dest, src, len);
   }
@@ -112,7 +115,7 @@ static inline void* nr_memcpy(void* dest, const void* src, int len) {
  *            memmove (x, y, 0) always safe and does not work
  *            Overlapping copies guaranteed to work.
  */
-static inline void* nr_memmove(void* dest, const void* src, int len) {
+static inline void* nr_memmove(void* dest, const void* src, size_t len) {
   if (nrlikely(dest && src && (len > 0))) {
     return memmove(dest, src, len);
   }
@@ -125,7 +128,7 @@ static inline void* nr_memmove(void* dest, const void* src, int len) {
  *            memcmp (nonnull, NULL, X) always returns 1
  *            NULL for either argument always OK.
  */
-static inline int nr_memcmp(const void* s1, const void* s2, int len) {
+static inline int nr_memcmp(const void* s1, const void* s2, size_t len) {
   if (nrlikely(s1 && s2 && (len > 0))) {
     return memcmp(s1, s2, len);
   } else if (len <= 0) {
@@ -141,7 +144,7 @@ static inline int nr_memcmp(const void* s1, const void* s2, int len) {
  *            memchr (NULL, anything, X) always returns 0
  *            NULL for either argument always OK.
  */
-static inline void* nr_memchr(const void* str, int c, int len) {
+static inline void* nr_memchr(const void* str, int c, size_t len) {
   if (nrlikely(str && (len > 0))) {
     return memchr(str, c, len);
   }

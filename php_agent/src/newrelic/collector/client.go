@@ -33,11 +33,42 @@ type Collectible interface {
 }
 
 type Cmd struct {
-	Name        string
-	Collector   string
-	License     LicenseKey
-	RunID       string
-	Collectible Collectible
+	Name          string
+	Collector     string
+	License       LicenseKey
+	RunID         string
+	AgentLanguage string
+	AgentVersion  string
+	Collectible   Collectible
+
+	ua string
+}
+
+// The agent languages we give the collector are not necessarily the ideal
+// choices for a user agent string.
+var userAgentMappings = map[string]string{
+	"c":   "C",
+	"sdk": "C",
+	"php": "PHP",
+	"":    "Native",
+}
+
+func (cmd *Cmd) userAgent() string {
+	if cmd.ua == "" {
+		lang := cmd.AgentLanguage
+		if val, ok := userAgentMappings[cmd.AgentLanguage]; ok {
+			lang = val
+		}
+
+		ver := "unknown"
+		if cmd.AgentVersion != "" {
+			ver = cmd.AgentVersion
+		}
+
+		cmd.ua = fmt.Sprintf("NewRelic-%s-Agent/%s NewRelic-GoDaemon/%s", lang, ver, version.Number)
+	}
+
+	return cmd.ua
 }
 
 type Client interface {
@@ -178,7 +209,7 @@ type clientImpl struct {
 	httpClient *http.Client
 }
 
-func (c *clientImpl) perform(url string, data []byte) ([]byte, error) {
+func (c *clientImpl) perform(url string, data []byte, userAgent string) ([]byte, error) {
 	deflated, err := Compress(data)
 	if nil != err {
 		return nil, err
@@ -191,11 +222,7 @@ func (c *clientImpl) perform(url string, data []byte) ([]byte, error) {
 
 	req.Header.Add("Accept-Encoding", "identity, deflate")
 	req.Header.Add("Content-Type", "application/octet-stream")
-	// Prior to release 5.0, User-Agent was set to:
-	//   NewRelic-Daemon/$AGENT_VERSION ($CURL_VERSION)
-	// 'Daemon' was changed to 'GoDaemon' to be different from the Linux
-	// server monitor.
-	req.Header.Add("User-Agent", "NewRelic-GoDaemon/"+version.Number)
+	req.Header.Add("User-Agent", userAgent)
 	req.Header.Add("Content-Encoding", "deflate")
 
 	resp, err := c.httpClient.Do(req)
@@ -252,7 +279,7 @@ func (c *clientImpl) Execute(cmd Cmd) ([]byte, error) {
 	log.Audit("command='%s' url='%s' payload={%s}", cmd.Name, url, audit)
 	log.Debugf("command='%s' url='%s' payload={%s}", cmd.Name, cleanURL, data)
 
-	resp, err := c.perform(url, data)
+	resp, err := c.perform(url, data, cmd.userAgent())
 	if err != nil {
 		log.Debugf("attempt to perform %s failed: %q, url=%s",
 			cmd.Name, err.Error(), cleanURL)

@@ -18,6 +18,7 @@ type Harvest struct {
 	TxnEvents         *TxnEvents
 	CustomEvents      *CustomEvents
 	ErrorEvents       *ErrorEvents
+	SpanEvents        *SpanEvents
 	commandsProcessed int
 	pidSet            map[int]struct{}
 }
@@ -31,6 +32,7 @@ func NewHarvest(now time.Time) *Harvest {
 		TxnEvents:         NewTxnEvents(MaxTxnEvents),
 		CustomEvents:      NewCustomEvents(MaxCustomEvents),
 		ErrorEvents:       NewErrorEvents(MaxErrorEvents),
+		SpanEvents:        NewSpanEvents(MaxSpanEvents),
 		commandsProcessed: 0,
 		pidSet:            make(map[int]struct{}),
 	}
@@ -40,6 +42,7 @@ func (h *Harvest) empty() bool {
 	return len(h.pidSet) == 0 &&
 		h.CustomEvents.Empty() &&
 		h.ErrorEvents.Empty() &&
+		h.SpanEvents.Empty() &&
 		h.Errors.Empty() &&
 		h.Metrics.Empty() &&
 		h.SlowSQLs.Empty() &&
@@ -93,6 +96,12 @@ func (h *Harvest) createFinalMetrics() {
 	if h.Metrics.numDropped > 0 {
 		h.Metrics.AddCount("Supportability/MetricsDropped", "", float64(h.Metrics.numDropped), Forced)
 	}
+
+	// Span Events Supportability Metrics
+	// These metrics are made to conform to:
+	// https://source.datanerd.us/agents/agent-specs/blob/master/Span-Events.md
+	h.Metrics.AddCount("Supportability/SpanEvent/TotalEventsSeen", "", h.SpanEvents.analyticsEvents.NumSeen(), Forced)
+	h.Metrics.AddCount("Supportability/SpanEvent/TotalEventsSent", "", h.SpanEvents.analyticsEvents.NumSaved(), Forced)
 }
 
 type FailedHarvestSaver interface {
@@ -112,6 +121,7 @@ type PayloadCreator interface {
 func (x *MetricTable) Cmd() string  { return collector.CommandMetrics }
 func (x *CustomEvents) Cmd() string { return collector.CommandCustomEvents }
 func (x *ErrorEvents) Cmd() string  { return collector.CommandErrorEvents }
+func (x *SpanEvents) Cmd() string   { return collector.CommandSpanEvents }
 func (x *ErrorHeap) Cmd() string    { return collector.CommandErrors }
 func (x *SlowSQLs) Cmd() string     { return collector.CommandSlowSQLs }
 func (x *TxnTraces) Cmd() string    { return collector.CommandTraces }

@@ -17,22 +17,19 @@
 #include "nr_attributes.h"
 #include "nr_errors.h"
 #include "nr_file_naming.h"
+#include "nr_segment.h"
 #include "nr_slowsqls.h"
 #include "nr_synthetics.h"
+#include "nr_distributed_trace.h"
 #include "util_apdex.h"
 #include "util_buffer.h"
 #include "util_json.h"
 #include "util_metrics.h"
+#include "util_sampling.h"
+#include "util_stack.h"
 #include "util_string_pool.h"
 
 #define NR_TXN_REQUEST_PARAMETER_ATTRIBUTE_PREFIX "request.parameters."
-
-/*
- * The guid is an identifier that is unique to the transaction and is used
- * to tie this transaction trace to a browser trace and/or external
- * (cross application) traces.
- */
-#define NR_GUID_SIZE 16
 
 typedef enum _nr_tt_recordsql_t {
   NR_SQL_NONE = 0,
@@ -73,6 +70,14 @@ typedef struct _nrtxnopt_t {
   nrtime_t ep_threshold;     /* Explain Plan threshold in usec */
   nrtime_t ss_threshold;     /* Slow SQL stack threshold in usec */
   int cross_process_enabled; /* Whether or not to read and modify headers */
+  int allow_raw_exception_messages; /* Whether to replace the error/exception
+                                   messages with generic text */
+  int custom_parameters_enabled;    /* Whether to allow recording of custom
+                                      parameters/attributes */
+
+  int distributed_tracing_enabled; /* Whether distributed tracing functionality
+                                      is enabled */
+  int span_events_enabled;         /* Whether span events are enabled */
 } nrtxnopt_t;
 
 typedef enum _nrtxnstatus_cross_process_t {
@@ -141,13 +146,48 @@ typedef struct _nrtxntime_t {
   nrtime_t when; /* When did this event occur */
 } nrtxntime_t;
 
+typedef enum _nr_txnnode_type_t {
+  NR_CUSTOM,
+  NR_DATASTORE,
+  NR_EXTERNAL
+} nr_txnnode_type_t;
+
+/*
+ * The union type can only hold one struct at a time. This insures that we will
+ * not reserve memory for variables that are not applicable for this type of
+ * node. Example: A datastore node will not need to store a method and an
+ * external node will not need to store a component.
+ *
+ * You must check the nr_txnnode_type to determine which struct is being used.
+ */
+
+typedef struct {
+  nr_txnnode_type_t type;
+  struct {
+    char* component; /* The name of the database vendor or driver */
+  } datastore;
+} nr_txnnode_attributes_t;
+
 typedef struct _nrtxnnode_t {
   nrtxntime_t start_time; /* Start time for node */
   nrtxntime_t stop_time;  /* Stop time for node */
   int count;              /* N+1 rollup count */
   int name;               /* Node name (pooled string index) */
   int async_context;      /* Execution context (pooled string index) */
+  char* id;               /* Node id.
+              
+                             If this is NULL, a new id will be created when a
+                             span event is created from this trace node.
+              
+                             If this is not NULL, this id will be used for
+                             creating a span event from this trace node. This
+                             id set indicates that the node represents an
+                             external segment and the id of the segment was use
+                             as current span id in an outgoing DT payload. */
   nrobj_t* data_hash;     /* Other node specific data */
+  nr_txnnode_attributes_t*
+      attributes; /* Category-dependent attributes required for some
+                          categories of span events, e.g. datastore. */
 } nrtxnnode_t;
 
 /*
@@ -172,6 +212,8 @@ typedef enum _nr_cpu_usage_t {
 #define NR_TXN_TYPE_SYNTHETICS (1 << 0)
 #define NR_TXN_TYPE_CAT_INBOUND (1 << 2)
 #define NR_TXN_TYPE_CAT_OUTBOUND (1 << 3)
+#define NR_TXN_TYPE_DT_INBOUND (1 << 4)
+#define NR_TXN_TYPE_DT_OUTBOUND (1 << 5)
 typedef uint32_t nrtxntype_t;
 
 /*
@@ -181,17 +223,38 @@ typedef struct _nrtxn_t {
   char* agent_run_id;   /* The agent run ID */
   int high_security;    /* From application: Whether the txn is in special high
                            security mode */
+  int lasp;             /* From application: Whether the txn is in special lasp
+                           enabled mode */
   nrtxnopt_t options;   /* Options for this transaction */
   nrtxnstatus_t status; /* Status for the transaction */
   nrtxncat_t cat;       /* Incoming CAT fields */
+  nr_random_t* rnd;     /* Random number generator, owned by the application. */
   int nodes_used;       /* Number of nodes used */
   nrtxnnode_t root;     /* Root node */
   nrtxnnode_t nodes[NR_TXN_MAX_NODES];
   nrtxnnode_t* pq[NR_TXN_MAX_NODES];
   nrtxnnode_t* last_added; /* Pointer to last node added (rollup metrics) */
-  int stamp;               /* Node stamp counter */
-  nr_error_t* error;       /* Captured error */
-  nr_slowsqls_t* slowsqls; /* Slow SQL statements */
+
+  nr_stack_t parent_stack; /* A stack to track the current parent in the tree of
+                              segments */
+  size_t segment_count; /* A count of segments for this transaction, maintained
+                           throughout the life of this transaction */
+  nr_segment_t* segment_root;  /* The root pointer to the tree of segments */
+
+  /*
+   * The next trace node that will be created and for which
+   *
+   *   start_time <= current_node_time <= stop_time
+   *
+   * holds true, will be assigned the id in current_node_id. current_node_id
+   * and current_node_time are set when creating an outbound DT payload.
+   */
+  char* current_node_id;
+  nrtime_t current_node_time;
+
+  int stamp;                    /* Node stamp counter */
+  nr_error_t* error;            /* Captured error */
+  nr_slowsqls_t* slowsqls;      /* Slow SQL statements */
   nrpool_t* datastore_products; /* Datastore products seen */
   nrpool_t* trace_strings;      /* String pool for transaction trace */
   nrmtable_t*
@@ -212,7 +275,6 @@ typedef struct _nrtxn_t {
    */
   nrtime_t async_duration;
 
-  char* guid; /* A unique identifier for this txn. */
   nr_analytics_events_t*
       custom_events; /* Custom events created through the API. */
   nrtime_t user_cpu[NR_CPU_USAGE_COUNT]; /* User CPU usage */
@@ -231,6 +293,9 @@ typedef struct _nrtxn_t {
   char* primary_app_name; /* The primary app name in use (ie the first rollup
                              entry) */
   nr_synthetics_t* synthetics; /* Synthetics metadata for the transaction */
+
+  nr_distributed_trace_t*
+      distributed_trace; /* distributed tracing metadata for the transaction */
 
   /*
    * Special control variables derived from named bits in
@@ -269,6 +334,20 @@ static inline int nr_txn_recording(const nrtxn_t* txn) {
 bool nr_txn_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2);
 
 /*
+ * Purpose : Compare connect_reply and security_policies to settings found
+ *           in opts. If SSC or LASP policies are more secure, update local
+ *           settings to match and log a verbose debug message.
+ *
+ * Params  : 1. options set in the transaction
+ *           2. connect_reply originally obtained from the daemon
+ *           3. security_policies originally obtained from the daemon
+ *
+ */
+void nr_txn_enforce_security_settings(nrtxnopt_t* opts,
+                                      const nrobj_t* connect_reply,
+                                      const nrobj_t* security_policies);
+
+/*
  * Purpose : Start a new transaction belonging to the given application.
  *
  * Params  : 1. The relevant application.  This application is assumed
@@ -281,7 +360,7 @@ bool nr_txn_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2);
  * Notes   : It is up to the caller to ensure that only one transaction is
  *           active in a given context (thread, request etc).
  */
-extern nrtxn_t* nr_txn_begin(const nrapp_t* app,
+extern nrtxn_t* nr_txn_begin(nrapp_t* app,
                              const nrtxnopt_t* opts,
                              const nr_attribute_config_t* attribute_config);
 
@@ -397,13 +476,16 @@ static inline void nr_txn_copy_time(const nrtxntime_t* src, nrtxntime_t* dest) {
  *            5. The execution context, or NULL if the node is on the main
  *               "thread".
  *            6. Hash containing extra node information.
+ *            7. Category-dependent attributes required for some  categories of
+ *               span events, e.g. datastore.
  */
 extern void nr_txn_save_trace_node(nrtxn_t* txn,
                                    const nrtxntime_t* start,
                                    const nrtxntime_t* stop,
                                    const char* name,
                                    const char* async_context,
-                                   const nrobj_t* data_hash);
+                                   const nrobj_t* data_hash,
+                                   const nr_txnnode_attributes_t* attributes);
 
 #include "node_datastore.h"
 #include "node_external.h"
@@ -438,6 +520,10 @@ extern nr_status_t nr_txn_record_error_worthy(const nrtxn_t* txn, int priority);
  */
 #define NR_TXN_HIGH_SECURITY_ERROR_MESSAGE \
   "Message removed by New Relic high_security setting"
+
+#define NR_TXN_ALLOW_RAW_EXCEPTION_MESSAGE \
+  "Message removed by New Relic security settings"
+
 extern void nr_txn_record_error(nrtxn_t* txn,
                                 int priority,
                                 const char* errmsg,
@@ -604,6 +690,30 @@ extern void nr_txn_record_custom_event(nrtxn_t* txn,
 extern const char* nr_txn_get_cat_trip_id(const nrtxn_t* txn);
 
 /*
+ * Purpose : Return the GUID for the given transaction.
+ *
+ * Params  : 1. The transaction.
+ *
+ * Returns : A pointer to the current GUID within the transaction struct.
+ */
+extern const char* nr_txn_get_guid(const nrtxn_t* txn);
+
+/*
+ * Purpose : Set the GUID for the given transaction.
+ *
+ * Params  : 1. The transaction.
+ *           2. The GUID. This may be NULL to remove the GUID.
+ *
+ * Notes   : 1. This function is intended for internal testing use only.
+ *           2. If a distributed trace is not already present within the
+ *              transaction struct, one will be created. If the transaction is
+ *              not destroyed with nr_txn_destroy(), it is _your_ responsibility
+ *              to ensure that nr_distributed_trace_destroy() is invoked to
+ *              avoid a memory leak.
+ */
+extern void nr_txn_set_guid(nrtxn_t* txn, const char* guid);
+
+/*
  * Purpose : Generate and return the current CAT path hash for the transaction.
  *
  * Params  : 1. The current transaction.
@@ -614,7 +724,7 @@ extern const char* nr_txn_get_cat_trip_id(const nrtxn_t* txn);
 extern char* nr_txn_get_path_hash(nrtxn_t* txn);
 
 /*
- * Purpose : Checks if the given account ID is a trusted account.
+ * Purpose : Checks if the given account ID is a trusted account for CAT.
  *
  * Params  : 1. The current transaction.
  *           2. The account ID to check.
@@ -622,6 +732,17 @@ extern char* nr_txn_get_path_hash(nrtxn_t* txn);
  * Returns : Non-zero if the account is trusted; zero otherwise.
  */
 extern int nr_txn_is_account_trusted(const nrtxn_t* txn, int account_id);
+
+/*
+ * Purpose : Checks if the given account ID is a trusted account for DT.
+ *
+ * Params  : 1. The current transaction.
+ *           2. The account ID to check.
+ *
+ * Returns : true if the account is trusted; false otherwise.
+ */
+extern bool nr_txn_is_account_trusted_dt(const nrtxn_t* txn,
+                                         const char* trusted_key);
 
 /*
  * Purpose : Check if the transaction should create apdex metrics.
@@ -669,8 +790,8 @@ extern int nr_txn_valid_node_end(const nrtxn_t* txn,
                                  const nrtxntime_t* stop);
 
 /*
- * Purpose : Return 1 if the txn's guid should be added as an intrinsic
- *           to the txn's analytics event, and 0 otherwise.
+ * Purpose : Return 1 if the txn's nr.guid should be added as an
+ *           intrinsic to the txn's analytics event, and 0 otherwise.
  */
 extern int nr_txn_event_should_add_guid(const nrtxn_t* txn);
 
@@ -788,5 +909,125 @@ extern nr_status_t nr_txn_add_custom_metric(nrtxn_t* txn,
  * Returns : true is the string matches, false otherwise
  */
 extern bool nr_txn_is_current_path_named(const nrtxn_t* txn, const char* name);
+
+/*
+ * Purpose : Accept a base 64 encoded distributed tracing payload for the given
+ *           transaction.
+ *
+ * Params  : 1. The transaction.
+ *           2. The base64 encoded payload
+ *           3. The type of transporation (e.g. "http", "https")
+ *
+ * Returns : true if we're able to accept the payload, false otherwise
+ */
+bool nr_txn_accept_distributed_trace_payload_httpsafe(
+    nrtxn_t* txn,
+    const char* payload,
+    const char* transport_type);
+
+/*
+ * Purpose : Accept a distributed tracing payload for the given transaction.
+ *
+ * Params  : 1. The transaction.
+ *           2. The payload
+ *           3. The type of transporation (e.g. "http", "https")
+ *
+ * Returns : true if we're able to accept the payload, false otherwise
+ */
+bool nr_txn_accept_distributed_trace_payload(nrtxn_t* txn,
+                                             const char* payload,
+                                             const char* transport_type);
+
+/*
+ * Purpose : Create a distributed tracing payload for the given transaction.
+ *
+ * Params  : 1. The transaction.
+ *
+ * Returns : A newly allocated, null terminated payload string, which the caller
+ *           must destroy with nr_free() when no longer needed, or NULL on
+ *           error.
+ */
+extern char* nr_txn_create_distributed_trace_payload(nrtxn_t* txn);
+
+/*
+ * Purpose : Determine whether span events should be created. This is true if
+ *           `distributed_tracing_enabled` and `span_events_enabled` are true
+ *           and the transaction is sampled.
+ *
+ * Params  : 1. The transaction.
+ *
+ * Returns : true if span events should be created.
+ */
+extern bool nr_txn_should_create_span_events(const nrtxn_t* txn);
+
+/*
+ * Purpose : Get a pointer to the currently-executing segment.
+ *
+ * Params  : The current transaction.
+ *
+ * Note    : In some cases, the parent of a segment shall be supplied, as in
+ *           cases of newrelic_start_segment(). In other cases, the parent of
+ *           a segment shall be determined by the currently executing segment.
+ *           For the second scenario, get a pointer to the active segment so
+ *           that a new, parented segment may be added to the transaction.
+ *
+ * Returns : A pointer to the active segment.
+ */
+extern nr_segment_t* nr_txn_get_current_segment(nrtxn_t* txn);
+
+/*
+ * Purpose : Set the current segment for the transaction.
+ *
+ * Params  : 1. The current transaction.
+ *           2. A pointer to the currently-executing segment.
+ *
+ * Note    : On the transaction is a data structure used to manage the parenting
+ *           of stacks for the main context.  Currently it's implemented as a
+ *           stack.  This call is equivalent to pushing a segment pointer onto
+ *           the stack of parents.
+ *
+ */
+extern void nr_txn_set_current_segment(nrtxn_t* txn, nr_segment_t* segment);
+
+/*
+ * Purpose : Retire the currently-executing segment
+ *
+ * Params  : The current transaction.
+ *
+ * Note    : On the transaction is a data structure used to manage the
+ *           parenting of stacks for the main context.  Currently it's
+ *           implemented as a stack.  This call is equivalent to popping
+ *           a segment pointer from the stack of parents.
+ */
+extern void nr_txn_retire_current_segment(nrtxn_t* txn);
+
+/*
+ * Purpose : Allocate memory for the type dependant attributes of a transaction
+ * trace node.
+ *
+ * Params : None.
+ *
+ * Returns : The allocated memory.
+ */
+extern nr_txnnode_attributes_t* nr_txnnode_attributes_create(void);
+
+/*
+ * Purpose : Assign the type dependant attributes to a trace node. This assigns
+ * the node a custom type if the attributes are NULL.
+ *
+ * Params : 1. The node that you would like updated.
+ *          2. The struct that contains the attributes you would like in the
+ * node.
+ */
+extern void nr_txnnode_set_attributes(
+    nrtxnnode_t* node,
+    const nr_txnnode_attributes_t* attributes);
+
+/*
+ * Purpose : Release the memory that has been allocated.
+ *
+ * Params : 1. The struct that contains memory you would like released.
+ */
+extern void nr_txnnode_attributes_destroy(nr_txnnode_attributes_t* attributes);
 
 #endif /* NR_TXN_HDR */

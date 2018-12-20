@@ -26,7 +26,8 @@ foo=42
         "name": "OtherTransaction\/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": false
       },
       {},
       {

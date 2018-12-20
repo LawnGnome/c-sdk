@@ -667,6 +667,9 @@ NR_PHP_WRAPPER(nr_predis_client_construct) {
     nr_php_wrap_callable(
         nr_php_find_class_method(Z_OBJCE_P(conn), "getconnection"),
         nr_predis_aggregateconnection_getConnection TSRMLS_CC);
+    nr_php_wrap_callable(
+        nr_php_find_class_method(Z_OBJCE_P(conn), "getconnectionbycommand"),
+        nr_predis_aggregateconnection_getConnection TSRMLS_CC);
   } else if (nr_predis_is_connection(conn TSRMLS_CC)) {
     /*
      * The simple non-clustered case: we can just use the parameters that we

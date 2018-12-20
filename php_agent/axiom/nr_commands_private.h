@@ -67,14 +67,20 @@ enum {
   APP_FIELD_SETTINGS = 7,
   APP_FIELD_LABELS = 8,
   APP_DISPLAY_HOST = 9,
-  APP_NUM_FIELDS = 10,
+  APP_SECURITY_POLICY_TOKEN = 10,
+  APP_SUPPORTED_SECURITY_POLICIES = 11,
+  APP_NUM_FIELDS = 12,
 };
 
 /* Generated from: table AppReply */
 enum {
   APP_REPLY_FIELD_STATUS = 0,
   APP_REPLY_FIELD_CONNECT_REPLY = 1,
-  APP_REPLY_NUM_FIELDS = 2,
+  APP_REPLY_FIELD_SECURITY_POLICIES = 2,
+  APP_REPLY_FIELD_CONNECT_TIMESTAMP = 3,
+  APP_REPLY_FIELD_HARVEST_FREQUENCY = 4,
+  APP_REPLY_FIELD_SAMPLING_TARGET = 5,
+  APP_REPLY_NUM_FIELDS = 6,
 };
 
 /* Generated from: table Transaction */
@@ -90,7 +96,9 @@ enum {
   TRANSACTION_FIELD_CUSTOM_EVENTS = 8,
   TRANSACTION_FIELD_TRACE = 9,
   TRANSACTION_FIELD_ERROR_EVENTS = 10,
-  TRANSACTION_NUM_FIELDS = 11,
+  TRANSACTION_FIELD_SAMPLING_PRIORITY = 11,
+  TRANSACTION_FIELD_SPAN_EVENTS = 12,
+  TRANSACTION_NUM_FIELDS = 13,
 };
 
 /* Generated from: table Event */
@@ -159,6 +167,9 @@ extern nr_flatbuffer_t* nr_appinfo_create_query(const char* agent_run_id,
 extern nr_status_t nr_cmd_appinfo_process_reply(const uint8_t* data,
                                                 int len,
                                                 nrapp_t* app);
+
+extern void nr_cmd_appinfo_process_harvest_timing(nr_flatbuffers_table_t* reply,
+                                                  nrapp_t* app);
 
 extern char* nr_txndata_error_to_json(const nrtxn_t* txn);
 

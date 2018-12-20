@@ -19,7 +19,7 @@ This guide is intended to be both a beginner installation guide as well as a dev
 * It's got a pretty convenient method for switching between versions of PHP.
 
 *Do I have to develop with it?*
-* Nope! In fact, the team is currently turning away from using this **nrcamp/nrlamp** stuff and replacing it with the work available in the [php-agent/php-build-scripts](https://source.datanerd.us/php-agent/php-build-scripts) repository.  In fact, if you are working on building out a new development environment, go [there](https://source.datanerd.us/php-agent/php-build-scripts) first and follow the README as a first step. The php-build-scripts will construct a collection of PHP installs. 
+* Nope! In fact, the team is currently turning away from using this **nrcamp/nrlamp** stuff and replacing it with the work available in the [php-agent/php-build-scripts](https://source.datanerd.us/php-agent/php-build-scripts) repository.  In fact, if you are working on building out a new development environment, go [there](https://source.datanerd.us/php-agent/php-build-scripts) first and follow the README as a first step. The php-build-scripts will construct a collection of PHP installs.
 
 *How do I specify and switch between versions of PHP if I used the php-build-scripts?*
 
@@ -31,7 +31,7 @@ export PATH=/opt/nr/php/$PHP_VERSION/bin/:$PATH
 
 ```
 
-If you don't like fiddling with you bash environment variables manually, the [`phpvm`](https://source.datanerd.us/php-agent/php-build-scripts/blob/master/bin/phpvm.bash) script can do this for you.  
+If you don't like fiddling with you bash environment variables manually, the [`phpvm`](https://source.datanerd.us/php-agent/php-build-scripts/blob/master/bin/phpvm.bash) script can do this for you.
 
     $ phpvm list
     Available Verions (from /opt/nr/php)
@@ -62,9 +62,9 @@ If you don't like fiddling with you bash environment variables manually, the [`p
 
 For a full report on `phpvm`'s functionality, try `phpvm help`.
 
-**Important**: The **only** thing `phpvm` does is set the `PHP_VERSION` and `PATH` variables. You'll still need to get `newrelic.ini` files into each individual PHP folder, and make any necessary changes to your web server, `mod_php`, or `php-fpm` setups to run PHP from the new folder. 
+**Important**: The **only** thing `phpvm` does is set the `PHP_VERSION` and `PATH` variables. You'll still need to get `newrelic.ini` files into each individual PHP folder, and make any necessary changes to your web server, `mod_php`, or `php-fpm` setups to run PHP from the new folder.
 
-If you're not using the [`php-agent/php-build-scripts`](https://source.datanerd.us/php-agent/php-build-scripts) project yet, there's a script to helps switch between php versions in the **nrcamp/nrlamp** scenario.  
+If you're not using the [`php-agent/php-build-scripts`](https://source.datanerd.us/php-agent/php-build-scripts) project yet, there's a script to helps switch between php versions in the **nrcamp/nrlamp** scenario.
 
 ```
 #!/bin/sh
@@ -75,7 +75,7 @@ exec "/opt/nr/php/${NRLAMP_PHP}/bin/php "$@"
 
 ## Prerequisites
 ### A Development Platform
-If you want to work on Mac OSX, Homebrew should handle most of the installs you need.  That said, at the time of this writing, most of the team uses Linux in a dual-boot environment, in a vagrant box, or on an EC2 box.  For such platforms, use your Linux package manager of choice. 
+If you want to work on Mac OSX, Homebrew should handle most of the installs you need.  That said, at the time of this writing, most of the team uses Linux in a dual-boot environment, in a vagrant box, or on an EC2 box.  For such platforms, use your Linux package manager of choice.
 
 ### Go!
 Install the [latest version of Go](https://golang.org/dl/). Typically it's installed in `/usr/local/go`. Be sure to extend your **PATH** to include it!
@@ -87,7 +87,7 @@ git submodule update --init
 ```
 
 ## Bye Bye NRCAMP and NRLAMP.
-Here's where you choose whether to use the historical **nrcamp/nrlamp** setup, the newer php-build-scripts, or (on macOS only) Homebrew. The php-build-scripts are strongly recommended. 
+Here's where you choose whether to use the historical **nrcamp/nrlamp** setup, the newer php-build-scripts, or (on macOS only) Homebrew. The php-build-scripts are strongly recommended.
 
 ### The NRCAMP and NRLAMP route
 Below are instructions for **nrcamp/nrlamp**.
@@ -157,7 +157,7 @@ Nevertheless, if you're really keen to do it this way, here's how you'd install 
 ```bash
 brew tap php
 brew install php72 --with-embed
-brew install php72-gmp php72-intl php72-memcached php72-mongodb php72-opcache php72-pdo-pgsql php72-redis php72-uopz 
+brew install php72-gmp php72-intl php72-memcached php72-mongodb php72-opcache php72-pdo-pgsql php72-redis php72-uopz
 ```
 
 For other versions, you can replace the `72` with whatever major and minor version you're interested in: eg `php53` for PHP 5.3.
@@ -166,7 +166,7 @@ Whichever version of PHP was installed or upgraded most recently will be the ver
 
 ## Build the PHP Agent
 Hooray! Now let's build the agent. [Grab the agent](git@source.datanerd.us:php-agent/php_agent.git). Running `make` from the top level of the php agent directory builds the correct agent and daemon.
-- If you've followed the **nrcamp/nrlamp** directions, `make` will use the PHP you specify, defaulting to version specified by the environment variable **NRLAMP_PHP**. 
+- If you've followed the **nrcamp/nrlamp** directions, `make` will use the PHP you specify, defaulting to version specified by the environment variable **NRLAMP_PHP**.
 - If you utilized the **php_build_scripts**, take a moment to re-read the above FAQ section on _"How do I specify and switch between versions of PHP if I used the php-build-scripts?"_
 
 Here are the non-exhaustive capabilities of the Makefile:
@@ -278,7 +278,7 @@ The pull request script does the following:
 1. Build the daemon & run integration tests for daemon
 2. Build axiom & run its tests (on Linux, this is done under Valgrind)
 3. Set up agent integration environment information
-4. Build the no-zts agent for each version of PHP (5.3 to 7.2)
+4. Build the no-zts agent for each version of PHP (5.3 to 7.3)
 5. Run the agent integration tests for each version of PHP
 6. Build the zts agent for each version of PHP
 

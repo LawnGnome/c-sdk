@@ -74,12 +74,21 @@ ifeq (1,$(HAVE_LIBEXECINFO))
   TEST_LDLIBS += -lexecinfo
 endif
 
-# -ldl is required on GNU/Linux for dladdr. We'll test that via a very simple
-# C compiler one-liner.
+# We have a few platform specific libraries that have to be linked in.
+# GNU/Linux requires -ldl for dladdr(). Solaris requires a set of libraries for
+# its socket implementation. Everything except macOS requires -lm for pow().
+#
+# We'll test these with a set of simple one liners, in the same style as
+# make/config.mk.
 ifeq (Linux,$(UNAME))
   ifeq (1,$(shell (echo "int dladdr(void *, void *); int main() { dladdr(0, 0); return 0; }" | $(CC) -x c -o /dev/null - 1>/dev/null 2>/dev/null) && echo 0 || echo 1))
     TEST_LDLIBS += -ldl
   endif
+  TEST_LDLIBS += -lm
+endif
+
+ifeq (FreeBSD,$(UNAME))
+  TEST_LDLIBS += -lm
 endif
 
 ifeq (SunOS,$(UNAME))
@@ -95,11 +104,7 @@ PCRE_CFLAGS := $(shell pcre-config --cflags)
 # pcre library to be linked if pcre is installed in the standard search
 # paths, and linking to fail if pcre is not installed.
 ifneq (,$(findstring /opt/nr/camp,$(shell pcre-config --prefix)))
-  ifneq (SunOS,$(UNAME))
-    PCRE_LDLIBS := -L/opt/nr/camp/lib -lnrpcre-pic
-  else
-    PCRE_LDLIBS := -lnrpcre-pic
-  endif
+  PCRE_LDLIBS := -lnrpcre-pic
 else
   PCRE_LDLIBS := $(shell pcre-config --libs)
 endif
@@ -114,6 +119,7 @@ TESTS := \
   test_analytics_events \
   test_apdex \
   test_app \
+  test_app_harvest \
   test_async_context \
   test_attributes \
   test_base64 \
@@ -125,18 +131,22 @@ TESTS := \
   test_datastore \
   test_datastore_instance \
   test_daemon_spawn \
+  test_distributed_trace \
   test_errors \
   test_explain \
   test_file_naming \
   test_flatbuffers \
+  test_guid \
   test_hash \
   test_hashmap \
   test_header \
   test_json \
   test_labels \
   test_logging \
+  test_math \
   test_memory \
   test_metrics \
+  test_minmax_heap \
   test_mysqli_metadata \
   test_network \
   test_node_datastore \
@@ -150,14 +160,21 @@ TESTS := \
   test_reply \
   test_rules \
   test_rum \
+  test_sampling \
+  test_segment \
+  test_segment_private \
   test_segment_terms \
+  test_segment_traces \
   test_serialize \
+  test_set \
   test_signals \
   test_slowsqls \
-  test_synthetics \
+  test_span_event \
   test_sql \
+  test_stack \
   test_string_pool \
   test_strings \
+  test_synthetics \
   test_system \
   test_text \
   test_threads \

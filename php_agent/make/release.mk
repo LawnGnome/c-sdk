@@ -15,9 +15,13 @@ RELEASE_OS := $(RELEASE_OS:sunos=solaris)
 # expanded to cover other C standard library implementations such as
 # uclibc or dietlibc.
 ifeq (linux,$(RELEASE_OS))
-  RELEASE_LIBC := $(shell $(CC) -E make/detect-linux-libc.c | sed -n -e 's/^LIBC=//p')
-  ifeq (,$(findstring gnu,$(RELEASE_LIBC)))
-    RELEASE_OS := $(RELEASE_OS)-$(RELEASE_LIBC)
+  RELEASE_LIBC := $(shell $(CC) -x c -E make/detect-linux-libc.env | grep -E '^LIBC.*=')
+  ifeq (gnu,$(findstring gnu,$(RELEASE_LIBC)))
+    RELEASE_OS := $(RELEASE_OS)
+  else ifeq (musl,$(findstring musl,$(RELEASE_LIBC)))
+    RELEASE_OS := $(RELEASE_OS)-musl
+  else
+    $(error Cannot detect the C library in use; exiting)
   endif
 endif
 
@@ -68,6 +72,7 @@ release-scripts: Makefile | releases/$(RELEASE_OS)/scripts/
 # Build the agent sequentially for each version of PHP. This is necessary
 # because the PHP build process only supports in-tree builds.
 release-agent: Makefile | releases/$(RELEASE_OS)/agent/$(RELEASE_ARCH)/
+	$(MAKE) agent-clean; $(MAKE) release-7.3-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.2-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.1-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.0-no-zts
@@ -75,6 +80,7 @@ release-agent: Makefile | releases/$(RELEASE_OS)/agent/$(RELEASE_ARCH)/
 	$(MAKE) agent-clean; $(MAKE) release-5.5-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.4-no-zts
 	$(MAKE) agent-clean; $(MAKE) release-5.3-no-zts
+	$(MAKE) agent-clean; $(MAKE) release-7.3-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.2-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.1-zts
 	$(MAKE) agent-clean; $(MAKE) release-7.0-zts
@@ -105,6 +111,7 @@ release-$1-zts: Makefile agent | releases/$$(RELEASE_OS)/agent/$$(RELEASE_ARCH)/
 
 endef
 
+$(eval $(call RELEASE_AGENT_TARGET,7.3,20180731))
 $(eval $(call RELEASE_AGENT_TARGET,7.2,20170718))
 $(eval $(call RELEASE_AGENT_TARGET,7.1,20160303))
 $(eval $(call RELEASE_AGENT_TARGET,7.0,20151012))

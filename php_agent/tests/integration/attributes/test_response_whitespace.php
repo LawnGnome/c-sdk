@@ -81,7 +81,8 @@ X-Request-Start=1368811467146000
         "duration": "??",
         "totalTime": "??",
         "nr.apdexPerfZone": "F",
-        "queueDuration": "??"
+        "queueDuration": "??",
+        "error": true
       },
       {
       },

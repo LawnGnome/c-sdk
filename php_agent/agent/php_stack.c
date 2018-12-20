@@ -67,7 +67,7 @@ static int nr_php_stack_iterator(zval* frame,
 
     line_str[0] = '\0';
     line_str_len
-        = snprintf(line_str, sizeof(line_str), " (%ld)", Z_LVAL_P(line));
+        = snprintf(line_str, sizeof(line_str), " (%ld)", (long)Z_LVAL_P(line));
 
     nr_buffer_add(buf, line_str, line_str_len);
   } else {

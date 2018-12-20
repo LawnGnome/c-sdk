@@ -104,6 +104,7 @@ static void nr_guzzle6_requesthandler_handle_response(zval* handler,
                                                           TSRMLS_DC) {
   nr_node_external_params_t external_params = {.library = "Guzzle 6"};
   zval* request;
+  zval* method;
 
   nr_txn_set_time(NRPRG(txn), &external_params.stop);
 
@@ -147,11 +148,19 @@ static void nr_guzzle6_requesthandler_handle_response(zval* handler,
   external_params.async_context
       = nr_guzzle_create_async_context_name("Guzzle 6", response);
 
+  method = nr_php_call(request, "getMethod");
+
+  if(nr_php_is_zval_valid_string(method)) {
+    external_params.procedure = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+  }
+
   nr_txn_end_node_external(NRPRG(txn), &external_params);
 
   nr_free(external_params.async_context);
   nr_free(external_params.encoded_response_header);
   nr_free(external_params.url);
+  nr_free(external_params.procedure);
+  nr_php_zval_free(&method);
 }
 
 /*
@@ -410,7 +419,7 @@ void nr_guzzle6_enable(TSRMLS_D) {
       "($handler) {"
 
       /*
-       * Start by adding the outbound CAT headers to the request.
+       * Start by adding the outbound CAT/DT/Synthetics headers to the request.
        */
       "      foreach (newrelic_get_request_metadata('Guzzle 6') as $k => $v) {"
       "        $request = $request->withHeader($k, $v);"

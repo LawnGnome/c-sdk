@@ -6,6 +6,7 @@
 #include "php_explain.h"
 #include "php_explain_mysqli.h"
 #include "php_file_get_contents.h"
+#include "php_globals.h"
 #include "php_httprequest_send.h"
 #include "php_internal_instrument.h"
 #include "php_mysql.h"
@@ -117,12 +118,22 @@ static void nr_php_instrument_delegate(nrinternalfn_t* wraprec,
 /*
  * Outer wrapper whole function creation:
  */
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
 #define NR_OUTER_WRAPPER(RAW)                                            \
   static nrinternalfn_t* NR_OUTER_GLOBAL_NAME(RAW) = 0;                  \
   static void NR_OUTER_WRAPPER_NAME(RAW)(INTERNAL_FUNCTION_PARAMETERS) { \
     nr_php_instrument_delegate(NR_OUTER_GLOBAL_NAME(RAW),                \
                                INTERNAL_FUNCTION_PARAM_PASSTHRU);        \
   }
+#else
+#define NR_OUTER_WRAPPER(RAW)                                     \
+  static nrinternalfn_t* NR_OUTER_GLOBAL_NAME(RAW) = 0;           \
+  static void ZEND_FASTCALL NR_OUTER_WRAPPER_NAME(RAW)(           \
+      INTERNAL_FUNCTION_PARAMETERS) {                             \
+    nr_php_instrument_delegate(NR_OUTER_GLOBAL_NAME(RAW),         \
+                               INTERNAL_FUNCTION_PARAM_PASSTHRU); \
+  }
+#endif /* PHP < 7.3 */
 
 /*
  * For explanation, see comment above:
@@ -2120,6 +2131,7 @@ NR_INNER_WRAPPER(curl_init) {
 NR_INNER_WRAPPER(curl_exec) {
   nr_node_external_params_t external_params = {.library = "curl"};
   zval* curlres;
+  char* method;
   int should_instrument = 0;
   int zcaught = 0;
 
@@ -2132,6 +2144,8 @@ NR_INNER_WRAPPER(curl_exec) {
     return;
   }
 
+  nr_php_curl_exec_set_httpheaders(curlres TSRMLS_CC);
+
   external_params.url = nr_php_curl_get_url(curlres TSRMLS_CC);
   if (nr_php_curl_should_instrument_proto(external_params.url)
       && (0 == nr_guzzle_in_call_stack(TSRMLS_C))) {
@@ -2141,6 +2155,11 @@ NR_INNER_WRAPPER(curl_exec) {
 
   if (should_instrument) {
     nr_txn_set_time(NRPRG(txn), &external_params.start);
+    method = nr_php_curl_exec_get_method(curlres TSRMLS_CC);
+    if (NULL == method) {
+      method = "GET";
+    }
+    external_params.procedure = nr_strdup(method);
   }
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
@@ -2161,6 +2180,7 @@ NR_INNER_WRAPPER(curl_exec) {
 
   nr_free(NRPRG(curl_exec_x_newrelic_app_data));
   nr_free(external_params.url);
+  nr_free(external_params.procedure);
 
   if (zcaught) {
     zend_bailout();
@@ -2416,6 +2436,7 @@ NR_INNER_WRAPPER(file_get_contents) {
   zval* context = 0;
   zval* offset = 0;
   zval* maxlen = 0;
+  zval* method = 0;
   int zcaught = 0;
 
   zend_rv = zend_parse_parameters_ex(
@@ -2433,7 +2454,9 @@ NR_INNER_WRAPPER(file_get_contents) {
     goto leave;
   }
 
-  if (NRPRG(txn)->options.cross_process_enabled && (0 == context)) {
+  if ((NRPRG(txn)->options.cross_process_enabled
+       || NRPRG(txn)->options.distributed_tracing_enabled)
+      && (0 == context)) {
     /*
      * There is no context parameter.  This is unfortunate because adding
      * cross request headers requires a context parameter.  This context
@@ -2449,6 +2472,15 @@ NR_INNER_WRAPPER(file_get_contents) {
       goto leave;
     }
     return;
+  }
+
+  method = nr_php_file_get_contents_get_method(context TSRMLS_CC);
+  if (nr_php_is_zval_valid_string(method)) {
+    external_params.procedure
+        = nr_strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+  } else {
+    // file_get_contents defaults to GET when a method is not passed in.
+    external_params.procedure = nr_strdup("GET");
   }
 
   nr_php_file_get_contents_add_headers(context TSRMLS_CC);
@@ -2475,6 +2507,7 @@ NR_INNER_WRAPPER(file_get_contents) {
   }
 
   nr_txn_end_node_external(NRPRG(txn), &external_params);
+  nr_free(external_params.procedure);
   nr_free(external_params.encoded_response_header);
   nr_free(external_params.url);
 

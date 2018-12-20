@@ -83,7 +83,8 @@ default_mimetype = application/pdf
         "duration": "??",
         "totalTime": "??",
         "nr.apdexPerfZone": "F",
-        "queueDuration": "??"
+        "queueDuration": "??",
+        "error": true
       },
       {
       },

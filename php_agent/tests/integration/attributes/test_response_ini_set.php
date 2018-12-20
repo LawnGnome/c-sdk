@@ -84,7 +84,8 @@ default_mimetype = html/css
         "duration": "??",
         "totalTime": "??",
         "nr.apdexPerfZone": "F",
-        "queueDuration": "??"
+        "queueDuration": "??",
+        "error": true
       },
       {
       },

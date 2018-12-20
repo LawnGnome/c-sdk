@@ -13,6 +13,7 @@
 
 #include "util_memory.h"
 #include "util_strings.h"
+#include "php_call.h"
 
 /*
  * A potted theory of zval ownership:
@@ -251,6 +252,26 @@ static inline int nr_php_is_zval_valid_scalar(const zval* z) {
     default:
       return 0;
   }
+}
+
+/*
+ * Purpose : Determine if userland PHP would treat a a zval as NULL. This gets
+ *           tricky as there's some ambiguity around the difference between
+ *           undefined and NULL in PHP.  See the test_is_zval_null test for
+ *           more context as well as.
+ *
+ *           http://danielnorton.com/2013site/nerd/code/php/isdef
+ *
+ * Params  : 1. The zval a client programmer wants to check
+ *
+ * Returns : An int, 1 for true, 0 for false.
+ */
+static inline bool nr_php_is_zval_null(const zval* z) {
+  if (NULL == z) {
+    return 0;
+  }
+
+  return IS_NULL == Z_TYPE_P(z);
 }
 
 /* }}} */

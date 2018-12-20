@@ -6,17 +6,23 @@
 #include "util_logging.h"
 #include "util_memory.h"
 
+/*
+ * This pecl_http 1 instrumentation is currently not supported for Distributed
+ * Tracing.
+ */
 void nr_php_httprequest_send_request_headers(zval* this_var TSRMLS_DC) {
   char* x_newrelic_id = 0;
   char* x_newrelic_transaction = 0;
   char* x_newrelic_synthetics = 0;
+  char* newrelic = 0;
 
   if ((0 == this_var) || (0 == NRPRG(txn)->options.cross_process_enabled)) {
     return;
   }
 
   nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
-                             &x_newrelic_transaction, &x_newrelic_synthetics);
+                             &x_newrelic_transaction, &x_newrelic_synthetics,
+                             &newrelic);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
     nrl_verbosedebug(

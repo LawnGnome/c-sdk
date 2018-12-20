@@ -850,3 +850,21 @@
    fun:_ZN4dyld4loadEPKcRKNS_11LoadContextE
    fun:_ZN4dyldL14libraryLocatorEPKcbS1_PKN11ImageLoader10RPathChainE
 }
+
+{
+  <erroneous invalid free() reported on Arch: https://bugs.archlinux.org/task/52578>
+  Memcheck:Addr8
+  ...
+  fun:__libc_freeres
+  ...
+  fun:__run_exit_handlers
+}
+
+{
+  <erroneous invalid free() reported on Arch: https://bugs.archlinux.org/task/52578>
+  Memcheck:Free
+  ...
+  fun:__libc_freeres
+  ...
+  fun:__run_exit_handlers
+}

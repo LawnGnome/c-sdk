@@ -107,16 +107,19 @@ static void nr_zend_name_the_wt(zval* request TSRMLS_DC) {
     buf[0] = '\0';
     snprintf(
         buf, sizeof(buf), "%.*s/%.*s/%.*s",
-        nr_php_is_zval_non_empty_string(module) ? Z_STRLEN_P(module) : 32,
+        nr_php_is_zval_non_empty_string(module) ? NRSAFELEN(Z_STRLEN_P(module))
+                                                : 32,
         nr_php_is_zval_non_empty_string(module) ? Z_STRVAL_P(module)
                                                 : "NoModule",
 
-        nr_php_is_zval_non_empty_string(controller) ? Z_STRLEN_P(controller)
-                                                    : 32,
+        nr_php_is_zval_non_empty_string(controller)
+            ? NRSAFELEN(Z_STRLEN_P(controller))
+            : 32,
         nr_php_is_zval_non_empty_string(controller) ? Z_STRVAL_P(controller)
                                                     : "NoController",
 
-        nr_php_is_zval_non_empty_string(action) ? Z_STRLEN_P(action) : 32,
+        nr_php_is_zval_non_empty_string(action) ? NRSAFELEN(Z_STRLEN_P(action))
+                                                : 32,
         nr_php_is_zval_non_empty_string(action) ? Z_STRVAL_P(action)
                                                 : "NoAction");
 

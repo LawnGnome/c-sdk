@@ -37,7 +37,7 @@ fi
 make -s -r axiom-clean
 scanbuild make -s -r -j "$numcpus" tests
 
-for PHP in ${PHPS:-7.2 7.1 7.0 5.6 5.5 5.4 5.3}; do
+for PHP in ${PHPS:-7.3 7.2 7.1 7.0 5.6 5.5 5.4 5.3}; do
   make -s -r agent-clean PHPIZE="/opt/nr/lamp/bin/phpize-${PHP}-no-zts"
 
   scanbuild \

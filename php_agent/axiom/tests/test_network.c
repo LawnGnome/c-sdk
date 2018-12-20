@@ -394,9 +394,9 @@ static void test_read_times_out(void) {
    * linux
    */
 #if defined(__FreeBSD__) || defined(__linux__)
-                    (duration_msec >= 9) && (duration_msec < 250),
+                    (duration_msec >= 8) && (duration_msec < 250),
 #else
-                    (duration_msec >= 9) && (duration_msec < 40),
+                    (duration_msec >= 8) && (duration_msec < 40),
 #endif
                     "duration_msec=%d", duration_msec);
 

@@ -96,6 +96,7 @@ void nr_txn_end_node_datastore(nrtxn_t* txn,
   char* input_query_query = NULL;
   nr_slowsqls_labelled_query_t input_query_allocated = {NULL, NULL};
   const nr_slowsqls_labelled_query_t* input_query = NULL;
+  nr_txnnode_attributes_t* attributes;
 
   if (return_scoped_metric) {
     *return_scoped_metric = NULL;
@@ -277,8 +278,13 @@ void nr_txn_end_node_datastore(nrtxn_t* txn,
     nro_delete(obj);
   }
 
+  attributes = nr_txnnode_attributes_create();
+  attributes->type = NR_DATASTORE;
+  attributes->datastore.component = nr_strdup(datastore_string);
   nr_txn_save_trace_node(txn, &params->start, &params->stop, scoped_metric,
-                         params->async_context, data_hash);
+                         params->async_context, data_hash,
+                         attributes);
+  nr_txnnode_attributes_destroy(attributes);
 
   // TODO: add a special flag to allow this to fire even if it's not SQL.
   if (is_sql && nr_txn_node_potential_slowsql(txn, duration)) {
