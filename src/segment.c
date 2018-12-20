@@ -94,7 +94,7 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 
   /* Add a trace node. */
   nr_txn_save_trace_node(transaction, &segment->start, &stop, metric_name,
-                         NULL, NULL, NULL);
+                         NULL, NULL);
 
   status = true;
 
