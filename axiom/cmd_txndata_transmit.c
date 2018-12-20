@@ -31,6 +31,10 @@
 #include "util_strings.h"
 #include "util_syscalls.h"
 
+#ifdef NR_CAGENT
+#include "nr_segment_traces.h"
+#endif
+
 char* nr_txndata_error_to_json(const nrtxn_t* txn) {
   nrobj_t* agent_attributes;
   nrobj_t* user_attributes;
@@ -525,9 +529,16 @@ static uint32_t nr_txndata_prepend_slowsqls(nr_flatbuffer_t* fb,
   return slowsqls;
 }
 
+#ifdef NR_CAGENT
+static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
+                                        nr_span_event_t* span_events[] NRUNUSED,
+                                        int span_events_size NRUNUSED) {
+#else
 static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
                                         nr_span_event_t* span_events[],
                                         int span_events_size) {
+#endif
+
   nrobj_t* agent_attributes;
   nrobj_t* user_attributes;
   nrtime_t duration;
@@ -543,9 +554,20 @@ static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
       txn->attributes, NR_ATTRIBUTE_DESTINATION_TXN_TRACE);
   user_attributes = nr_attributes_user_to_obj(
       txn->attributes, NR_ATTRIBUTE_DESTINATION_TXN_TRACE);
+
+  /* The C Agent, leveraging the Axiom library, currently uses a tree of
+   * segments to represent a transaction trace.  Thus, its assembly of a trace
+   * is substantively different than that of the PHP Agent.  Conditionally
+   * compile the appropriate call for trace assembly based on the agent in use.
+   */
+#ifdef NR_CAGENT
+  data_json = nr_segment_traces_create_data(txn, duration, agent_attributes,
+                                            user_attributes, txn->intrinsics);
+#else
   data_json = nr_harvest_trace_create_data(txn, duration, agent_attributes,
                                            user_attributes, txn->intrinsics,
                                            span_events, span_events_size);
+#endif
   nro_delete(agent_attributes);
   nro_delete(user_attributes);
 

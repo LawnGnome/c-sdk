@@ -91,7 +91,7 @@ extern int nr_segment_compare(const nr_segment_t* a, const nr_segment_t* b);
  *           used for iterating over a tree of segments and placing each
  *           segment into the heap.
  */
-extern void nr_segment_traces_stoh_iterator_callback(nr_segment_t* segment,
+extern bool nr_segment_traces_stoh_iterator_callback(nr_segment_t* segment,
                                                      void* userdata);
 /*
  * Purpose : Place an nr_segment_t pointer into a buffer.
@@ -103,7 +103,7 @@ extern void nr_segment_traces_stoh_iterator_callback(nr_segment_t* segment,
  *              required to print one segment's worth of JSON into
  *              the buffer.
  */
-extern void nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
+extern bool nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
                                                      void* userdata);
 /*
  * Purpose : Given a root of a tree of segments, create a heap of
