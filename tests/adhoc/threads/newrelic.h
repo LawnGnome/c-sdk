@@ -1,3 +1,6 @@
+/*
+ * A handful of basic wrappers for C agent functions.
+ */
 #ifndef THREADS_NEWRELIC_HDR
 #define THREADS_NEWRELIC_HDR
 
@@ -89,8 +92,6 @@ class CustomSegment : public Segment {
   newrelic_segment_t* segment;
 };
 
-static Segment randomSegment(Transaction& txn) {
-  return CustomSegment(txn, "Random", "Custom");
-}
+extern Segment randomSegment(Transaction& txn);
 
 #endif /* THREADS_NEWRELIC_HDR */

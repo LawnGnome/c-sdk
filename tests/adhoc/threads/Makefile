@@ -19,5 +19,5 @@ drd: threads drd-suppressions
 helgrind: threads helgrind-suppressions
 	valgrind --tool=helgrind --suppressions=helgrind-suppressions ./threads -l $(NEW_RELIC_LICENSE_KEY) -h $(or $(NEW_RELIC_HOST),collector.newrelic.com)
 
-threads: main.o threads.o
+threads: main.o newrelic.o threads.o
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
