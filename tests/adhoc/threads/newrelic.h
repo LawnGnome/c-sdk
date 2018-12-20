@@ -119,6 +119,29 @@ class DatastoreSegment : public Segment {
   newrelic_datastore_segment_t* segment;
 };
 
+class ExternalSegment : public Segment {
+ public:
+  ExternalSegment(Transaction& txn) : Segment(txn) {
+    const newrelic_external_segment_params_t params = {
+        .uri = (char*)"https://newrelic.com/",
+        .procedure = (char*)"GET",
+        .library = (char*)"cURL",
+    };
+
+    segment = newrelic_start_external_segment(txn.txn, &params);
+    if (nullptr == segment) {
+      throw NewRelicError(boost::str(
+          boost::format("unable to start external segment on transaction %p")
+          % txn.txn));
+    }
+  }
+
+  ~ExternalSegment() { newrelic_end_external_segment(txn, &segment); }
+
+ private:
+  newrelic_external_segment_t* segment;
+};
+
 extern Segment randomSegment(Transaction& txn);
 
 #endif /* THREADS_NEWRELIC_HDR */

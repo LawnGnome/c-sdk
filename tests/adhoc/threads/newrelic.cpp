@@ -7,7 +7,7 @@
 
 Segment randomSegment(Transaction& txn) {
   auto generator(defaultGenerator());
-  std::uniform_int_distribution<int> distribution(0, 1);
+  std::uniform_int_distribution<int> distribution(0, 2);
 
   switch (distribution(generator)) {
     case 0:
@@ -15,6 +15,9 @@ Segment randomSegment(Transaction& txn) {
 
     case 1:
       return DatastoreSegment(txn);
+
+    case 2:
+      return ExternalSegment(txn);
 
     default:
       throw std::logic_error("unexpected segment type");
