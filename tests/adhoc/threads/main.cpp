@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <list>
@@ -12,81 +13,70 @@
 
 namespace po = boost::program_options;
 
-class ValidationError : public std::runtime_error {
- public:
-  ValidationError(const std::string& what) : std::runtime_error(what) {}
-};
-
-static unsigned int validate(const po::variables_map& vm,
-                             const char* key,
-                             unsigned int min) {
-  try {
-    unsigned int value = vm[key].as<unsigned int>();
-
-    if (value < min) {
-      throw ValidationError(boost::str(
-          boost::format("option '%s' must be at least %u") % key % min));
-    }
-
-    return value;
-  } catch (boost::bad_any_cast& e) {
-    std::cerr << key << ": " << e.what() << std::endl;
-    throw;
+static void requireMin(const char* name, unsigned int min, unsigned int value) {
+  if (value < min) {
+    throw po::validation_error(po::validation_error::invalid_option_value,
+                               name);
   }
 }
 
-int main(int argc, char* argv[]) {
+static po::variables_map parseOptions(int argc, char* argv[]) {
   po::options_description desc("Allowed options");
   po::variables_map vm;
-  unsigned int threads, segments, maxTime, transactions;
 
-  // clang-format off
-  desc.add_options()
-    ("help", "show this message")
-    ("licence,l", po::value<std::string>(), "set the New Relic licence key")
-    ("license", po::value<std::string>(), "set the New Relic license key")
-    ("appname,a", po::value<std::string>()->default_value("C Threads"), "set the New Relic application name")
-    ("host,h", po::value<std::string>()->default_value("collector.newrelic.com"), "set the New Relic host")
-    ("transactions,x", po::value<unsigned int>()->default_value(10), "number of transactions to create")
-    ("threads,t", po::value<unsigned int>()->default_value(100), "number of threads each transaction should spawn")
-    ("segments,s", po::value<unsigned int>()->default_value(20), "number of segments each thread should create")
-    ("max-time,m", po::value<unsigned int>()->default_value(100), "maximum time a segment can be, in milliseconds")
-  ;
-  // clang-format on
+  desc.add_options()("help", "show this message")(
+      "licence,l", po::value<std::string>(), "set the New Relic licence key")(
+      "license", po::value<std::string>(), "set the New Relic license key")(
+      "appname,a", po::value<std::string>()->default_value("C Threads"),
+      "set the New Relic application name")(
+      "host,h",
+      po::value<std::string>()->default_value("collector.newrelic.com"),
+      "set the New Relic host")(
+      "transactions,x",
+      po::value<unsigned int>()->default_value(10)->notifier(
+          [](unsigned int value) { requireMin("transaction", 1, value); }),
+      "number of transactions to create")(
+      "threads,t",
+      po::value<unsigned int>()->default_value(100)->notifier(
+          [](unsigned int value) { requireMin("threads", 1, value); }),
+      "number of threads each transaction should spawn")(
+      "segments,s",
+      po::value<unsigned int>()->default_value(20)->notifier(
+          [](unsigned int value) { requireMin("segments", 1, value); }),
+      "number of segments each thread should create")(
+      "max-time,m",
+      po::value<unsigned int>()->default_value(100)->notifier(
+          [](unsigned int value) { requireMin("max-time", 1, value); }),
+      "maximum time a segment can be, in milliseconds");
 
   try {
     po::store(po::parse_command_line(argc, argv, desc), vm);
-  } catch (po::invalid_option_value& e) {
+    po::notify(vm);
+  } catch (po::validation_error& e) {
     std::cerr << "Error parsing command line options: " << e.what()
               << std::endl;
-    return 1;
+    std::exit(1);
   }
 
   if (vm.count("help")) {
     std::cout << desc << std::endl;
-    return 0;
-  }
-
-  // This would probably make more sense as a custom validator type in
-  // program_options, but whatever. This is easy.
-  try {
-    threads = validate(vm, "threads", 1);
-    segments = validate(vm, "segments", 1);
-    maxTime = validate(vm, "max-time", 1);
-    transactions = validate(vm, "transactions", 1);
-  } catch (ValidationError& e) {
-    std::cerr << "Error parsing command line options: " << e.what()
-              << std::endl;
-    return 1;
+    std::exit(0);
   }
 
   if (vm.count("licence") == 0 && vm.count("license") == 0) {
     std::cerr << "Error parsing command line options: a licence key must be "
                  "provided"
               << std::endl;
-    return 1;
+    std::exit(1);
   }
 
+  return vm;
+}
+
+int main(int argc, char* argv[]) {
+  po::variables_map vm(parseOptions(argc, argv));
+
+  // Set up the agent configuration.
   Config config(vm["appname"].as<std::string>(),
                 vm.count("licence") ? vm["licence"].as<std::string>()
                                     : vm["license"].as<std::string>());
@@ -104,11 +94,13 @@ int main(int argc, char* argv[]) {
   // Spawn threads.
   std::list<std::thread> txnThreads;
 
+  auto transactions = vm["transactions"].as<unsigned int>();
   for (unsigned int i = 0; i < transactions; i++) {
     std::string id(boost::str(boost::format("%u") % i));
 
-    txnThreads.push_back(std::thread(transactionThread, std::ref(app), id,
-                                     threads, segments, maxTime));
+    txnThreads.push_back(std::thread(
+        transactionThread, std::ref(app), id, vm["threads"].as<unsigned int>(),
+        vm["segments"].as<unsigned int>(), vm["max-time"].as<unsigned int>()));
   }
 
   // Wait for them to complete.
