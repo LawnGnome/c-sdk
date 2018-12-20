@@ -5,6 +5,7 @@
 #include "php_agent.h"
 #include "php_autorum.h"
 #include "php_error.h"
+#include "php_globals.h"
 #include "php_header.h"
 #include "php_output.h"
 #include "nr_datastore_instance.h"
@@ -18,15 +19,6 @@ static void nr_php_datastore_instance_destroy(
     nr_datastore_instance_t* instance) {
   nr_datastore_instance_destroy(&instance);
 }
-
-/*
- * There are some agent initialization tasks that need to be performed after
- * all modules' MINIT functions have been called and the PHP VM is fully up
- * and running. This variable (protected by a mutex) detects that and calls
- * the late initialization function once per process.
- */
-static int done_first_rinit_work = 0;
-nrthread_mutex_t first_rinit_mutex = NRTHREAD_MUTEX_INITIALIZER;
 
 #ifdef TAGS
 void zm_activate_newrelic(void); /* ctags landing pad only */
@@ -48,20 +40,11 @@ PHP_RINIT_FUNCTION(newrelic) {
     return SUCCESS;
   }
 
-  if (0 == done_first_rinit_work) {
-    nrt_mutex_lock(&first_rinit_mutex);
-    {
-      /*
-       * Yes we check this again in case another thread snuck in and started
-       * doing late initialization already.
-       */
-      if (0 == done_first_rinit_work) {
-        nr_php_late_initialization(TSRMLS_C);
-        done_first_rinit_work = 1;
-      }
-    }
-    nrt_mutex_unlock(&first_rinit_mutex);
-  }
+  /*
+   * Ensure that all late initialisation tasks are complete before starting any
+   * transactions.
+   */
+  nr_php_global_once(nr_php_late_initialization);
 
   nrl_verbosedebug(NRL_INIT, "RINIT processing started");
 

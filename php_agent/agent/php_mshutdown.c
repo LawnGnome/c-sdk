@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 
+#include "php_globals.h"
 #include "php_internal_instrument.h"
 #include "php_user_instrument.h"
 #include "php_vm.h"
@@ -48,7 +49,7 @@ PHP_MSHUTDOWN_FUNCTION(newrelic) {
   nr_php_remove_opcode_handlers();
   nr_php_destroy_internal_wrap_records();
   nr_php_destroy_user_wrap_records();
-  nr_php_per_process_globals_dispose();
+  nr_php_global_destroy();
   nr_applist_destroy(&nr_agent_applist);
 
   return SUCCESS;

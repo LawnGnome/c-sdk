@@ -16,12 +16,13 @@ ok - newrelic_set_appname transmit=1
   "?? timeframe start",
   "?? timeframe stop",
   [
-    [{"name":"OtherTransaction/all"},                   [3, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransaction/php__FILE__"},           [3, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime"},              [3, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime/php__FILE__"},  [3, "??", "??", "??", "??", "??"]],
-    [{"name":"Supportability/api/set_appname/after"},   [2, 0, 0, 0, 0, 0]],
-    [{"name":"Supportability/api/set_appname/before"},  [2, 0, 0, 0, 0, 0]]
+    [{"name":"OtherTransaction/all"},                       [3, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransaction/php__FILE__"},               [3, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime"},                  [3, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime/php__FILE__"},      [3, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/api/set_appname/after"},       [2, 0, 0, 0, 0, 0]],
+    [{"name":"Supportability/api/set_appname/before"},      [2, 0, 0, 0, 0, 0]],
+    [{"name":"Supportability/api/set_appname/with_license"},[2, 0, 0, 0, 0, 0]]
   ]
 ]
 */

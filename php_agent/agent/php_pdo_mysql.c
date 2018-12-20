@@ -62,7 +62,7 @@ nr_datastore_instance_t* nr_php_pdo_mysql_create_datastore_instance(
      * looking solely at the UNIX socket path rather than the port number when
      * trying to connect.
      */
-    if (vars[3].optval && nr_strlen(vars[3].optval) > 0) {
+    if (!nr_strempty(vars[3].optval)) {
       port_path_or_id = nr_strdup(vars[3].optval);
     } else {
       port_path_or_id = nr_strdup("default");

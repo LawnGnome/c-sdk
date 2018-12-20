@@ -1,5 +1,6 @@
 #include "php_agent.h"
 #include "php_environment.h"
+#include "php_globals.h"
 #include "php_hash.h"
 #include "util_logging.h"
 #include "util_object.h"
@@ -238,8 +239,7 @@ static void nr_php_gather_machine_information(nrobj_t* env) {
    * that the agent is on Heroku.
    */
   dyno_value = getenv("DYNO");
-  if ((0 < nr_strlen(dyno_value))
-      && (0 == nr_access("/app/.heroku/php", F_OK))) {
+  if (!nr_strempty(dyno_value) && (0 == nr_access("/app/.heroku/php", F_OK))) {
     nro_set_hash_string(env, "Heroku", "yes");
   }
 

@@ -1,5 +1,6 @@
 #include "php_agent.h"
 #include "php_execute.h"
+#include "php_globals.h"
 #include "php_hash.h"
 #include "php_internal_instrument.h"
 #include "php_user_instrument.h"
@@ -925,6 +926,10 @@ static void foreach_special_control_flag(const char* str,
     NR_PHP_PROCESS_GLOBALS(special_flags).debug_cat = 1;
     return;
   }
+  if (0 == nr_strcmp(str, "disable_laravel_queue")) {
+    NR_PHP_PROCESS_GLOBALS(special_flags).disable_laravel_queue = 1;
+    return;
+  }
 }
 
 static PHP_INI_MH(nr_special_mh) {
@@ -948,6 +953,7 @@ static PHP_INI_MH(nr_special_mh) {
   NR_PHP_PROCESS_GLOBALS(special_flags).debug_autorum = 0;
   NR_PHP_PROCESS_GLOBALS(special_flags).show_loaded_files = 0;
   NR_PHP_PROCESS_GLOBALS(special_flags).debug_cat = 0;
+  NR_PHP_PROCESS_GLOBALS(special_flags).disable_laravel_queue = 0;
 
   if (0 != NEW_VALUE_LEN) {
     foreach_list(NEW_VALUE, foreach_special_control_flag TSRMLS_CC);
@@ -976,7 +982,6 @@ static void foreach_feature_flag(const char* str NRUNUSED,
    *
    * CHECK_FEATURE_FLAG (foo);
    */
-  CHECK_FEATURE_FLAG(laravel_queue);
 }
 
 static PHP_INI_MH(nr_feature_flag_mh) {
@@ -992,7 +997,6 @@ static PHP_INI_MH(nr_feature_flag_mh) {
    *
    * NR_PHP_PROCESS_GLOBALS (feature_flags).foo = 0;
    */
-  NR_PHP_PROCESS_GLOBALS(feature_flags).laravel_queue = 0;
 
   if (0 != NEW_VALUE_LEN) {
     foreach_list(NEW_VALUE, foreach_feature_flag TSRMLS_CC);
@@ -1895,451 +1899,505 @@ STD_PHP_INI_ENTRY_EX("newrelic.attributes.exclude",
                      zend_newrelic_globals,
                      newrelic_globals,
                      0)
-/* DEPRECATED */ STD_PHP_INI_ENTRY_EX("newrelic.capture_params",
-                                      "0",
-                                      NR_PHP_REQUEST,
-                                      nr_boolean_mh,
-                                      capture_params,
-                                      zend_newrelic_globals,
-                                      newrelic_globals,
-                                      nr_on_off_dh)
-    /* DEPRECATED */ STD_PHP_INI_ENTRY_EX("newrelic.ignored_params",
-                                          "",
-                                          NR_PHP_REQUEST,
-                                          nr_string_mh,
-                                          ignored_params,
-                                          zend_newrelic_globals,
-                                          newrelic_globals,
-                                          0)
-
-    /*
-     * Transaction Tracer
-     */
-    /* DEPRECATED */ STD_PHP_INI_ENTRY_EX(
-        "newrelic.transaction_tracer.capture_attributes",
-        "1",
-        NR_PHP_REQUEST,
-        nr_boolean_mh,
-        transaction_tracer_capture_attributes,
-        zend_newrelic_globals,
-        newrelic_globals,
-        nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.attributes.enabled",
-                             "1",
-                             NR_PHP_REQUEST,
-                             nr_boolean_mh,
-                             transaction_tracer_attributes.enabled,
-                             zend_newrelic_globals,
-                             newrelic_globals,
-                             nr_enabled_disabled_dh)
-            STD_PHP_INI_ENTRY_EX(
-                "newrelic.transaction_tracer.attributes.include",
-                "",
-                NR_PHP_REQUEST,
-                nr_string_mh,
-                transaction_tracer_attributes.include,
-                zend_newrelic_globals,
-                newrelic_globals,
-                0)
-                STD_PHP_INI_ENTRY_EX(
-                    "newrelic.transaction_tracer.attributes.exclude",
-                    "",
-                    NR_PHP_REQUEST,
-                    nr_string_mh,
-                    transaction_tracer_attributes.exclude,
-                    zend_newrelic_globals,
-                    newrelic_globals,
-                    0)
-                    STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.enabled",
-                                         "1",
-                                         NR_PHP_REQUEST,
-                                         nr_boolean_mh,
-                                         tt_enabled,
-                                         zend_newrelic_globals,
-                                         newrelic_globals,
-                                         nr_enabled_disabled_dh)
-                        STD_PHP_INI_ENTRY_EX(
-                            "newrelic.transaction_tracer.explain_enabled",
-                            "1",
-                            NR_PHP_REQUEST,
-                            nr_boolean_mh,
-                            ep_enabled,
-                            zend_newrelic_globals,
-                            newrelic_globals,
-                            nr_enabled_disabled_dh)
-                            STD_PHP_INI_ENTRY_EX(
-                                "newrelic.transaction_tracer.detail",
-                                "1",
-                                NR_PHP_REQUEST,
-                                nr_tt_detail_mh,
-                                tt_detail,
-                                zend_newrelic_globals,
-                                newrelic_globals,
-                                0)
-                                STD_PHP_INI_ENTRY_EX(
-                                    "newrelic.transaction_tracer.slow_sql",
-                                    "1",
-                                    NR_PHP_REQUEST,
-                                    nr_boolean_mh,
-                                    tt_slowsql,
-                                    zend_newrelic_globals,
-                                    newrelic_globals,
-                                    nr_enabled_disabled_dh)
-                                    STD_PHP_INI_ENTRY_EX(
-                                        "newrelic.transaction_tracer.threshold",
-                                        "apdex_f",
-                                        NR_PHP_REQUEST,
-                                        nr_tt_threshold_mh,
-                                        tt_threshold,
-                                        zend_newrelic_globals,
-                                        newrelic_globals,
-                                        0)
-                                        STD_PHP_INI_ENTRY_EX(
-                                            "newrelic.transaction_tracer."
-                                            "explain_threshold",
-                                            "500",
-                                            NR_PHP_REQUEST,
-                                            nr_time_mh,
-                                            ep_threshold,
-                                            zend_newrelic_globals,
-                                            newrelic_globals,
-                                            0)
-                                            STD_PHP_INI_ENTRY_EX(
-                                                "newrelic.transaction_tracer."
-                                                "stack_trace_threshold",
-                                                "500",
-                                                NR_PHP_REQUEST,
-                                                nr_time_mh,
-                                                ss_threshold,
-                                                zend_newrelic_globals,
-                                                newrelic_globals,
-                                                0)
-                                                STD_PHP_INI_ENTRY_EX(
-                                                    "newrelic.transaction_"
-                                                    "tracer.record_sql",
-                                                    "obfuscated",
-                                                    NR_PHP_REQUEST,
-                                                    nr_recordsql_mh,
-                                                    tt_recordsql,
-                                                    zend_newrelic_globals,
-                                                    newrelic_globals,
-                                                    0)
-                                                    STD_PHP_INI_ENTRY_EX(
-                                                        "newrelic.transaction_"
-                                                        "tracer.gather_input_"
-                                                        "queries",
-                                                        "1",
-                                                        NR_PHP_REQUEST,
-                                                        nr_boolean_mh,
-                                                        tt_inputquery,
-                                                        zend_newrelic_globals,
-                                                        newrelic_globals,
-                                                        0)
-                                                        PHP_INI_ENTRY_EX(
-                                                            "newrelic."
-                                                            "transaction_"
-                                                            "tracer.internal_"
-                                                            "functions_enabled",
-                                                            "0",
-                                                            NR_PHP_SYSTEM,
-                                                            nr_tt_internal_mh,
-                                                            nr_enabled_disabled_dh)
-
-    /*
-     * Error Collector
-     */
-    STD_PHP_INI_ENTRY_EX("newrelic.error_collector.enabled",
-                         "1",
-                         NR_PHP_REQUEST,
-                         nr_boolean_mh,
-                         errors_enabled,
-                         zend_newrelic_globals,
-                         newrelic_globals,
-                         nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX(
-            "newrelic.error_collector.ignore_user_exception_handler",
-            "0",
-            NR_PHP_REQUEST,
-            nr_boolean_mh,
-            ignore_user_exception_handler,
-            zend_newrelic_globals,
-            newrelic_globals,
-            nr_yes_no_dh)
-            STD_PHP_INI_ENTRY_EX("newrelic.error_collector.ignore_errors",
-                                 "",
-                                 NR_PHP_REQUEST,
-                                 nr_int_mh,
-                                 ignore_errors,
-                                 zend_newrelic_globals,
-                                 newrelic_globals,
-                                 0)
-                STD_PHP_INI_ENTRY_EX(
-                    "newrelic.error_collector.ignore_exceptions",
-                    "",
-                    NR_PHP_REQUEST,
-                    nr_string_mh,
-                    ignore_exceptions,
-                    zend_newrelic_globals,
-                    newrelic_globals,
-                    0)
-                    STD_PHP_INI_ENTRY_EX(
-                        "newrelic.error_collector.record_database_errors",
-                        "1",
-                        NR_PHP_REQUEST,
-                        nr_boolean_mh,
-                        record_database_errors,
-                        zend_newrelic_globals,
-                        newrelic_globals,
-                        nr_yes_no_dh)
-                        STD_PHP_INI_ENTRY_EX(
-                            "newrelic.error_collector.prioritize_api_errors",
-                            "0",
-                            NR_PHP_REQUEST,
-                            nr_boolean_mh,
-                            prioritize_api_errors,
-                            zend_newrelic_globals,
-                            newrelic_globals,
-                            nr_yes_no_dh)
-    /* DEPRECATED */ STD_PHP_INI_ENTRY_EX(
-        "newrelic.error_collector.capture_attributes",
-        "1",
-        NR_PHP_REQUEST,
-        nr_boolean_mh,
-        error_collector_capture_attributes,
-        zend_newrelic_globals,
-        newrelic_globals,
-        nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX("newrelic.error_collector.attributes.enabled",
-                             "1",
-                             NR_PHP_REQUEST,
-                             nr_boolean_mh,
-                             error_collector_attributes.enabled,
-                             zend_newrelic_globals,
-                             newrelic_globals,
-                             nr_enabled_disabled_dh)
-            STD_PHP_INI_ENTRY_EX("newrelic.error_collector.attributes.include",
-                                 "",
-                                 NR_PHP_REQUEST,
-                                 nr_string_mh,
-                                 error_collector_attributes.include,
-                                 zend_newrelic_globals,
-                                 newrelic_globals,
-                                 0)
-                STD_PHP_INI_ENTRY_EX(
-                    "newrelic.error_collector.attributes.exclude",
-                    "",
-                    NR_PHP_REQUEST,
-                    nr_string_mh,
-                    error_collector_attributes.exclude,
-                    zend_newrelic_globals,
-                    newrelic_globals,
-                    0)
-
-    /*
-     * Transaction Events
-     */
-    /* DEPRECATED */ STD_PHP_INI_ENTRY_EX("newrelic.analytics_events.enabled",
-                                          "1",
-                                          NR_PHP_REQUEST,
-                                          nr_boolean_mh,
-                                          analytics_events_enabled,
-                                          zend_newrelic_globals,
-                                          newrelic_globals,
-                                          nr_enabled_disabled_dh)
-    /* DEPRECATED */ STD_PHP_INI_ENTRY_EX(
-        "newrelic.analytics_events.capture_attributes",
-        "1",
-        NR_PHP_REQUEST,
-        nr_boolean_mh,
-        analytics_events_capture_attributes,
-        zend_newrelic_globals,
-        newrelic_globals,
-        nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX("newrelic.transaction_events.enabled",
-                             "1",
-                             NR_PHP_REQUEST,
-                             nr_boolean_mh,
-                             transaction_events_enabled,
-                             zend_newrelic_globals,
-                             newrelic_globals,
-                             nr_enabled_disabled_dh)
-            STD_PHP_INI_ENTRY_EX("newrelic.error_collector.capture_events",
-                                 "1",
-                                 NR_PHP_REQUEST,
-                                 nr_boolean_mh,
-                                 error_events_enabled,
-                                 zend_newrelic_globals,
-                                 newrelic_globals,
-                                 nr_enabled_disabled_dh)
-                STD_PHP_INI_ENTRY_EX(
-                    "newrelic.transaction_events.attributes.enabled",
-                    "1",
-                    NR_PHP_REQUEST,
-                    nr_boolean_mh,
-                    transaction_events_attributes.enabled,
-                    zend_newrelic_globals,
-                    newrelic_globals,
-                    nr_enabled_disabled_dh)
-                    STD_PHP_INI_ENTRY_EX(
-                        "newrelic.transaction_events.attributes.include",
-                        "",
-                        NR_PHP_REQUEST,
-                        nr_string_mh,
-                        transaction_events_attributes.include,
-                        zend_newrelic_globals,
-                        newrelic_globals,
-                        0)
-                        STD_PHP_INI_ENTRY_EX(
-                            "newrelic.transaction_events.attributes.exclude",
-                            "",
-                            NR_PHP_REQUEST,
-                            nr_string_mh,
-                            transaction_events_attributes.exclude,
-                            zend_newrelic_globals,
-                            newrelic_globals,
-                            0)
-
-    /*
-     * Custom Events
-     */
-    STD_PHP_INI_ENTRY_EX("newrelic.custom_insights_events.enabled",
-                         "1",
-                         NR_PHP_REQUEST,
-                         nr_boolean_mh,
-                         custom_events_enabled,
-                         zend_newrelic_globals,
-                         newrelic_globals,
-                         nr_enabled_disabled_dh)
-
-    /*
-     * Synthetics
-     */
-    STD_PHP_INI_ENTRY_EX("newrelic.synthetics.enabled",
-                         "1",
-                         NR_PHP_REQUEST,
-                         nr_boolean_mh,
-                         synthetics_enabled,
-                         zend_newrelic_globals,
-                         newrelic_globals,
-                         nr_enabled_disabled_dh)
-
-    /*
-     * Datastore Tracer
-     */
-    STD_PHP_INI_ENTRY_EX("newrelic.datastore_tracer.instance_reporting.enabled",
-                         "1",
-                         NR_PHP_REQUEST,
-                         nr_boolean_mh,
-                         instance_reporting_enabled,
-                         zend_newrelic_globals,
-                         newrelic_globals,
-                         nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX(
-            "newrelic.datastore_tracer.database_name_reporting.enabled",
-            "1",
-            NR_PHP_REQUEST,
-            nr_boolean_mh,
-            database_name_reporting_enabled,
-            zend_newrelic_globals,
-            newrelic_globals,
-            nr_enabled_disabled_dh)
-
-    /*
-     * Library Support
-     */
-    STD_PHP_INI_ENTRY_EX("newrelic.phpunit_events.enabled",
-                         "0",
-                         NR_PHP_REQUEST,
-                         nr_boolean_mh,
-                         phpunit_events_enabled,
-                         zend_newrelic_globals,
-                         newrelic_globals,
-                         nr_enabled_disabled_dh)
-
-    /*
-     * Browser Monitoring
-     */
-    STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.auto_instrument",
-                         "1",
-                         NR_PHP_REQUEST,
-                         nr_boolean_mh,
-                         browser_monitoring_auto_instrument,
-                         zend_newrelic_globals,
-                         newrelic_globals,
-                         nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.debug",
-                             "0",
-                             NR_PHP_REQUEST,
-                             nr_boolean_mh,
-                             browser_monitoring_debug,
-                             zend_newrelic_globals,
-                             newrelic_globals,
-                             nr_enabled_disabled_dh)
-            STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.loader",
-                                 "rum",
-                                 NR_PHP_REQUEST,
-                                 nr_rum_loader_mh,
-                                 browser_monitoring_loader,
-                                 zend_newrelic_globals,
-                                 newrelic_globals,
-                                 0)
-    /* DEPRECATED */ STD_PHP_INI_ENTRY_EX(
-        "newrelic.browser_monitoring.capture_attributes",
-        "0",
-        NR_PHP_REQUEST,
-        nr_boolean_mh,
-        browser_monitoring_capture_attributes,
-        zend_newrelic_globals,
-        newrelic_globals,
-        nr_enabled_disabled_dh)
-        STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.attributes.enabled",
-                             "0",
-                             NR_PHP_REQUEST,
-                             nr_boolean_mh,
-                             browser_monitoring_attributes.enabled,
-                             zend_newrelic_globals,
-                             newrelic_globals,
-                             nr_enabled_disabled_dh)
-            STD_PHP_INI_ENTRY_EX(
-                "newrelic.browser_monitoring.attributes.include",
-                "",
-                NR_PHP_REQUEST,
-                nr_string_mh,
-                browser_monitoring_attributes.include,
-                zend_newrelic_globals,
-                newrelic_globals,
-                0)
-                STD_PHP_INI_ENTRY_EX(
-                    "newrelic.browser_monitoring.attributes.exclude",
-                    "",
-                    NR_PHP_REQUEST,
-                    nr_string_mh,
-                    browser_monitoring_attributes.exclude,
-                    zend_newrelic_globals,
-                    newrelic_globals,
-                    0)
-    /*
-     * newrelic.browser_monitoring.ssl_for_http is omitted. See: PHP-460
-     */
-
-    /*
-     * These use PHP_INI_ENTRY_EX because they do not directly set any request
-     * variables, but instead are processed purely for side-effects.
-     * Each has its own modify handler.
-     */
-    PHP_INI_ENTRY_EX("newrelic.webtransaction.name.functions",
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.capture_params",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     capture_params,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_on_off_dh)
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.ignored_params",
                      "",
                      NR_PHP_REQUEST,
-                     nr_wtfuncs_mh,
-                     0) PHP_INI_ENTRY_EX("newrelic.transaction_tracer.custom",
-                                         "",
-                                         NR_PHP_REQUEST,
-                                         nr_ttcustom_mh,
-                                         0)
+                     nr_string_mh,
+                     ignored_params,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
 
-        PHP_INI_END() /* } */
+/*
+ * Transaction Tracer
+ */
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.capture_attributes",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     transaction_tracer_capture_attributes,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.attributes.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     transaction_tracer_attributes.enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.attributes.include",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     transaction_tracer_attributes.include,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.attributes.exclude",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     transaction_tracer_attributes.exclude,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     tt_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.explain_enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     ep_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.detail",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_tt_detail_mh,
+                     tt_detail,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.slow_sql",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     tt_slowsql,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.threshold",
+                     "apdex_f",
+                     NR_PHP_REQUEST,
+                     nr_tt_threshold_mh,
+                     tt_threshold,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX(
+    "newrelic.transaction_tracer."
+    "explain_threshold",
+    "500",
+    NR_PHP_REQUEST,
+    nr_time_mh,
+    ep_threshold,
+    zend_newrelic_globals,
+    newrelic_globals,
+    0)
+STD_PHP_INI_ENTRY_EX(
+    "newrelic.transaction_tracer."
+    "stack_trace_threshold",
+    "500",
+    NR_PHP_REQUEST,
+    nr_time_mh,
+    ss_threshold,
+    zend_newrelic_globals,
+    newrelic_globals,
+    0)
+STD_PHP_INI_ENTRY_EX(
+    "newrelic.transaction_"
+    "tracer.record_sql",
+    "obfuscated",
+    NR_PHP_REQUEST,
+    nr_recordsql_mh,
+    tt_recordsql,
+    zend_newrelic_globals,
+    newrelic_globals,
+    0)
+STD_PHP_INI_ENTRY_EX(
+    "newrelic.transaction_"
+    "tracer.gather_input_"
+    "queries",
+    "1",
+    NR_PHP_REQUEST,
+    nr_boolean_mh,
+    tt_inputquery,
+    zend_newrelic_globals,
+    newrelic_globals,
+    0)
+PHP_INI_ENTRY_EX(
+    "newrelic."
+    "transaction_"
+    "tracer.internal_"
+    "functions_enabled",
+    "0",
+    NR_PHP_SYSTEM,
+    nr_tt_internal_mh,
+    nr_enabled_disabled_dh)
 
-    void nr_php_register_ini_entries(int module_number TSRMLS_DC) {
+/*
+ * Error Collector
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     errors_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.ignore_user_exception_handler",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     ignore_user_exception_handler,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_yes_no_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.ignore_errors",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_int_mh,
+                     ignore_errors,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.ignore_exceptions",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     ignore_exceptions,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.record_database_errors",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     record_database_errors,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_yes_no_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.prioritize_api_errors",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     prioritize_api_errors,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_yes_no_dh)
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.capture_attributes",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     error_collector_capture_attributes,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.attributes.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     error_collector_attributes.enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.attributes.include",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     error_collector_attributes.include,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.attributes.exclude",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     error_collector_attributes.exclude,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+/*
+ * Transaction Events
+ */
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.analytics_events.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     analytics_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.analytics_events.capture_attributes",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     analytics_events_capture_attributes,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_events.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     transaction_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.error_collector.capture_events",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     error_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_events.attributes.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     transaction_events_attributes.enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_events.attributes.include",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     transaction_events_attributes.include,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_events.attributes.exclude",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     transaction_events_attributes.exclude,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+/*
+ * Custom Events
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.custom_insights_events.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     custom_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+
+/*
+ * Synthetics
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.synthetics.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     synthetics_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+
+/*
+ * Datastore Tracer
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.datastore_tracer.instance_reporting.enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     instance_reporting_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX(
+    "newrelic.datastore_tracer.database_name_reporting.enabled",
+    "1",
+    NR_PHP_REQUEST,
+    nr_boolean_mh,
+    database_name_reporting_enabled,
+    zend_newrelic_globals,
+    newrelic_globals,
+    nr_enabled_disabled_dh)
+
+/*
+ * Library Support
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.phpunit_events.enabled",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     phpunit_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+
+/*
+ * Browser Monitoring
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.auto_instrument",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     browser_monitoring_auto_instrument,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.debug",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     browser_monitoring_debug,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.loader",
+                     "rum",
+                     NR_PHP_REQUEST,
+                     nr_rum_loader_mh,
+                     browser_monitoring_loader,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+/* DEPRECATED */
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.capture_attributes",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     browser_monitoring_capture_attributes,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.attributes.enabled",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     browser_monitoring_attributes.enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     nr_enabled_disabled_dh)
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.attributes.include",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     browser_monitoring_attributes.include,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.browser_monitoring.attributes.exclude",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     browser_monitoring_attributes.exclude,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+/*
+ * newrelic.browser_monitoring.ssl_for_http is omitted. See: PHP-460
+ */
+
+/*
+ * These use PHP_INI_ENTRY_EX because they do not directly set any request
+ * variables, but instead are processed purely for side-effects.
+ * Each has its own modify handler.
+ */
+PHP_INI_ENTRY_EX("newrelic.webtransaction.name.functions",
+                 "",
+                 NR_PHP_REQUEST,
+                 nr_wtfuncs_mh,
+                 0)
+PHP_INI_ENTRY_EX("newrelic.transaction_tracer.custom",
+                 "",
+                 NR_PHP_REQUEST,
+                 nr_ttcustom_mh,
+                 0)
+
+STD_PHP_INI_ENTRY_EX("newrelic.security_policies_token",
+                     "",
+                     NR_PHP_REQUEST,
+                     nr_string_mh,
+                     security_policies_token,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+/*
+ * Private ini value to control whether we replace error
+ * message with high security message
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.allow_raw_exception_messages",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     allow_raw_exception_messages,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+/*
+ * Private ini value to control whether we allow users to send
+ * custom parameters. We are introducing this ini value to give
+ * new LASP security policies the ability to change this behavior.
+ * Regular end users are still expected to use the attributes.include
+ * configuration values.
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.custom_parameters_enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     custom_parameters_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+/**
+ * Flag to turn the distributed tracing functionality on/off
+ * When on, the agent will add the new distributed tracing intrinsics
+ * to outgoing data and allow users to call the new distributed tracing API
+ * functions
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.distributed_tracing_enabled",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     distributed_tracing_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+/**
+ * Flag to turn the span events on/off
+ * When on, the agent will create span events. Span events require that
+ * distributed tracing is enabled.
+ */
+STD_PHP_INI_ENTRY_EX("newrelic.span_events_enabled",
+                     "1",
+                     NR_PHP_REQUEST,
+                     nr_boolean_mh,
+                     span_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+PHP_INI_END() /* } */
+
+void nr_php_register_ini_entries(int module_number TSRMLS_DC) {
   REGISTER_INI_ENTRIES();
 }
 
@@ -2581,14 +2639,20 @@ static int nr_ini_settings(zend_ini_entry* ini_entry,
     }
   }
 
-  if (0
-      == nr_strncmp(PHP_INI_ENTRY_NAME(ini_entry),
-                    NR_PSTR("newrelic.browser_monitoring.debug"))) {
+  if ((0
+       == nr_strncmp(PHP_INI_ENTRY_NAME(ini_entry),
+                     NR_PSTR("newrelic.browser_monitoring.debug")))
+      || (0
+          == nr_strncmp(PHP_INI_ENTRY_NAME(ini_entry),
+                        NR_PSTR("newrelic.distributed_tracing_enabled")))) {
     /*
      * TODO:  This is a ugly hack.  The collector requires that the value of
      * newrelic.browser_monitoring.debug is a bool, so we must convert it here.
      * Eventually, all bool ini settings should be sent up as true or false
      * instead of "0" or "1".
+     *
+     * NOTE: The daemon expects newrelic.distributed_tracing_enabled to be sent
+     * up as a bool, so it must be converted here.
      */
     nro_set_hash_boolean(setarg->obj, PHP_INI_ENTRY_NAME(ini_entry),
                          nr_bool_from_str(PHP_INI_ENTRY_VALUE(ini_entry)));

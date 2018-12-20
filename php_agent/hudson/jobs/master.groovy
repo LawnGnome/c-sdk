@@ -30,7 +30,6 @@ use(extensions) {
             'centos5-32-nrcamp',
             'centos5-64-nrcamp',
             'macos106-64-nrcamp',
-            'solaris11-64-nrcamp',
             'freebsd100-64-nrcamp')
     }
 
@@ -147,7 +146,6 @@ use(extensions) {
         'centos5-32-nrcamp',
         'centos5-64-nrcamp',
         'macos106-64-nrcamp',
-        'solaris11-64-nrcamp',
         'freebsd100-64-nrcamp'
       ]
 

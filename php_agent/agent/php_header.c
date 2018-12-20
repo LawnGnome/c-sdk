@@ -1,4 +1,5 @@
 #include "php_agent.h"
+#include "php_globals.h"
 #include "php_header.h"
 #include "php_output.h"
 #include "nr_header.h"

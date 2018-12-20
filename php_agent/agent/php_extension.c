@@ -120,7 +120,7 @@ static void nr_php_save_extension_trace_node(nrtxn_t* txn,
 
   nr_php_extension_trace_name(ext_name, suffix, name, sizeof(name));
 
-  nr_txn_save_trace_node(txn, start, end, name, NULL, 0);
+  nr_txn_save_trace_node(txn, start, end, name, NULL, 0, NULL);
 }
 
 /*

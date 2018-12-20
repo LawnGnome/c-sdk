@@ -89,4 +89,45 @@ extern void nr_drupal_hook_instrument(const char* module,
                                       const char* hook,
                                       size_t hook_len TSRMLS_DC);
 
+/*
+ * Purpose : Given a function that is a hook function in a module, determine
+ *           which component is the module and which is the hook, given that we
+ *           know the hook from the module_invoke_all() call.
+ *
+ *           This function's job is to accept all the information we know,
+ *           and extract the function name/length from the zend_function
+ *
+ * Params  : 1. A "pointer as return value" for the module name
+ *           2. A "pointer as return value" for the module name lenggth
+ *           3. The hook name, which we know from the call to module_invoke_all
+ *           4. The length of the hook name
+ *           5. The zend_function object representing the PHP hook function
+ */
+nr_status_t module_invoke_all_parse_module_and_hook(char** module_ptr,
+                                                    size_t* module_len_ptr,
+                                                    const char* hook,
+                                                    size_t hook_len,
+                                                    const zend_function* func);
+/*
+ * Purpose : Given a function that is a hook function in a module, determine
+ *           which component is the module and which is the hook, given that we
+ *           know the hook from the module_invoke_all() call.
+ *
+ *           This function is called by module_invoke_all_parse_module_and_hook
+ *           and implements the algorithm for extracting the module name
+ *
+ * Params  : 1. A "pointer as return value" for the module name
+ *           2. A "pointer as return value" for the module name lenggth
+ *           3. The hook name, which we know from the call to module_invoke_all
+ *           4. The name of the PHP hook function
+ *           5. The length of the name of the PHP hook function
+ */
+nr_status_t module_invoke_all_parse_module_and_hook_from_strings(
+    char** module_ptr,
+    size_t* module_len_ptr,
+    const char* hook,
+    size_t hook_len,
+    const char* module_hook,
+    size_t module_hook_len);
+
 #endif /* FW_DRUPAL_COMMON_HDR */

@@ -620,10 +620,24 @@ static nrobj_t* nr_php_api_zval_to_attribute_obj(const zval* z TSRMLS_DC) {
                        get_active_function_name(TSRMLS_C), "resource");
       return NULL;
 
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
     case IS_CONSTANT:
       nr_php_api_error(NR_PHP_API_INVALID_ATTRIBUTE_FMT,
                        get_active_function_name(TSRMLS_C), "constant");
       return NULL;
+#endif /* PHP < 7.3 */
+
+#if ZEND_MODULE_API_NO >= ZEND_5_6_X_API_NO
+    case IS_CONSTANT_AST:
+      nr_php_api_error(NR_PHP_API_INVALID_ATTRIBUTE_FMT,
+                       get_active_function_name(TSRMLS_C), "constant AST");
+      return NULL;
+#else
+    case IS_CONSTANT_ARRAY:
+      nr_php_api_error(NR_PHP_API_INVALID_ATTRIBUTE_FMT,
+                       get_active_function_name(TSRMLS_C), "constant array");
+      return NULL;
+#endif /* PHP >= 5.6 */
 
     default:
       nr_php_api_error(NR_PHP_API_INVALID_ATTRIBUTE_FMT,
@@ -676,7 +690,7 @@ PHP_FUNCTION(newrelic_add_custom_parameter) {
       break;
 
     case IS_LONG:
-      snprintf(tmp, sizeof(tmp), "%ld", Z_LVAL_P(zzkey));
+      snprintf(tmp, sizeof(tmp), "%ld", (long)Z_LVAL_P(zzkey));
       key = nr_strdup(tmp);
       break;
 
@@ -721,9 +735,21 @@ PHP_FUNCTION(newrelic_add_custom_parameter) {
       key = nr_strdup("(Resource)");
       break;
 
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
     case IS_CONSTANT:
       key = nr_strdup("(Constant)"); /* NOTTESTED */
       break;
+#endif /* PHP < 7.3 */
+
+#if ZEND_MODULE_API_NO >= ZEND_5_6_X_API_NO
+    case IS_CONSTANT_AST:
+      key = nr_strdup("(Constant AST)"); /* NOTTESTED */
+      break;
+#else
+    case IS_CONSTANT_ARRAY:
+      key = nr_strdup("(Constant array)"); /* NOTTESTED */
+      break;
+#endif /* PHP >= 5.6 */
 
     default:
       key = nr_strdup("(?)"); /* NOTTESTED */
@@ -895,10 +921,10 @@ PHP_FUNCTION(newrelic_get_browser_timing_header) {
     RETURN_EMPTY_STRING();
   }
 
-    /*
-     * This mess is required to silence warnings about PHP's terrible
-     * prototypes.
-     */
+  /*
+   * This mess is required to silence warnings about PHP's terrible
+   * prototypes.
+   */
 #ifdef PHP7
   RETVAL_STRING(timingScript);
 #else
@@ -960,10 +986,10 @@ PHP_FUNCTION(newrelic_get_browser_timing_footer) {
     RETURN_EMPTY_STRING();
   }
 
-    /*
-     * This mess is required to silence warnings about PHP's terrible
-     * prototypes.
-     */
+  /*
+   * This mess is required to silence warnings about PHP's terrible
+   * prototypes.
+   */
 #ifdef PHP7
   RETVAL_STRING(buf);
 #else
@@ -1006,6 +1032,20 @@ PHP_FUNCTION(newrelic_disable_autorum) {
   RETURN_TRUE;
 }
 
+/* Set up a bitmask to track the state of a call to newrelic_set_appname(). */
+typedef uint8_t nr_php_set_appname_state_t;
+const nr_php_set_appname_state_t NR_PHP_APPNAME_LICENSE_CHANGED = (1 << 0);
+const nr_php_set_appname_state_t NR_PHP_APPNAME_LICENSE_PROVIDED = (1 << 1);
+const nr_php_set_appname_state_t NR_PHP_APPNAME_LASP_ENABLED = (1 << 2);
+
+/* LASP will prevent an application switch using the newrelic_set_appname() API
+ * below if LASP is enabled (by setting newrelic.security_policies_token to a
+ * non-empty string) _and_ a different licence key has been provided. This
+ * constant encodes what that state looks like in an nr_php_set_appname_state_t
+ * bitmask, as defined above. */
+#define NR_PHP_APPNAME_LASP_DENIED \
+  (NR_PHP_APPNAME_LASP_ENABLED | NR_PHP_APPNAME_LICENSE_CHANGED)
+
 /*
  * New Relic API: switch to a different application mid-flight. Will not work
  * if the RUM footer has already been sent.
@@ -1020,13 +1060,14 @@ void newrelic_set_appname(void);     /* ctags landing pad only */
 PHP_FUNCTION(newrelic_set_appname) {
   nr_status_t ret;
   char* appnames = 0;
+  char* current_license = 0;
   char* license = 0;
   char* appstr = 0;
   char* licstr = 0;
   nr_string_len_t applen = 0;
   nr_string_len_t liclen = 0;
+  nr_php_set_appname_state_t state = 0;
   zend_bool xmitbool = 0;
-  zend_long xmit = 0;
 
   NR_UNUSED_RETURN_VALUE_PTR;
   NR_UNUSED_THIS_PTR;
@@ -1034,63 +1075,84 @@ PHP_FUNCTION(newrelic_set_appname) {
 
   nr_php_api_add_supportability_metric("set_appname/before" TSRMLS_CC);
 
-  if (1 == ZEND_NUM_ARGS()) {
-    if (SUCCESS
-        == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &appstr,
-                                 &applen)) {
-      appnames = (char*)nr_alloca(applen + 1);
-      nr_strxcpy(appnames, appstr, applen);
-    } else {
-      RETURN_FALSE;
+  /* If there is an active transaction, get a copy of the license.
+   * This will help to determine whether this call is being used
+   * to switch from one license to another. */
+  if (0 != NRPRG(txn)) {
+    /* If the current license is at least a valid length, make a copy
+     * for the scope of this function.  If it's longer, it will be
+     * truncated, and New Relic will throw "invalid license key" on
+     * the connection attempt. */
+    if (NR_LICENSE_SIZE == nr_strnlen(NRTXN(license), NR_LICENSE_SIZE)) {
+      current_license = (char*)nr_alloca(NR_LICENSE_SIZE + 1);
+      nr_strxcpy(current_license, NRTXN(license), NR_LICENSE_SIZE + 1);
     }
-  } else if (2 == ZEND_NUM_ARGS()) {
-    if (SUCCESS
-        == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &appstr,
-                                 &applen, &licstr, &liclen)) {
-      appnames = (char*)nr_alloca(applen + 1);
-      nr_strxcpy(appnames, appstr, applen);
+  }
+
+  if (SUCCESS
+      == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|sb", &appstr,
+                               &applen, &licstr, &liclen, &xmitbool)) {
+    appnames = (char*)nr_alloca(applen + 1);
+    nr_strxcpy(appnames, appstr, applen);
+
+    if (0 != licstr) {
       license = (char*)nr_alloca(liclen + 1);
       nr_strxcpy(license, licstr, liclen);
-    } else {
-      RETURN_FALSE;
-    }
-  } else if (3 == ZEND_NUM_ARGS()) {
-    if (SUCCESS
-        == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssb", &appstr,
-                                 &applen, &licstr, &liclen, &xmitbool)) {
-      appnames = (char*)nr_alloca(applen + 1);
-      nr_strxcpy(appnames, appstr, applen);
-      license = (char*)nr_alloca(liclen + 1);
-      nr_strxcpy(license, licstr, liclen);
-      xmit = (long)xmitbool;
-    } else if (SUCCESS
-               == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssl",
-                                        &appstr, &applen, &licstr, &liclen,
-                                        &xmit)) {
-      /* NOTREACHED */
-      /* IMPOSSIBLE path through interpreter */
-      /*
-       * TODO(rrh): This code is probably unreachable,
-       * since any longs are scraped by the 'b' parser
-       * in the "ssb" argument spec, above
-       */
-      appnames = (char*)nr_alloca(applen + 1); /* NOTTESTED */
-      nr_strxcpy(appnames, appstr, applen);
-      license = (char*)nr_alloca(liclen + 1); /* NOTTESTED */
-      nr_strxcpy(license, licstr, liclen);
-    } else {
-      RETURN_FALSE;
     }
   } else {
     RETURN_FALSE;
   }
 
-  ret = nr_php_txn_end((0 == xmit), 0 TSRMLS_CC);
+  /* Figure out if we're about to change licenses. We need this both for the
+   * supportability metrics we'll create within the new application and to
+   * prevent a license change if the current application has LASP enabled. */
+  if (!nr_strempty(license)) {
+    state |= NR_PHP_APPNAME_LICENSE_PROVIDED;
+    if (0 != current_license
+        && 0 != nr_strncmp(current_license, license, NR_LICENSE_SIZE)) {
+      state |= NR_PHP_APPNAME_LICENSE_CHANGED;
+    }
+  }
+
+  /* Determine if LASP is enabled. Since there may or may not be a transaction
+   * active, we can't rely on the transaction options as the source of truth
+   * here, so we'll go to the raw INI setting instead.
+   *
+   * If the user has set newrelic.security_policies_token to a non-empty string,
+   * then we know that LASP is enabled, and don't care about the details of
+   * what's actually set or not. */
+  if (!nr_strempty(NRINI(security_policies_token))) {
+    state |= NR_PHP_APPNAME_LASP_ENABLED;
+  }
+
+  /* If LASP is going to deny the new application, we'll add a supportability
+   * metric for Angler to pick up, although in practice most users don't
+   * transmit the previous transaction.
+   *
+   * Note that we don't want to return from here, since the previous transaction
+   * hasn't yet ended. */
+  if (NR_PHP_APPNAME_LASP_DENIED == (state & NR_PHP_APPNAME_LASP_DENIED)) {
+    nr_php_api_add_supportability_metric("set_appname/lasp_denied" TSRMLS_CC);
+  }
+
+  ret = nr_php_txn_end((0 == xmitbool), 0 TSRMLS_CC);
   if (NR_SUCCESS != ret) {
     nrl_verbose(NRL_API,
                 "newrelic_set_appname: failed to end current transaction in "
                 "changing app to " NRP_FMT " [" NRP_FMT "]",
                 NRP_APPNAME(appnames), NRP_LICNAME(license));
+  }
+
+  /* OK, now the transaction has ended, we should return if LASP is denying the
+   * new transaction. */
+  if (NR_PHP_APPNAME_LASP_DENIED == (state & NR_PHP_APPNAME_LASP_DENIED)) {
+    nr_php_api_error(
+        "newrelic_set_appname: when a security_policies_token is present in "
+        "the newrelic.ini file, it is not permitted to call "
+        "newrelic_set_appname() with a non-empty license key. LASP does not "
+        "permit changing accounts during runtime. Consider using \"\" for the "
+        "second parameter");
+    RETURN_FALSE;
   }
 
   ret = nr_php_txn_begin(appnames, license TSRMLS_CC);
@@ -1100,6 +1162,21 @@ PHP_FUNCTION(newrelic_set_appname) {
                 "app " NRP_FMT " [" NRP_FMT "]",
                 NRP_APPNAME(appnames), NRP_LICNAME(license));
     RETURN_FALSE;
+  }
+
+  /* If this function was called with a non-empty license, send up a
+   * supportability metric.
+   * Moreover, if there's a current license that we are about to switch
+   * away from, send up a supportability metric. */
+  if (state & NR_PHP_APPNAME_LICENSE_PROVIDED) {
+    nr_php_api_add_supportability_metric("set_appname/with_license" TSRMLS_CC);
+    if (state & NR_PHP_APPNAME_LICENSE_CHANGED) {
+      nrl_debug(NRL_API,
+                "newrelic_set_appname: application changed away from " NRP_FMT,
+                NRP_LICNAME(current_license));
+      nr_php_api_add_supportability_metric(
+          "set_appname/switched_license" TSRMLS_CC);
+    }
   }
 
   nr_php_api_add_supportability_metric("set_appname/after" TSRMLS_CC);

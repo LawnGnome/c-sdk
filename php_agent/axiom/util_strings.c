@@ -131,9 +131,6 @@ char* nr_strxcpy(char* dest, const char* src, int len) {
   return dest;
 }
 
-/*
- * TODO(msl): This function is never used do we really need it?
- */
 int nr_strnlen(const char* str, int maxlen) {
   if (nrlikely((0 != str) && (maxlen > 0))) {
     const char* np = (const char*)nr_memchr(str, 0, (size_t)maxlen);

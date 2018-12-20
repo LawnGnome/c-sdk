@@ -60,27 +60,53 @@ func TestHarvestTriggerCustomBuilder(t *testing.T) {
 
 	go customTrigger(triggerChannel, cancelChannel)
 
-	// Read four HarvestType events.  Each type of HarvestType event should happen once
+	// A customTrigger is a collection of four goroutines that have
+	// invoked a ticker according to a prescribed report period. Go
+	// makes no fairness or deadline guarantees about how it schedules
+	// its goroutines, so under overloaded conditions, the goroutine
+	// handling the HarvestErrorEvent might be scheduled twice before
+	// any other goroutine in the collection.
+
+	// That said, we would like to test that each kind of harvest
+	// event occurs when a customTrigger is built.  We also don't want
+	// this test to fail under overloaded conditions.
+
+	// Read HarvestType events for at least four reporting periods, or
+	// until we've seen at least one of each type.
 	m := make(map[HarvestType]int)
-	for i := 0; i < 4; i++ {
-		event := (<-triggerChannel)
+	for {
+		event := <-triggerChannel
 		m[event] = m[event] + 1
+		if len(m) >= 4 {
+			break
+		}
 	}
 
-	if m[HarvestErrorEvents] != 1 {
+	if m[HarvestErrorEvents] < 1 {
 		t.Fatal("HarvestErrorEvents event did not occur")
 	}
 
-	if m[HarvestTxnEvents] != 1 {
+	if m[HarvestTxnEvents] < 1 {
 		t.Fatal("HarvestTxnEvents event did not occur")
 	}
 
-	if m[HarvestCustomEvents] != 1 {
+	if m[HarvestCustomEvents] < 1 {
 		t.Fatal("HarvestCustomEvents event did not occur")
 	}
 
-	if m[HarvestDefaultData] != 1 {
+	if m[HarvestDefaultData] < 1 {
 		t.Fatal("HarvestDefaultData event did not occur")
+	}
+
+	// Drain any pending events before canceling, otherwise the cancel
+	// message won't be processed and the test will deadlock.
+	Outer: for {
+		select {
+		case <-triggerChannel:
+			// Do nothing.
+		default:
+			break Outer
+		}
 	}
 
 	cancelChannel <- true
@@ -95,6 +121,6 @@ func TestHarvestTriggerCustomBuilder(t *testing.T) {
 		// Excellent; we didn't receive anything on triggerChannel.
 		break
 	case event := <-triggerChannel:
-		t.Fatal("Unexpected event %v received after triggers were cancelled", event)
+		t.Fatalf("Unexpected event %v received after triggers were cancelled", event)
 	}
 }

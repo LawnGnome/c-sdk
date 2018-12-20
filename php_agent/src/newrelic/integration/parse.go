@@ -22,6 +22,7 @@ var (
 		"EXPECT_ANALYTICS_EVENTS": parseAnalyticEvents,
 		"EXPECT_CUSTOM_EVENTS":    parseCustomEvents,
 		"EXPECT_ERROR_EVENTS":     parseErrorEvents,
+		"EXPECT_SPAN_EVENTS":      parseSpanEvents,
 		"EXPECT_METRICS":          parseMetrics,
 		"EXPECT":                  parseExpect,
 		"EXPECT_REGEX":            parseExpectRegex,
@@ -29,6 +30,7 @@ var (
 		"EXPECT_SLOW_SQLS":        parseSlowSQLs,
 		"EXPECT_TRACED_ERRORS":    parseTracedErrors,
 		"EXPECT_TXN_TRACES":       parseTxnTraces,
+		"EXPECT_RESPONSE_HEADERS": parseResponseHeaders,
 		"XFAIL":                   parseXFail,
 	}
 )
@@ -130,6 +132,20 @@ func parseHeaders(t *Test, content []byte) error {
 	return nil
 }
 
+func parseResponseHeaders(t *Test, content []byte) error {
+	t.expectResponseHeaders = make(http.Header)
+	trimmed := bytes.TrimSpace(content)
+	hs := strings.Fields(string(trimmed))
+	for _, h := range hs {
+		keyval := strings.SplitN(h, "=", 2)
+		if len(keyval) == 2 {
+			t.expectResponseHeaders.Add(keyval[0], keyval[1])
+		}
+	}
+
+	return nil
+}
+
 var errBadSetting = errors.New("settings must have format NAME=VALUE")
 
 // TODO(msl): Extend config package to support unmarshalling into a map,
@@ -172,6 +188,10 @@ func parseCustomEvents(test *Test, content []byte) error {
 }
 func parseErrorEvents(test *Test, content []byte) error {
 	test.errorEvents = content
+	return nil
+}
+func parseSpanEvents(test *Test, content []byte) error {
+	test.spanEvents = content
 	return nil
 }
 func parseMetrics(test *Test, content []byte) error {

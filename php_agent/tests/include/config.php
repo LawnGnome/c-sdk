@@ -45,13 +45,13 @@ if ("" != $MYSQL_SOCKET) {
 }
 
 $EXTERNAL_HOST = getenv('EXTERNAL_HOST');
-$EXTERNAL_CAT_URL = $EXTERNAL_HOST . "/cat";
+$EXTERNAL_TRACING_URL = $EXTERNAL_HOST . "/cat";
 
-function make_cat_url($file)
+function make_tracing_url($file)
 {
-    global $EXTERNAL_CAT_URL;
+    global $EXTERNAL_TRACING_URL;
 
-    return $EXTERNAL_CAT_URL . '?file=' . $file;
+    return $EXTERNAL_TRACING_URL . '?file=' . $file;
 }
 
 $PG_USER       = isset_or('PG_USER', 'postgres');
@@ -68,6 +68,9 @@ define('CUSTOMER_HEADER', 'Customer-Header');
 define('X_NEWRELIC_ID',          'X-NewRelic-ID');
 define('X_NEWRELIC_TRANSACTION', 'X-NewRelic-Transaction');
 define('X_NEWRELIC_APP_DATA',    'X-NewRelic-App-Data');
+
+// DT Headers
+define('DT_NEWRELIC',            'newrelic');
 
 // Synthetics Headers
 define('X_NEWRELIC_SYNTHETICS', 'X-NewRelic-Synthetics');

@@ -196,3 +196,83 @@ void nr_drupal_hook_instrument(const char* module,
   nr_php_wrap_user_function_drupal(function_name, function_name_len - 1, module,
                                    module_len, hook, hook_len TSRMLS_CC);
 }
+
+nr_status_t module_invoke_all_parse_module_and_hook_from_strings(
+    char** module_ptr,
+    size_t* module_len_ptr,
+    const char* hook,
+    size_t hook_len,
+    const char* module_hook,
+    size_t module_hook_len) {
+  size_t module_len;
+  char* module = NULL;
+  if ((0 == module_hook) || (module_hook_len <= 0)) {
+    nrl_verbosedebug(NRL_FRAMEWORK, "%s: cannot get function name", __func__);
+    return NR_FAILURE;
+  }
+
+  if (hook_len >= module_hook_len) {
+    nrl_verbosedebug(NRL_FRAMEWORK,
+                     "%s: hook length (%zu) is greater than the full module "
+                     "hook function length (%zu); "
+                     "hook='%.*s'; module_hook='%.*s'",
+                     __func__, hook_len, module_hook_len, NRSAFELEN(hook_len),
+                     NRSAFESTR(hook), NRSAFELEN(module_hook_len),
+                     NRSAFESTR(module_hook));
+    return NR_FAILURE;
+  }
+
+  module_len = (size_t)nr_strnidx(module_hook, hook, module_hook_len)
+               - 1; /* Subtract 1 for underscore separator */
+
+  if (module_len == 0) {
+    nrl_verbosedebug(NRL_FRAMEWORK,
+                     "%s: cannot find hook in module hook; "
+                     "hook='%.*s'; module_hook='%.*s'",
+                     __func__, NRSAFELEN(hook_len), NRSAFESTR(hook),
+                     NRSAFELEN(module_hook_len), NRSAFESTR(module_hook));
+    return NR_FAILURE;
+  }
+
+  // a -1 module length means the hook name matches the module name
+  // modulename: atlas_statistics
+  // hookname:   atlas_stat
+  // hookname:   atlas_statistics
+  // etc.  If that's the case we set the module_len to be something
+  // that will result in the correct module name being set
+  // https://newrelic.atlassian.net/browse/PHP-1696
+  if (-1 == (int)module_len) {
+    module_len = module_hook_len - hook_len
+                 - 1; /* Subtract 1 for underscore separator */
+  }
+
+  module = nr_strndup(module_hook, module_len);
+
+  *module_ptr = module;
+  *module_len_ptr = (size_t)module_len;
+
+  return NR_SUCCESS;
+}
+
+nr_status_t module_invoke_all_parse_module_and_hook(char** module_ptr,
+                                                    size_t* module_len_ptr,
+                                                    const char* hook,
+                                                    size_t hook_len,
+                                                    const zend_function* func) {
+  const char* module_hook = NULL;
+  size_t module_hook_len;
+
+  *module_ptr = NULL;
+  *module_len_ptr = 0;
+
+  if (NULL == func) {
+    nrl_verbosedebug(NRL_FRAMEWORK, "%s: func is NULL", __func__);
+    return NR_FAILURE;
+  }
+
+  module_hook = nr_php_function_name(func);
+  module_hook_len = (size_t)nr_php_function_name_length(func);
+
+  return module_invoke_all_parse_module_and_hook_from_strings(
+      module_ptr, module_len_ptr, hook, hook_len, module_hook, module_hook_len);
+}

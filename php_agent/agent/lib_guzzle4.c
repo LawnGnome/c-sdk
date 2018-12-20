@@ -304,6 +304,7 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
   nr_guzzle4_subscriber_event_args_t args;
   zval* request = NULL;
   zval* response = NULL;
+  zval* method;
   nr_node_external_params_t external_params = {.library = "Guzzle 4/5"};
   zval* url = NULL;
 
@@ -387,6 +388,11 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
   external_params.async_context
       = nr_guzzle_create_async_context_name("Guzzle 4", request);
 
+  method = nr_php_call(request, "getMethod");
+
+  if(nr_php_is_zval_valid_string(method)) {
+    external_params.procedure = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+  }
   /*
    * Whew! Let's create an external node already.
    */
@@ -396,6 +402,8 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
 leave:
   nr_free(external_params.async_context);
   nr_free(external_params.encoded_response_header);
+  nr_free(external_params.procedure);
+  nr_php_zval_free(&method);
   nr_php_zval_free(&request);
   nr_php_zval_free(&response);
   nr_php_zval_free(&url);
@@ -488,6 +496,8 @@ NR_PHP_WRAPPER_START(nr_guzzle4_client_construct) {
 
 end:
   nr_php_scope_release(&this_var);
+  nr_php_zval_free(&emitter);
+  nr_php_zval_free(&subscriber);
 }
 NR_PHP_WRAPPER_END
 

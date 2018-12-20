@@ -36,6 +36,12 @@ extern const nrtxnopt_t nr_txn_test_options;
 extern void nr_txn_add_cat_intrinsics(const nrtxn_t* txn, nrobj_t* intrinsics);
 
 /*
+ * Purpose : Adds distributed tracing intrinsics to the passed nrobj_t.
+ */
+extern void nr_txn_add_distributed_tracing_intrinsics(const nrtxn_t* txn,
+                                                      nrobj_t* intrinsics);
+
+/*
  * Purpose : Add an alternative path hash to the list maintained in the
  *           transaction.
  *

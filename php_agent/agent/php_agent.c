@@ -1,5 +1,6 @@
 #include "php_agent.h"
 #include "php_call.h"
+#include "php_globals.h"
 #include "php_hash.h"
 #include "nr_rum.h"
 #include "util_logging.h"

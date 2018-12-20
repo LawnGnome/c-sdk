@@ -107,7 +107,7 @@ unsigned long nr_random_range(nr_random_t* rnd, unsigned long max_exclusive) {
 
 double nr_random_real(nr_random_t* rnd) {
   if (0 == rnd) {
-    return 0.0;
+    return -1.0;
   }
 
   return erand48(rnd->xsubi);

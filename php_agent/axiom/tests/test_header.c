@@ -1,10 +1,13 @@
 #include "nr_axiom.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "nr_header.h"
 #include "nr_header_private.h"
+#include "nr_distributed_trace_private.h"
 #include "util_base64.h"
 #include "util_memory.h"
 #include "util_metrics.h"
@@ -23,6 +26,7 @@
 typedef struct _mock_txn {
   nrtxn_t txn;
   nr_status_t freeze_name_return;
+  const char* fake_guid;
   nrtime_t fake_queue_time;
   int fake_trusted;
   nrtime_t unfinished_duration;
@@ -33,7 +37,12 @@ nr_status_t nr_txn_freeze_name_update_apdex(nrtxn_t* txn) {
 }
 
 const char* nr_txn_get_cat_trip_id(const nrtxn_t* txn) {
-  return txn->cat.trip_id ? txn->cat.trip_id : txn->guid;
+  return txn->cat.trip_id ? txn->cat.trip_id
+                          : ((const mock_txn*)txn)->fake_guid;
+}
+
+const char* nr_txn_get_guid(const nrtxn_t* txn) {
+  return ((const mock_txn*)txn)->fake_guid;
 }
 
 char* nr_txn_get_path_hash(nrtxn_t* txn NRUNUSED) {
@@ -50,6 +59,10 @@ int nr_txn_is_account_trusted(const nrtxn_t* txn, int account_id NRUNUSED) {
 
 nrtime_t nr_txn_unfinished_duration(const nrtxn_t* txn) {
   return ((const mock_txn*)txn)->unfinished_duration;
+}
+
+char* nr_txn_create_distributed_trace_payload(nrtxn_t* txn NRUNUSED) {
+  return nr_strdup("{ \"v\" : [0,1], \"d\" : {} }");
 }
 
 #define test_metric_created(...) \
@@ -244,8 +257,8 @@ static void failed_inbound_response_testcase_fn(const char* testname,
 }
 
 static void test_inbound_response_internal(void) {
-  char* guid;
   nrobj_t* app_connect_reply;
+  const char* guid = "FEDCBA9876543210";
   char* response;
 
   mock_txn txnv;
@@ -265,10 +278,8 @@ static void test_inbound_response_internal(void) {
   txn->unscoped_metrics = nrm_table_create(10);
   txn->intrinsics = nro_new_hash();
 
-  guid = nr_strdup("FEDCBA9876543210");
-  txn->guid = guid;
   txn->name = nr_strdup("txnname");
-  ;
+  txnv.fake_guid = guid;
 
   app_connect_reply = nro_create_from_json(
       "{\"cross_process_id\":\"1#1\",\"encoding_key\":"
@@ -312,10 +323,10 @@ static void test_inbound_response_internal(void) {
   failed_inbound_response_testcase("missing app_connect_reply", txn, response);
   txn->app_connect_reply = app_connect_reply;
 
-  txn->guid = 0;
+  txnv.fake_guid = NULL;
   response = nr_header_inbound_response_internal(txn, -1);
   failed_inbound_response_testcase("missing guid", txn, response);
-  txn->guid = guid;
+  txnv.fake_guid = guid;
 
   /*
    * Test : Non-cross-process transaction.
@@ -349,7 +360,6 @@ static void test_inbound_response_internal(void) {
   nr_free(response);
   txn->status.cross_process = NR_STATUS_CROSS_PROCESS_START;
 
-  nr_free(guid);
   nr_free(txn->name);
   nro_delete(app_connect_reply);
   nrm_table_destroy(&txn->unscoped_metrics);
@@ -361,11 +371,13 @@ static void test_inbound_response(void) {
   nrobj_t* app_connect_reply;
   char* response;
   char* decoded_response;
+  const char* guid = "FEDCBA9876543210";
   nrobj_t* json;
   mock_txn txnv;
   nrtxn_t* txn = &txnv.txn;
 
   txnv.freeze_name_return = NR_SUCCESS;
+  txnv.fake_guid = guid;
   txnv.fake_queue_time = 1 * NR_TIME_DIVISOR;
   txnv.fake_trusted = 1;
 
@@ -380,10 +392,7 @@ static void test_inbound_response(void) {
   txn->unscoped_metrics = nrm_table_create(10);
   txn->intrinsics = nro_new_hash();
 
-  txn->guid = nr_strdup("FEDCBA9876543210");
-  ;
   txn->name = nr_strdup("txnname");
-  ;
 
   app_connect_reply = nro_create_from_json(
       "{\"cross_process_id\":\"1#1\",\"encoding_key\":"
@@ -418,7 +427,6 @@ static void test_inbound_response(void) {
   nr_free(decoded_response);
   nro_delete(json);
 
-  nr_free(txn->guid);
   nr_free(txn->name);
   nro_delete(app_connect_reply);
   nrm_table_destroy(&txn->unscoped_metrics);
@@ -718,16 +726,21 @@ static void test_outbound_response(void) {
 }
 
 static void test_outbound_request(void) {
-  nrtxn_t txnv;
-  nrtxn_t* txn = &txnv;
-  char* x_newrelic_id = 0;
-  char* x_newrelic_transaction = 0;
-  char* x_newrelic_synthetics = 0;
+  mock_txn txnv;
+  nrtxn_t* txn = &txnv.txn;
+  char* x_newrelic_id = NULL;
+  char* x_newrelic_transaction = NULL;
+  char* x_newrelic_synthetics = NULL;
+  char* newrelic = NULL;
   char* decoded_x_newrelic_id;
   char* decoded_x_newrelic_transaction;
   char* decoded_x_newrelic_synthetics;
-  char* guid;
+  const char* guid = "0123456789ABCDEF";
   nrobj_t* app_connect_reply;
+
+  txnv.fake_guid = guid;
+  txnv.fake_trusted = 1;
+  txnv.freeze_name_return = NR_SUCCESS;
 
   app_connect_reply = nro_new_hash();
   nro_set_hash_string(app_connect_reply, "cross_process_id", "12345#6789");
@@ -735,56 +748,111 @@ static void test_outbound_request(void) {
                       "d67afc830dab717fd163bfcb0b8b88423e9a1a3b");
   txn->app_connect_reply = app_connect_reply;
 
-  guid = nr_strdup("0123456789ABCDEF");
   txn->cat.inbound_guid = NULL;
   txn->cat.referring_path_hash = NULL;
   txn->cat.trip_id = NULL;
-  txn->guid = guid;
   txn->options.cross_process_enabled = 1;
   txn->options.synthetics_enabled = 1;
   txn->special_flags.debug_cat = 0;
   txn->synthetics = NULL;
   txn->type = NR_TXN_TYPE_CAT_INBOUND;
+  txn->unscoped_metrics = nrm_table_create(2);
+
+  txn->distributed_trace = nr_distributed_trace_create();
+  txn->distributed_trace->inbound.guid = nr_strdup("e10f");
+  txn->distributed_trace->guid = nr_strdup(guid);
+  txn->distributed_trace->account_id = nr_strdup("931d");
+  txn->distributed_trace->app_id = nr_strdup("01aa");
+  txn->options.cross_process_enabled = 0;
+  txn->options.distributed_tracing_enabled = 0;
 
   /*
    * Test : Bad Parameters
    */
   nr_header_outbound_request(0, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("null txn", x_newrelic_id, 0);
   tlib_pass_if_str_equal("null txn", x_newrelic_transaction, 0);
   tlib_pass_if_str_equal("null txn", x_newrelic_synthetics, 0);
+  tlib_pass_if_str_equal("null txn", newrelic, 0);
 
   /* Don't blow up! */
-  nr_header_outbound_request(NULL, NULL, NULL, NULL);
-  nr_header_outbound_request(txn, NULL, NULL, NULL);
+  nr_header_outbound_request(NULL, NULL, NULL, NULL, NULL);
+  nr_header_outbound_request(txn, NULL, NULL, NULL, NULL);
 
   txn->options.cross_process_enabled = 0;
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("cross process disabled", x_newrelic_id, 0);
   tlib_pass_if_str_equal("cross process disabled", x_newrelic_transaction, 0);
   txn->options.cross_process_enabled = 1;
 
   txn->app_connect_reply = 0;
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("no app_connect_reply", x_newrelic_id, 0);
   tlib_pass_if_str_equal("no app_connect_reply", x_newrelic_transaction, 0);
   txn->app_connect_reply = app_connect_reply;
 
-  txn->guid = 0;
+  txnv.fake_guid = NULL;
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("no guid", x_newrelic_id, 0);
   tlib_pass_if_str_equal("no guid", x_newrelic_transaction, 0);
-  txn->guid = guid;
+  txnv.fake_guid = guid;
 
   /*
-   * Test : Success
+   * Test : CAT/DT side-by-side
    */
+  txn->options.cross_process_enabled = 0;
+  txn->options.distributed_tracing_enabled = 0;
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
+  tlib_pass_if_null("no CAT, no DT", x_newrelic_id);
+  tlib_pass_if_null("no CAT, no DT", x_newrelic_transaction);
+  tlib_pass_if_null("no CAT, no DT", newrelic);
+
+  txn->options.cross_process_enabled = 1;
+  txn->options.distributed_tracing_enabled = 0;
+  nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
+                             &x_newrelic_synthetics, &newrelic);
+  tlib_pass_if_not_null("CAT, no DT", x_newrelic_id);
+  tlib_pass_if_not_null("CAT, no DT", x_newrelic_transaction);
+  tlib_pass_if_null("CAT, no DT", newrelic);
+
+  nr_free(x_newrelic_id);
+  nr_free(x_newrelic_transaction);
+
+  txn->options.cross_process_enabled = 0;
+  txn->options.distributed_tracing_enabled = 1;
+  txn->type = 0;
+  nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
+                             &x_newrelic_synthetics, &newrelic);
+  tlib_pass_if_true("no CAT, DT", txn->type | NR_TXN_TYPE_DT_OUTBOUND,
+                    "txn->type=%d", txn->type);
+  tlib_pass_if_null("no CAT, DT", x_newrelic_id);
+  tlib_pass_if_null("no CAT, DT", x_newrelic_transaction);
+  tlib_pass_if_not_null("no CAT, DT", newrelic);
+
+  nr_free(newrelic);
+
+  txn->options.cross_process_enabled = 1;
+  txn->options.distributed_tracing_enabled = 1;
+  nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
+                             &x_newrelic_synthetics, &newrelic);
+  tlib_pass_if_null("CAT, DT", x_newrelic_id);
+  tlib_pass_if_null("CAT, DT", x_newrelic_transaction);
+  tlib_pass_if_not_null("CAT, DT", newrelic);
+
+  nr_free(newrelic);
+
+  /*
+   * Test : CAT
+   */
+  txn->options.cross_process_enabled = 1;
+  txn->options.distributed_tracing_enabled = 0;
+  nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("success", "VQQEVVNADgQIXQ==", x_newrelic_id);
   tlib_pass_if_str_equal("success",
                          "PxQHUFRQDAYGU1lbdnN0IiF3FB8EBw8RVU4aUgkKBwYGUw5ZCCBxI"
@@ -812,9 +880,11 @@ static void test_outbound_request(void) {
   /*
    * Test : Synthetics
    */
+  txn->options.cross_process_enabled = 1;
+  txn->options.distributed_tracing_enabled = 0;
   txn->synthetics = nr_synthetics_create("[1,100,\"a\",\"b\",\"c\"]");
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("synthetics", "VQQEVVNADgQIXQ==", x_newrelic_id);
   tlib_pass_if_str_equal("synthetics",
                          "PxQHUFRQDAYGU1lbdnN0IiF3FB8EBw8RVU4aUgkKBwYGUw5ZCCBxI"
@@ -847,7 +917,7 @@ static void test_outbound_request(void) {
 
   txn->options.synthetics_enabled = 0;
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_str_equal("synthetics", "VQQEVVNADgQIXQ==", x_newrelic_id);
   tlib_pass_if_str_equal("synthetics",
                          "PxQHUFRQDAYGU1lbdnN0IiF3FB8EBw8RVU4aUgkKBwYGUw5ZCCBxI"
@@ -874,7 +944,7 @@ static void test_outbound_request(void) {
   txn->options.synthetics_enabled = 1;
   txn->options.cross_process_enabled = 0;
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
   tlib_pass_if_null("synthetics", x_newrelic_id);
   tlib_pass_if_null("synthetics", x_newrelic_transaction);
   tlib_pass_if_str_equal("synthetics",
@@ -888,9 +958,10 @@ static void test_outbound_request(void) {
   nr_free(x_newrelic_synthetics);
   nr_free(decoded_x_newrelic_synthetics);
 
-  nr_free(guid);
   nro_delete(app_connect_reply);
   nr_synthetics_destroy(&txn->synthetics);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
+  nrm_table_destroy(&txn->unscoped_metrics);
 }
 
 static void test_lifecycle(void) {
@@ -903,6 +974,7 @@ static void test_lifecycle(void) {
   char* x_newrelic_transaction = 0;
   char* x_newrelic_app_data = 0;
   char* x_newrelic_synthetics = 0;
+  char* newrelic = 0;
   char* external_id = 0;
   char* external_txnname = 0;
   char* external_guid = 0;
@@ -910,10 +982,12 @@ static void test_lifecycle(void) {
   nrobj_t* shared_app_connect_reply;
 
   client_txnv.freeze_name_return = NR_SUCCESS;
+  client_txnv.fake_guid = "CLIENT_GUID";
   client_txnv.fake_queue_time = 0;
   client_txnv.fake_trusted = 1;
 
   external_txnv.freeze_name_return = NR_SUCCESS;
+  external_txnv.fake_guid = "EXTERNAL_GUID";
   external_txnv.fake_queue_time = 0;
   external_txnv.fake_trusted = 1;
 
@@ -926,8 +1000,8 @@ static void test_lifecycle(void) {
   client_txn->cat.inbound_guid = NULL;
   client_txn->cat.referring_path_hash = NULL;
   client_txn->cat.trip_id = NULL;
-  client_txn->guid = nr_strdup("CLIENT_GUID");
   client_txn->options.cross_process_enabled = 1;
+  client_txn->options.distributed_tracing_enabled = 0;
   client_txn->options.synthetics_enabled = 1;
   client_txn->special_flags.debug_cat = 0;
   client_txn->status.recording = 1;
@@ -938,8 +1012,8 @@ static void test_lifecycle(void) {
   external_txn->cat.referring_path_hash = NULL;
   external_txn->cat.trip_id = NULL;
   external_txn->unscoped_metrics = nrm_table_create(10);
-  external_txn->guid = nr_strdup("EXTERNAL_GUID");
   external_txn->options.cross_process_enabled = 1;
+  external_txn->options.distributed_tracing_enabled = 0;
   external_txn->name = nr_strdup("EXTERNAL_TXNNAME");
   external_txn->intrinsics = nro_new_hash();
   external_txn->status.recording = 1;
@@ -954,7 +1028,8 @@ static void test_lifecycle(void) {
    * Client Transaction: Create the outbound headers.
    */
   nr_header_outbound_request(client_txn, &x_newrelic_id,
-                             &x_newrelic_transaction, &x_newrelic_synthetics);
+                             &x_newrelic_transaction, &x_newrelic_synthetics,
+                             &newrelic);
 
   /*
    * External Transaction: Process inbound headers and create return header.
@@ -976,13 +1051,10 @@ static void test_lifecycle(void) {
                          "EXTERNAL_TXNNAME");
   tlib_pass_if_str_equal("full lifecycle", external_guid, "EXTERNAL_GUID");
 
-  nr_free(client_txn->guid);
-
   nr_free(external_txn->cat.client_cross_process_id);
   nr_free(external_txn->cat.inbound_guid);
   nr_free(external_txn->cat.referring_path_hash);
   nr_free(external_txn->cat.trip_id);
-  nr_free(external_txn->guid);
   nr_free(external_txn->name);
   nrm_table_destroy(&external_txn->unscoped_metrics);
   nro_delete(external_txn->intrinsics);

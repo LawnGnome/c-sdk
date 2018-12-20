@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "util_object.h"
+#include "util_strings.h"
 
 typedef struct _tlib_parallel_info_t {
   /*
@@ -171,9 +172,13 @@ extern nr_status_t tlib_pass_if_not_diff_f(const char* result_file,
   }
 
 /*
- * Even more shortcut macros for lazy developers, covering char, int, long,
- * int64_t, the unsigned versions of the aforementioned, and double.
+ * Even more shortcut macros for lazy developers, covering bool, char, int,
+ * long, int64_t, the unsigned versions of the aforementioned, and double.
  */
+#define tlib_pass_if_bool_equal(M, EXPECTED, ACTUAL) \
+  tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), bool, "%d")
+#define tlib_fail_if_bool_equal(M, EXPECTED, ACTUAL) \
+  tlib_fail_if_equal((M), (EXPECTED), (ACTUAL), bool, "%d")
 #define tlib_pass_if_char_equal(M, EXPECTED, ACTUAL) \
   tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), char, "%c")
 #define tlib_fail_if_char_equal(M, EXPECTED, ACTUAL) \
@@ -230,10 +235,22 @@ extern nr_status_t tlib_pass_if_not_diff_f(const char* result_file,
   tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), uint64_t, "%" PRIu64)
 #define tlib_fail_if_uint64_t_equal(M, EXPECTED, ACTUAL) \
   tlib_fail_if_equal((M), (EXPECTED), (ACTUAL), uint64_t, "%" PRIu64)
+#define tlib_pass_if_intptr_t_equal(M, EXPECTED, ACTUAL) \
+  tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), intptr_t, "%" PRIdPTR)
+#define tlib_fail_if_intptr_t_equal(M, EXPECTED, ACTUAL) \
+  tlib_fail_if_equal((M), (EXPECTED), (ACTUAL), intptr_t, "%" PRIdPTR)
+#define tlib_pass_if_uintptr_t_equal(M, EXPECTED, ACTUAL) \
+  tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), uintptr_t, "%" PRIuPTR)
+#define tlib_fail_if_uintptr_t_equal(M, EXPECTED, ACTUAL) \
+  tlib_fail_if_equal((M), (EXPECTED), (ACTUAL), uintptr_t, "%" PRIuPTR)
 #define tlib_pass_if_size_t_equal(M, EXPECTED, ACTUAL) \
   tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), size_t, "%zu")
 #define tlib_fail_if_size_t_equal(M, EXPECTED, ACTUAL) \
   tlib_fail_if_equal((M), (EXPECTED), (ACTUAL), size_t, "%zu")
+#define tlib_pass_if_ssize_t_equal(M, EXPECTED, ACTUAL) \
+  tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), ssize_t, "%zd")
+#define tlib_fail_if_ssize_t_equal(M, EXPECTED, ACTUAL) \
+  tlib_fail_if_equal((M), (EXPECTED), (ACTUAL), ssize_t, "%zd")
 #define tlib_pass_if_double_equal(M, EXPECTED, ACTUAL) \
   tlib_pass_if_equal((M), (EXPECTED), (ACTUAL), double, "%f")
 #define tlib_fail_if_double_equal(M, EXPECTED, ACTUAL) \

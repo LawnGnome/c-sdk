@@ -6,6 +6,7 @@
 #include "php_agent.h"
 #include "php_call.h"
 #include "php_error.h"
+#include "php_globals.h"
 #include "php_hooks.h"
 #include "php_zval.h"
 #include "fw_support.h"

@@ -48,14 +48,88 @@ typedef struct _nr_phpunit_test_event_fields_t {
   const char* message;
 } nr_phpunit_test_event_fields_t;
 
+/*
+ * Purpose: Encapsulates logic for "is this zval a PHP object" and "is that
+ * object an instance of a PHPUnit Test Suite"
+ *
+ * Params:  The zval we're evaluating
+ *
+ * Returns: true if the object is a class of the expected type, false otherwise
+ */
+static bool nr_phpunit_is_zval_a_testsuite(zval* obj TSRMLS_DC) {
+  return nr_php_object_instanceof_class(
+             obj, "PHPUnit\\Framework\\TestSuite" TSRMLS_CC)
+         || nr_php_object_instanceof_class(
+                obj, "PHPUnit_Framework_TestSuite" TSRMLS_CC);
+}
+
+/*
+ * Purpose: Encapsulates logic for "is this zval a PHP object" and "is that
+ * object an instance of a PHPUnit Test Result"
+ *
+ * Params:  The zval we're evaluating
+ *
+ * Returns: true if the object is a class of the expected type, false otherwise
+ */
+static bool nr_phpunit_is_zval_a_testresult(zval* obj TSRMLS_DC) {
+  return nr_php_object_instanceof_class(
+             obj, "PHPUnit\\Framework\\TestResult" TSRMLS_CC)
+         || nr_php_object_instanceof_class(
+                obj, "PHPUnit_Framework_TestResult" TSRMLS_CC);
+}
+
+/*
+ * Purpose: Encapsulates logic for "is this zval a PHP object" and "is that
+ * object an instance of a PHPUnit Test Failure"
+ *
+ * Params:  The zval we're evaluating
+ *
+ * Returns: true if the object is a class of the expected type, false otherwise
+ */
+static bool nr_phpunit_is_zval_a_testfailure(zval* obj TSRMLS_DC) {
+  return nr_php_object_instanceof_class(
+             obj, "PHPUnit\\Framework\\TestFailure" TSRMLS_CC)
+         || nr_php_object_instanceof_class(
+                obj, "PHPUnit_Framework_TestFailure" TSRMLS_CC);
+}
+
+/*
+ * Purpose: Encapsulates logic for "is this zval a PHP object" and "is that
+ * object an instance of a PHPUnit Test Case"
+ *
+ * Params:  The zval we're evaluating
+ *
+ * Returns: true if the object is a class of the expected type, false otherwise
+ */
+static bool nr_phpunit_is_zval_a_testcase(zval* obj TSRMLS_DC) {
+  return nr_php_object_instanceof_class(obj,
+                                        "PHPUnit_Framework_TestCase" TSRMLS_CC)
+         || nr_php_object_instanceof_class(
+                obj, "PHPUnit\\Framework\\TestCase" TSRMLS_CC);
+}
+
+/*
+ * Purpose: Encapsulates logic for "is this zval a PHP object" and "is that
+ * object an instance of a PHPUnit Skipped Test"
+ *
+ * Params:  The zval we're evaluating
+ *
+ * Returns: true if the object is a class of the expected type, false otherwise
+ */
+static bool nr_phpunit_is_zval_a_skippedtest(zval* obj TSRMLS_DC) {
+  return nr_php_object_instanceof_class(
+             obj, "PHPUnit\\Framework\\SkippedTest" TSRMLS_CC)
+         || nr_php_object_instanceof_class(
+                obj, "PHPUnit_Framework_SkippedTest" TSRMLS_CC);
+}
+
 static char* nr_phpunit_get_suite_name(zval* result TSRMLS_DC) {
   zval* suite = NULL;
   char* name = NULL;
   zval* name_zv = NULL;
 
   suite = nr_php_call(result, "topTestSuite");
-  if (!nr_php_object_instanceof_class(
-          suite, "PHPUnit_Framework_TestSuite" TSRMLS_CC)) {
+  if (!nr_phpunit_is_zval_a_testsuite(suite TSRMLS_CC)) {
     nrl_verbosedebug(NRL_INSTRUMENT, "%s: unable to obtain test suite",
                      __func__);
     goto leave;
@@ -80,7 +154,7 @@ static const char* nr_phpunit_get_unique_identifier(TSRMLS_D) {
   if (NULL == NRPRG(txn)) {
     return NULL;
   }
-  return NRPRG(txn)->guid;
+  return nr_txn_get_guid(NRPRG(txn));
 }
 
 static int nr_phpunit_was_test_successful(zval* result TSRMLS_DC) {
@@ -190,8 +264,7 @@ NR_PHP_WRAPPER(nr_phpunit_instrument_resultprinter_printresult) {
   }
 
   result = nr_php_arg_get(1, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
-  if (!nr_php_object_instanceof_class(
-          result, "PHPUnit_Framework_TestResult" TSRMLS_CC)) {
+  if (!nr_phpunit_is_zval_a_testresult(result TSRMLS_CC)) {
     nrl_verbosedebug(NRL_INSTRUMENT, "%s: unable to obtain test result",
                      __func__);
     NR_PHP_WRAPPER_CALL;
@@ -344,8 +417,7 @@ static char* nr_phpunit_get_message_for_test(zval* result,
   }
 
   failure_zv = nr_php_zend_hash_index_find(Z_ARRVAL_P(tests), num_tests - 1);
-  if (!nr_php_object_instanceof_class(
-          failure_zv, "PHPUnit_Framework_TestFailure" TSRMLS_CC)) {
+  if (!nr_phpunit_is_zval_a_testfailure(failure_zv TSRMLS_CC)) {
     goto leave;
   }
 
@@ -367,6 +439,7 @@ NR_PHP_WRAPPER(nr_phpunit_instrument_testresult_endtest) {
   zval* test_case = NULL;
   zval* this_var = NULL;
   zval* duration = NULL;
+  zval* test_case_status = NULL;
   const char* outcome;
   char* name = NULL;
   zval* name_zv = NULL;
@@ -388,9 +461,24 @@ NR_PHP_WRAPPER(nr_phpunit_instrument_testresult_endtest) {
   }
 
   test_case = nr_php_arg_get(1, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
-  if (!nr_php_object_instanceof_class(test_case,
-                                      "PHPUnit_Framework_TestCase" TSRMLS_CC)) {
+  if (!nr_phpunit_is_zval_a_testcase(test_case TSRMLS_CC)) {
     nrl_verbosedebug(NRL_INSTRUMENT, "%s: unable to obtain test case",
+                     __func__);
+    NR_PHP_WRAPPER_CALL;
+    goto end;
+  }
+
+  /*
+   * PHPUnit 6+ started passing "tests skipped due to dependency failures"
+   * to the endTest method -- however, we already catch these tests in
+   * our nr_phpunit_instrument_testresult_adderror wrapper.  This check
+   * ensures these skipped tests aren't double counted by bailing if
+   * a test's status isn't set.
+   */
+  test_case_status = nr_php_call(test_case, "getStatus");
+  if (nr_php_is_zval_null(test_case_status)) {
+    nrl_verbosedebug(NRL_INSTRUMENT,
+                     "%s: null test case status, treating as skipped",
                      __func__);
     NR_PHP_WRAPPER_CALL;
     goto end;
@@ -447,6 +535,7 @@ end:
   nr_free(suite);
   nr_free(message);
   nr_php_zval_free(&name_zv);
+  nr_php_zval_free(&test_case_status);
 }
 NR_PHP_WRAPPER_END
 
@@ -473,8 +562,7 @@ NR_PHP_WRAPPER(nr_phpunit_instrument_testresult_adderror) {
   }
 
   exception = nr_php_arg_get(2, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
-  if (!nr_php_object_instanceof_class(
-          exception, "PHPUnit_Framework_SkippedTest" TSRMLS_CC)) {
+  if (!nr_phpunit_is_zval_a_skippedtest(exception TSRMLS_CC)) {
     NR_PHP_WRAPPER_CALL;
     goto end;
   }
@@ -487,8 +575,7 @@ NR_PHP_WRAPPER(nr_phpunit_instrument_testresult_adderror) {
   }
 
   test_case = nr_php_arg_get(1, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
-  if (!nr_php_object_instanceof_class(test_case,
-                                      "PHPUnit_Framework_TestCase" TSRMLS_CC)) {
+  if (!nr_phpunit_is_zval_a_testcase(test_case TSRMLS_CC)) {
     nrl_verbosedebug(NRL_INSTRUMENT, "%s: unable to obtain test case",
                      __func__);
     NR_PHP_WRAPPER_CALL;
@@ -540,9 +627,18 @@ NR_PHP_WRAPPER_END
 static int nr_phpunit_are_statuses_valid(TSRMLS_D) {
   zend_class_entry* class_entry
       = nr_php_find_class("phpunit_runner_basetestrunner" TSRMLS_CC);
-  if (0 == class_entry) {
+
+  // if we can't find the underscore/fake-namespace version, look
+  // for the real namespaced version
+  if (NULL == class_entry) {
+    class_entry
+        = nr_php_find_class("phpunit\\runner\\basetestrunner" TSRMLS_CC);
+  }
+
+  if (NULL == class_entry) {
     nrl_verbosedebug(NRL_INSTRUMENT,
-                     "could not find PHPUnit_Runner_BaseTestRunner");
+                     "could not find PHPUnit_Runner_BaseTestRunner or "
+                     "PHPUnit\\Runner\\BaseTestRunner ");
     return 0;
   }
 
@@ -578,11 +674,19 @@ void nr_phpunit_enable(TSRMLS_D) {
   nr_php_wrap_user_function(
       NR_PSTR("PHPUnit_TextUI_ResultPrinter::printResult"),
       nr_phpunit_instrument_resultprinter_printresult TSRMLS_CC);
+  nr_php_wrap_user_function(
+      NR_PSTR("PHPUnit\\TextUI\\ResultPrinter::printResult"),
+      nr_phpunit_instrument_resultprinter_printresult TSRMLS_CC);
 
   nr_php_wrap_user_function(NR_PSTR("PHPUnit_Framework_TestResult::endTest"),
+                            nr_phpunit_instrument_testresult_endtest TSRMLS_CC);
+  nr_php_wrap_user_function(NR_PSTR("PHPUnit\\Framework\\TestResult::endTest"),
                             nr_phpunit_instrument_testresult_endtest TSRMLS_CC);
 
   nr_php_wrap_user_function(
       NR_PSTR("PHPUnit_Framework_TestResult::addError"),
+      nr_phpunit_instrument_testresult_adderror TSRMLS_CC);
+  nr_php_wrap_user_function(
+      NR_PSTR("PHPUnit\\Framework\\TestResult::addError"),
       nr_phpunit_instrument_testresult_adderror TSRMLS_CC);
 }

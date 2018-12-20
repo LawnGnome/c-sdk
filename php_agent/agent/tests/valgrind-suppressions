@@ -99,3 +99,10 @@
   ...
   fun:zend_register_functions
 }
+
+{
+  <PHP 7.3 complaining about uninitialized value in inline assembly>
+  Memcheck:Cond
+  ...
+  fun:zend_string_equal_val
+}

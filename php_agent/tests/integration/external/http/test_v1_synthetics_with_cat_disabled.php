@@ -44,7 +44,10 @@ X-NewRelic-Synthetics=PwcbVVVRDQMHSEMQRUNFFBZDG0EQFBFPAVALVhVKRkBBSEsTQxNBEBZERR
 */
 
 /*EXPECT
-X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-Synthetics=found X-NewRelic-App-Data=missing cat endpoint reached
+X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-Synthetics=found tracing endpoint reached
+*/
+
+/*EXPECT_RESPONSE_HEADERS
 */
 
 /*EXPECT_METRICS
@@ -71,7 +74,7 @@ X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-Synthetics=found
 
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
-$url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+$url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 
 $rq = new HttpRequest($url, HttpRequest::METH_GET);
 $rv = $rq->send();

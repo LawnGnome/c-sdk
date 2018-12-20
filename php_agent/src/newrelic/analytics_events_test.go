@@ -7,9 +7,9 @@ import (
 
 func TestBasic(t *testing.T) {
 	events := newAnalyticsEvents(10)
-	events.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
-	events.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
-	events.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), stamp: eventStamp(1)})
+	events.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
+	events.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
+	events.AddEvent(AnalyticsEvent{data: []byte(`[{"x":1},{},{}]`), priority: SamplingPriority(0.8)})
 
 	id := AgentRunID(`12345`)
 	json, err := events.CollectorJSON(id)
@@ -56,28 +56,28 @@ func TestEmpty(t *testing.T) {
 	}
 }
 
-func sampleAnalyticsEvent(stamp int) AnalyticsEvent {
+func sampleAnalyticsEvent(priority SamplingPriority) AnalyticsEvent {
 	return AnalyticsEvent{
-		stamp: eventStamp(stamp),
-		data:  []byte(fmt.Sprintf(`{"x":%d}`, stamp)),
+		priority: priority,
+		data:     []byte(fmt.Sprintf(`{"x":%f}`, priority)),
 	}
 }
 
 func TestSampling(t *testing.T) {
 	events := newAnalyticsEvents(3)
-	events.AddEvent(sampleAnalyticsEvent(10))
-	events.AddEvent(sampleAnalyticsEvent(1))
-	events.AddEvent(sampleAnalyticsEvent(9))
-	events.AddEvent(sampleAnalyticsEvent(2))
-	events.AddEvent(sampleAnalyticsEvent(8))
-	events.AddEvent(sampleAnalyticsEvent(3))
+	events.AddEvent(sampleAnalyticsEvent(0.999999))
+	events.AddEvent(sampleAnalyticsEvent(0.1))
+	events.AddEvent(sampleAnalyticsEvent(0.9))
+	events.AddEvent(sampleAnalyticsEvent(0.2))
+	events.AddEvent(sampleAnalyticsEvent(0.8))
+	events.AddEvent(sampleAnalyticsEvent(0.3))
 
 	id := AgentRunID(`12345`)
 	json, err := events.CollectorJSON(id)
 	if nil != err {
 		t.Fatal(err)
 	}
-	if string(json) != `["12345",{"reservoir_size":3,"events_seen":6},[{"x":8},{"x":10},{"x":9}]]` {
+	if string(json) != `["12345",{"reservoir_size":3,"events_seen":6},[{"x":0.800000},{"x":0.999999},{"x":0.900000}]]` {
 		t.Error(string(json))
 	}
 	if 6 != events.numSeen {
@@ -112,14 +112,14 @@ func TestMergeFull(t *testing.T) {
 	e1 := newAnalyticsEvents(2)
 	e2 := newAnalyticsEvents(3)
 
-	e1.AddEvent(sampleAnalyticsEvent(5))
-	e1.AddEvent(sampleAnalyticsEvent(10))
-	e1.AddEvent(sampleAnalyticsEvent(15))
+	e1.AddEvent(sampleAnalyticsEvent(0.5))
+	e1.AddEvent(sampleAnalyticsEvent(0.1))
+	e1.AddEvent(sampleAnalyticsEvent(0.15))
 
-	e2.AddEvent(sampleAnalyticsEvent(6))
-	e2.AddEvent(sampleAnalyticsEvent(12))
-	e2.AddEvent(sampleAnalyticsEvent(18))
-	e2.AddEvent(sampleAnalyticsEvent(24))
+	e2.AddEvent(sampleAnalyticsEvent(0.18))
+	e2.AddEvent(sampleAnalyticsEvent(0.12))
+	e2.AddEvent(sampleAnalyticsEvent(0.6))
+	e2.AddEvent(sampleAnalyticsEvent(0.24))
 
 	e1.Merge(e2)
 	id := AgentRunID(`12345`)
@@ -127,7 +127,7 @@ func TestMergeFull(t *testing.T) {
 	if nil != err {
 		t.Fatal(err)
 	}
-	if string(json) != `["12345",{"reservoir_size":2,"events_seen":7},[{"x":18},{"x":24}]]` {
+	if string(json) != `["12345",{"reservoir_size":2,"events_seen":7},[{"x":0.500000},{"x":0.600000}]]` {
 		t.Error(string(json))
 	}
 	if 7 != e1.numSeen {
@@ -142,14 +142,14 @@ func TestAnalyticsEventMergeFailedSuccess(t *testing.T) {
 	e1 := newAnalyticsEvents(2)
 	e2 := newAnalyticsEvents(3)
 
-	e1.AddEvent(sampleAnalyticsEvent(5))
-	e1.AddEvent(sampleAnalyticsEvent(10))
-	e1.AddEvent(sampleAnalyticsEvent(15))
+	e1.AddEvent(sampleAnalyticsEvent(0.5))
+	e1.AddEvent(sampleAnalyticsEvent(0.10))
+	e1.AddEvent(sampleAnalyticsEvent(0.15))
 
-	e2.AddEvent(sampleAnalyticsEvent(6))
-	e2.AddEvent(sampleAnalyticsEvent(12))
-	e2.AddEvent(sampleAnalyticsEvent(18))
-	e2.AddEvent(sampleAnalyticsEvent(24))
+	e2.AddEvent(sampleAnalyticsEvent(0.18))
+	e2.AddEvent(sampleAnalyticsEvent(0.12))
+	e2.AddEvent(sampleAnalyticsEvent(0.6))
+	e2.AddEvent(sampleAnalyticsEvent(0.24))
 
 	e1.MergeFailed(e2)
 
@@ -158,7 +158,7 @@ func TestAnalyticsEventMergeFailedSuccess(t *testing.T) {
 	if nil != err {
 		t.Fatal(err)
 	}
-	if string(json) != `["12345",{"reservoir_size":2,"events_seen":7},[{"x":18},{"x":24}]]` {
+	if string(json) != `["12345",{"reservoir_size":2,"events_seen":7},[{"x":0.500000},{"x":0.600000}]]` {
 		t.Error(string(json))
 	}
 	if 7 != e1.numSeen {
@@ -176,14 +176,14 @@ func TestAnalyticsEventMergeFailedLimitReached(t *testing.T) {
 	e1 := newAnalyticsEvents(2)
 	e2 := newAnalyticsEvents(3)
 
-	e1.AddEvent(sampleAnalyticsEvent(5))
-	e1.AddEvent(sampleAnalyticsEvent(10))
-	e1.AddEvent(sampleAnalyticsEvent(15))
+	e1.AddEvent(sampleAnalyticsEvent(0.5))
+	e1.AddEvent(sampleAnalyticsEvent(0.10))
+	e1.AddEvent(sampleAnalyticsEvent(0.15))
 
-	e2.AddEvent(sampleAnalyticsEvent(6))
-	e2.AddEvent(sampleAnalyticsEvent(12))
-	e2.AddEvent(sampleAnalyticsEvent(18))
-	e2.AddEvent(sampleAnalyticsEvent(24))
+	e2.AddEvent(sampleAnalyticsEvent(0.18))
+	e2.AddEvent(sampleAnalyticsEvent(0.12))
+	e2.AddEvent(sampleAnalyticsEvent(0.6))
+	e2.AddEvent(sampleAnalyticsEvent(0.24))
 
 	e2.failedHarvests = FailedEventsAttemptsLimit
 
@@ -194,7 +194,7 @@ func TestAnalyticsEventMergeFailedLimitReached(t *testing.T) {
 	if nil != err {
 		t.Fatal(err)
 	}
-	if string(json) != `["12345",{"reservoir_size":2,"events_seen":3},[{"x":10},{"x":15}]]` {
+	if string(json) != `["12345",{"reservoir_size":2,"events_seen":3},[{"x":0.150000},{"x":0.500000}]]` {
 		t.Error(string(json))
 	}
 	if 3 != e1.numSeen {
@@ -209,11 +209,17 @@ func TestAnalyticsEventMergeFailedLimitReached(t *testing.T) {
 }
 
 func BenchmarkEventsCollectorJSON(b *testing.B) {
+	// Let's not rely on a computationally intensive random number generator
+	// for this benchmark.  AddTxnEvent is not responsible for creating a
+	// random sampling priority.  Let's just benchmark its allocation of
+	// transaction events and supply it a rotating set of sampling
+	// priorities.
+	sp := []SamplingPriority{0.99999, 0.42, 0.13, 0.007, 0.8}
 	data := []byte(`[{"zip":"zap","alpha":"beta","pen":"pencil"},{},{}]`)
 	events := NewTxnEvents(MaxTxnEvents)
 
 	for n := 0; n < MaxTxnEvents; n++ {
-		events.AddTxnEvent(data)
+		events.AddTxnEvent(data, sp[n%len(sp)])
 	}
 
 	id := AgentRunID("12345")

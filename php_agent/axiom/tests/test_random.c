@@ -80,7 +80,7 @@ static void test_real(void) {
   nr_random_seed(rnd, 345345);
 
   rv = nr_random_real(NULL);
-  tlib_pass_if_double_equal("NULL nr_random_real", 0.0, rv);
+  tlib_pass_if_double_equal("NULL nr_random_real", -1.0, rv);
 
   rv = nr_random_real(rnd);
   tlib_fail_if_double_equal("nr_random_real", 0.0, rv);

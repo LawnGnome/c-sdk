@@ -267,7 +267,7 @@ static char* nr_wordpress_plugin_from_function(zend_function* func TSRMLS_DC) {
     goto cache_and_return;
   }
 
-  if ((NULL == plugin) || ('\0' == *plugin)) {
+  if (nr_strempty(plugin)) {
     nrl_verbosedebug(NRL_FRAMEWORK,
                      "Wordpress: cannot determine plugin name:"
                      " unexpected format, tag=" NRP_FMT " filename=" NRP_FMT,

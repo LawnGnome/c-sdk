@@ -6,16 +6,24 @@ variable. PHP-1377
 */
 
 /*EXPECT
-cat endpoint reached
+tracing endpoint reached
 1
-cat endpoint reached
+tracing endpoint reached
 1
-cat endpoint reached
+tracing endpoint reached
 1
-cat endpoint reached
+tracing endpoint reached
 1
-cat endpoint reached
+tracing endpoint reached
 1
+*/
+
+/*EXPECT_RESPONSE_HEADERS
+X-NewRelic-App-Data=??
+X-NewRelic-App-Data=??
+X-NewRelic-App-Data=??
+X-NewRelic-App-Data=??
+X-NewRelic-App-Data=??
 */
 
 /*EXPECT_METRICS
@@ -24,18 +32,18 @@ cat endpoint reached
   "?? start time",
   "?? stop time",
   [
-    [{"name":"External/all"},                           [5, "??", "??", "??", "??", "??"]],
-    [{"name":"External/allOther"},                      [5, "??", "??", "??", "??", "??"]],
-    [{"name":"External/127.0.0.1/all"},                 [5, "??", "??", "??", "??", "??"]],
-    [{"name":"ExternalApp/127.0.0.1/432507#73695/all"}, [5, "??", "??", "??", "??", "??"]],
-    [{"name":"ExternalTransaction/127.0.0.1/432507#73695/WebTransaction/Custom/cat"},
-                                                        [5, "??", "??", "??", "??", "??"]],
-    [{"name":"ExternalTransaction/127.0.0.1/432507#73695/WebTransaction/Custom/cat",
-      "scope":"OtherTransaction/php__FILE__"},          [5, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransaction/all"},                   [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransaction/php__FILE__"},           [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime"},              [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime/php__FILE__"},  [1, "??", "??", "??", "??", "??"]]
+    [{"name":"External/all"},                             [5, "??", "??", "??", "??", "??"]],
+    [{"name":"External/allOther"},                        [5, "??", "??", "??", "??", "??"]],
+    [{"name":"External/127.0.0.1/all"},                   [5, "??", "??", "??", "??", "??"]],
+    [{"name":"ExternalApp/127.0.0.1/432507#4741547/all"}, [5, "??", "??", "??", "??", "??"]],
+    [{"name":"ExternalTransaction/127.0.0.1/432507#4741547/WebTransaction/Custom/tracing"},
+                                                          [5, "??", "??", "??", "??", "??"]],
+    [{"name":"ExternalTransaction/127.0.0.1/432507#4741547/WebTransaction/Custom/tracing",
+      "scope":"OtherTransaction/php__FILE__"},            [5, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransaction/all"},                     [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransaction/php__FILE__"},             [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime"},                [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime/php__FILE__"},    [1, "??", "??", "??", "??", "??"]]
   ]
 ]
 */
@@ -43,7 +51,7 @@ cat endpoint reached
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
 function f() {
-  $url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+  $url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 
   /*
    * Seeking (offset) is not supported with remote files, so testing if this

@@ -1,9 +1,5 @@
 package newrelic
 
-import (
-	"math/rand"
-)
-
 // CustomEvents is a wrapper over AnalyticsEvents created for additional type
 // safety and proper FailedHarvest behavior.
 type CustomEvents struct {
@@ -15,12 +11,11 @@ func NewCustomEvents(max int) *CustomEvents {
 	return &CustomEvents{newAnalyticsEvents(max)}
 }
 
-// AddEventFromData observes the occurance of a custom analytics
+// AddEventFromData observes the occurrence of a custom analytics
 // event. If the reservoir is full, sampling occurs. Note: when
 // sampling occurs, it is possible the new event may be discarded.
-func (events *CustomEvents) AddEventFromData(data []byte) {
-	stamp := eventStamp(rand.Float32())
-	events.AddEvent(AnalyticsEvent{data: data, stamp: stamp})
+func (events *CustomEvents) AddEventFromData(data []byte, priority SamplingPriority) {
+	events.AddEvent(AnalyticsEvent{data: data, priority: priority})
 }
 
 // FailedHarvest is a callback invoked by the processor when an attempt to

@@ -19,6 +19,7 @@ PHP_FUNCTION(newrelic_get_request_metadata) {
   char* synthetics = NULL;
   char* transaction = NULL;
   char* transport = NULL;
+  char* newrelic = NULL;
   const char* transport_default = "unknown";
   nr_string_len_t transport_len = 0;
 
@@ -40,7 +41,8 @@ PHP_FUNCTION(newrelic_get_request_metadata) {
 
   array_init(return_value);
 
-  nr_header_outbound_request(NRPRG(txn), &id, &transaction, &synthetics);
+  nr_header_outbound_request(NRPRG(txn), &id, &transaction, &synthetics,
+                             &newrelic);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
     nrl_verbosedebug(NRL_CAT,
@@ -63,9 +65,14 @@ PHP_FUNCTION(newrelic_get_request_metadata) {
     nr_php_add_assoc_string(return_value, X_NEWRELIC_TRANSACTION, transaction);
   }
 
+  if (NULL != newrelic) {
+    nr_php_add_assoc_string(return_value, NEWRELIC, newrelic);
+  }
+
   nr_free(id);
   nr_free(synthetics);
   nr_free(transaction);
+  nr_free(newrelic);
 }
 
 #ifdef ENABLE_TESTING_API
@@ -211,7 +218,8 @@ PHP_FUNCTION(newrelic_get_trace_json) {
   orig_stop_time = NRTXN(root).stop_time;
   nr_txn_set_time(NRPRG(txn), &NRTXN(root).stop_time);
 
-  json = nr_harvest_trace_create_data(NRPRG(txn), duration, NULL, NULL, NULL);
+  json = nr_harvest_trace_create_data(NRPRG(txn), duration, NULL, NULL, NULL,
+                                      NULL, 0);
   nr_php_zval_str(return_value, json);
   nr_free(json);
 

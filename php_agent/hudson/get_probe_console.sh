@@ -19,8 +19,6 @@ LABELS+=" centos5-64-nrcamp"
 LABELS+=" centos5-64-toolbuilder"
 LABELS+=" macos106-64-nrcamp"
 LABELS+=" macosx-10.8.4-toolbuilder"
-LABELS+=" solaris11-64-nrcamp"
-LABELS+=" solaris11-64-toolbuilder"
 LABELS+=" freebsd100-64-nrcamp"
 LABELS+=" freebsd100-64-toolbuilder"
 

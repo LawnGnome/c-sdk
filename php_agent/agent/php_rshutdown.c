@@ -3,6 +3,7 @@
  */
 #include "php_agent.h"
 #include "php_error.h"
+#include "php_globals.h"
 #include "php_user_instrument.h"
 #include "php_wrapper.h"
 #include "util_logging.h"

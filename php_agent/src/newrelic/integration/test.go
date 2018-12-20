@@ -29,14 +29,16 @@ type Test struct {
 	analyticEvents []byte
 	customEvents   []byte
 	errorEvents    []byte
+	spanEvents     []byte
 	metrics        []byte
 	slowSQLs       []byte
 	tracedErrors   []byte
 	txnTraces      []byte
 	// Expected Output
-	expect         []byte
-	expectRegex    []byte
-	expectScrubbed []byte
+	expect                []byte
+	expectRegex           []byte
+	expectScrubbed        []byte
+	expectResponseHeaders http.Header
 
 	// Raw parsed test information used to construct the Tx.
 	// The settings and env do not include global env and
@@ -61,6 +63,14 @@ type Test struct {
 
 	Output []byte
 
+	// Response headers send through the integration runner HTTP endpoint
+	// during the test run.
+	ResponseHeaders http.Header
+
+	// The timed duration of the test. If no timing was done, this is set
+	// to 0.
+	Duration time.Duration
+
 	// If the test ran to completion, contains one element for each
 	// failed expectation.
 	Failed   bool
@@ -80,6 +90,10 @@ func (c ComparisonFailure) Error() string {
 func (t *Test) IsWeb() bool {
 	_, found := t.Env["REQUEST_METHOD"]
 	return found || len(t.headers) > 0
+}
+
+func (t *Test) ShouldCheckResponseHeaders() bool {
+	return nil != t.expectResponseHeaders
 }
 
 // Skip marks the test as skipped and records the given reason.
@@ -198,6 +212,49 @@ func ScrubHost(in []byte) []byte {
 	return re.ReplaceAll(in, []byte("__HOST__"))
 }
 
+// Response headers have to be compared in this verbose way to support the "??"
+// wildcard.
+func (t *Test) compareResponseHeaders() {
+	if false == t.ShouldCheckResponseHeaders() {
+		return
+	}
+
+	failure := func() {
+		expected, _ := json.Marshal(t.expectResponseHeaders)
+		actual, _ := json.Marshal(t.ResponseHeaders)
+		t.Fatal(ComparisonFailure{Name: "response headers", Expect: string(expected), Actual: string(actual)})
+	}
+
+	if len(t.expectResponseHeaders) != len(t.ResponseHeaders) {
+		failure()
+		return
+	}
+
+	for key, values := range t.ResponseHeaders {
+		expectValues := t.expectResponseHeaders[key]
+
+		if nil == expectValues {
+			failure()
+			return
+		}
+
+		if len(expectValues) != len(values) {
+			failure()
+			return
+		}
+
+		for i := 0; i < len(values); i++ {
+			if expectValues[i] == "??" {
+				continue
+			}
+			if expectValues[i] != values[i] {
+				failure()
+				return
+			}
+		}
+	}
+}
+
 func (t *Test) comparePayload(expected json.RawMessage, pc newrelic.PayloadCreator, isMetrics bool) {
 	if nil == expected {
 		// No expected output has been specified:  Anything passes.
@@ -305,6 +362,8 @@ func (t *Test) Compare(harvest *newrelic.Harvest) {
 		return
 	}
 
+	t.compareResponseHeaders()
+
 	// Ensure that the actual and expected metrics are in the same order.
 	// Also scrub insignificant metrics, such as CPU, Supportability, etc.
 	expectedMetrics, err := newrelic.OrderScrubMetrics(t.metrics, MetricScrubRegexps)
@@ -316,6 +375,7 @@ func (t *Test) Compare(harvest *newrelic.Harvest) {
 	t.comparePayload(t.analyticEvents, harvest.TxnEvents, false)
 	t.comparePayload(t.customEvents, harvest.CustomEvents, false)
 	t.comparePayload(t.errorEvents, harvest.ErrorEvents, false)
+	t.comparePayload(t.spanEvents, harvest.SpanEvents, false)
 	t.comparePayload(expectedMetrics, harvest.Metrics, true)
 	t.comparePayload(t.slowSQLs, harvest.SlowSQLs, false)
 	t.comparePayload(t.tracedErrors, harvest.Errors, false)

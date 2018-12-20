@@ -58,11 +58,11 @@ func TestValidateBootID(t *testing.T) {
 	for _, tc := range testCases {
 		actual, err := validateBootID(tc.input)
 		if tc.isError && err == nil {
-			t.Fatal("%s: expected error; got nil", tc.name)
+			t.Fatalf("%s: expected error; got nil", tc.name)
 		} else if !tc.isError && err != nil {
-			t.Fatal("%s: expected no error; got: %v", tc.name, err)
+			t.Fatalf("%s: expected no error; got: %v", tc.name, err)
 		} else if !tc.isError && actual != tc.expected {
-			t.Fatal("%s: expected %s; got %s", tc.name, tc.expected, actual)
+			t.Fatalf("%s: expected %s; got %s", tc.name, tc.expected, actual)
 		}
 	}
 }

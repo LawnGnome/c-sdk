@@ -6,9 +6,11 @@
 #include <dlfcn.h>
 #include <signal.h>
 
+#include "php_api_distributed_trace.h"
 #include "php_environment.h"
 #include "php_error.h"
 #include "php_extension.h"
+#include "php_globals.h"
 #include "php_header.h"
 #include "php_hooks.h"
 #include "php_internal_instrument.h"
@@ -302,7 +304,7 @@ PHP_MINIT_FUNCTION(newrelic) {
 
   (void)type;
 
-  nr_memset(&nr_php_per_process_globals, 0, sizeof(nr_php_per_process_globals));
+  nr_php_global_init();
   NR_PHP_PROCESS_GLOBALS(enabled) = 1;
   NR_PHP_PROCESS_GLOBALS(our_module_number) = module_number;
   NR_PHP_PROCESS_GLOBALS(use_https) = 1;
@@ -311,6 +313,7 @@ PHP_MINIT_FUNCTION(newrelic) {
       = nr_php_check_for_upgrade_license_key();
   NR_PHP_PROCESS_GLOBALS(high_security) = 0;
   nr_php_populate_apache_process_globals();
+  nr_php_api_distributed_trace_register_userland_class(TSRMLS_C);
   /*
    * The CLI SAPI reports its name as cli. The CLI Web server reports its name
    * as cli-server.
@@ -563,7 +566,8 @@ static void nr_php_fatal_signal_handler(int sig) {
   nr_signal_reraise(sig);
 }
 
-nr_status_t nr_php_late_initialization(TSRMLS_D) {
+void nr_php_late_initialization(void) {
+  TSRMLS_FETCH();
   nrl_debug(NRL_INIT, "late_init called from pid=%d", nr_getpid());
 
   /*
@@ -606,6 +610,4 @@ nr_status_t nr_php_late_initialization(TSRMLS_D) {
   nr_php_add_internal_instrumentation(TSRMLS_C);
 
   nr_php_initialize_samplers();
-
-  return NR_SUCCESS;
 }

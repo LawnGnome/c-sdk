@@ -17,10 +17,11 @@ const (
 	CommandTxnEvents           = "analytic_event_data"
 	CommandConnect             = "connect"
 	CommandPreconnect          = "preconnect"
+	CommandSpanEvents          = "span_event_data"
 )
 
 const (
-	procotolVersion = "15"
+	protocolVersion = "16"
 )
 
 // LicenseKey represents a license key for an account.
@@ -43,7 +44,7 @@ func (cmd *Cmd) url(obfuscate bool) string {
 
 	query := url.Values{}
 	query.Set("marshal_format", "json")
-	query.Set("protocol_version", procotolVersion)
+	query.Set("protocol_version", protocolVersion)
 	query.Set("method", cmd.Name)
 
 	if obfuscate {

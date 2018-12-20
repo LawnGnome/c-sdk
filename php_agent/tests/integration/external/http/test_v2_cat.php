@@ -17,7 +17,10 @@ if (version_compare(phpversion('http'), '2.0.0', '<')) {
 */
 
 /*EXPECT
-X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-App-Data=missing cat endpoint reached
+X-NewRelic-ID=missing X-NewRelic-Transaction=missing tracing endpoint reached
+*/
+
+/*EXPECT_RESPONSE_HEADERS
 */
 
 /*EXPECT_METRICS
@@ -36,7 +39,7 @@ X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-App-Data=missing
 
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
-$url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+$url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 
 $request = new http\Client\Request("GET", $url);
 $driver = "curl";

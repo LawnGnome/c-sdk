@@ -63,6 +63,9 @@ void nr_app_info_destroy_fields(nr_app_info_t* info) {
   nr_free(info->version);
   nr_free(info->appname);
   nr_free(info->redirect_collector);
+  nr_free(info->redirect_collector);
+  nr_free(info->security_policies_token);
+  nro_delete(info->supported_security_policies);
 }
 
 /*
@@ -91,6 +94,7 @@ void nr_app_destroy(nrapp_t** app_ptr) {
   nr_rules_destroy(&app->txn_rules);
   nr_segment_terms_destroy(&app->segment_terms);
   nro_delete(app->connect_reply);
+  nro_delete(app->security_policies);
   nr_random_destroy(&app->rnd);
 
   nrt_mutex_unlock(&app->app_lock);
@@ -231,7 +235,9 @@ static nrapp_t* create_new_app(const nr_app_info_t* info) {
   app->info.labels = nro_copy(info->labels);
   app->info.host_display_name = nr_strdup(info->host_display_name);
   app->info.redirect_collector = nr_strdup(info->redirect_collector);
-
+  app->info.security_policies_token = nr_strdup(info->security_policies_token);
+  app->info.supported_security_policies
+      = nro_copy(info->supported_security_policies);
   app->rnd = nr_random_create();
   nr_random_seed_from_time(app->rnd);
 
@@ -413,6 +419,15 @@ nrapp_t* nr_agent_find_or_add_app(nrapplist_t* applist,
   nrapp_t* app;
 
   if (0 == nr_app_info_valid(info)) {
+    return 0;
+  }
+
+  if (info->high_security && !nr_strempty(info->security_policies_token)) {
+    nrl_error(NRL_ACCT,
+              "Security Policies and High Security Mode cannot both be present "
+              "in the agent configuration. If Security Policies have been set "
+              "for your account, please ensure the security_policies_token is "
+              "set but high_security is disabled (default).");
     return 0;
   }
 

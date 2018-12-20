@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "nr_guid.h"
 #include "nr_traces.h"
 #include "nr_traces_private.h"
 #include "util_buffer.h"
@@ -139,6 +140,80 @@ static void add_async_hash_json_to_buffer(nrbuf_t* buf,
   nr_buffer_add(buf, "}", 1);
 }
 
+static void nr_populate_datastore_spans(nr_span_event_t* span_event,
+                                        const nrobj_t* data_hash,
+                                        nr_txnnode_attributes_t* attributes) {
+  const char* host;
+  const char* port_path_or_id;
+  const char* sql;
+  const char* component;
+  char* address;
+
+  nr_span_event_set_category(span_event, NR_SPAN_DATASTORE);
+
+  if (NULL != attributes && NULL != attributes->datastore.component) {
+    component = attributes->datastore.component;
+    nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_COMPONENT,
+                                component);
+  }
+
+  host = nro_get_hash_string(data_hash, "host", NULL);
+  nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_PEER_HOSTNAME,
+                              host);
+
+  port_path_or_id = nro_get_hash_string(data_hash, "port_path_or_id", NULL);
+  if (NULL == host) {
+    host = "unknown";
+  }
+  if (NULL == port_path_or_id) {
+    port_path_or_id = "unknown";
+  }
+  address = nr_formatf("%s:%s", host, port_path_or_id);
+  nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_PEER_ADDRESS,
+                              address);
+  nr_free(address);
+
+  nr_span_event_set_datastore(
+      span_event, NR_SPAN_DATASTORE_DB_INSTANCE,
+      nro_get_hash_string(data_hash, "database_name", NULL));
+
+  // depending on the sql recording settings we may have ONE (not both) of these
+  // values
+  sql = nro_get_hash_string(data_hash, "sql", NULL);
+  if (NULL == sql) {
+    sql = nro_get_hash_string(data_hash, "sql_obfuscated", NULL);
+  }
+  if (NULL != sql) {
+    nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_DB_STATEMENT,
+                                sql);
+  }
+}
+
+/*
+ * Purpose : Populate the span event with the extern data.
+ *
+ * Params : 1. The target span event that needs to be populated.
+ *          2. The data_hash from the transaction node that corresponds with
+ * this span event.
+ */
+static void nr_populate_extern_spans(nr_span_event_t* span_event,
+                                     const nrobj_t* data_hash) {
+  const char* method;
+  const char* url;
+  const char* component;
+
+  method = nro_get_hash_string(data_hash, "procedure", NULL);
+  nr_span_event_set_external(span_event, NR_SPAN_EXTERNAL_METHOD, method);
+
+  url = nro_get_hash_string(data_hash, "uri", NULL);
+  nr_span_event_set_external(span_event, NR_SPAN_EXTERNAL_URL, url);
+
+  component = nro_get_hash_string(data_hash, "library", NULL);
+  nr_span_event_set_external(span_event, NR_SPAN_EXTERNAL_COMPONENT, component);
+
+  nr_span_event_set_category(span_event, NR_SPAN_HTTP);
+}
+
 /*
  * Purpose : Recursively print node segments to a buffer in json format.
  *
@@ -163,12 +238,16 @@ int nr_traces_json_print_segments(nrbuf_t* buf,
                                   const nrtxnnode_t* node,
                                   int next,
                                   const nr_harvest_trace_node_t* nodes,
-                                  nrpool_t* node_names) {
+                                  nrpool_t* node_names,
+                                  nr_span_event_t* span_events[],
+                                  int span_events_size,
+                                  const nr_span_event_t* parent_span) {
   int subsequent_kid = 0;
   uint64_t zerobased_start_ms;
   uint64_t zerobased_stop_ms;
   const char* node_name;
   int idx;
+  nr_span_event_t* span = NULL;
 
   if ((0 == buf) || (0 == txn) || (0 == node) || (next < 0) || (0 == nodes)) {
     return -1;
@@ -237,6 +316,49 @@ int nr_traces_json_print_segments(nrbuf_t* buf,
     add_hash_json_to_buffer(buf, node->data_hash);
   }
 
+  /*
+   * Create a span event.
+   */
+  if (NULL != span_events && next < span_events_size) {
+    span = nr_span_event_create();
+
+    if (NULL == node->id) {
+      /*
+       * Trace node representing a custom segment.
+       */
+      char* guid = nr_guid_create(txn->rnd);
+      nr_span_event_set_guid(span, guid);
+      nr_free(guid);
+    } else {
+      /*
+       * Trace node representing an external segment.
+       *
+       * node->id is an id that was used as current span id in an outgoing DT
+       * payload.
+       */
+      nr_span_event_set_guid(span, node->id);
+    }
+    if (NULL != node->attributes && NR_EXTERNAL == node->attributes->type) {
+      nr_span_event_set_category(span, NR_SPAN_HTTP);
+    }
+
+    nr_span_event_set_name(span, node_name);
+    nr_span_event_set_parent(span, parent_span);
+    nr_span_event_set_timestamp(span, node->start_time.when);
+    nr_span_event_set_duration(
+        span, nr_time_duration(node->start_time.when, node->stop_time.when));
+
+    if (NULL != node->attributes) {
+      if (NR_DATASTORE == node->attributes->type) {
+        nr_populate_datastore_spans(span, node->data_hash, node->attributes);
+      } else if (NR_EXTERNAL == node->attributes->type) {
+        nr_populate_extern_spans(span, node->data_hash);
+      }
+    }
+
+    span_events[next] = span;
+  }
+
   nr_buffer_add(buf, ",", 1);
   nr_buffer_add(buf, "[", 1);
 
@@ -259,7 +381,8 @@ int nr_traces_json_print_segments(nrbuf_t* buf,
       nr_buffer_add(buf, ",", 1);
     }
     next = nr_traces_json_print_segments(buf, txn, nodes[next].node, next + 1,
-                                         nodes, node_names);
+                                         nodes, node_names, span_events,
+                                         span_events_size, span);
     if (next < 0) {
       return -1;
     }
@@ -276,7 +399,9 @@ char* nr_harvest_trace_create_data(const nrtxn_t* txn,
                                    nrtime_t duration,
                                    const nrobj_t* agent_attributes,
                                    const nrobj_t* user_attributes,
-                                   const nrobj_t* intrinsics) {
+                                   const nrobj_t* intrinsics,
+                                   nr_span_event_t* span_events[],
+                                   int span_events_size) {
   nrbuf_t* buf;
   char* data;
   int rv;
@@ -285,6 +410,14 @@ char* nr_harvest_trace_create_data(const nrtxn_t* txn,
 
   if ((0 == txn) || (txn->nodes_used <= 0) || (0 == duration)) {
     return 0;
+  }
+
+  /*
+   * Setting span_events to NULL prevents the creation of span events in
+   * nr_traces_json_print_segments.
+   */
+  if (!nr_txn_should_create_span_events(txn)) {
+    span_events = NULL;
   }
 
   buf = nr_buffer_create(4096 * 8, 4096 * 4);
@@ -326,7 +459,8 @@ char* nr_harvest_trace_create_data(const nrtxn_t* txn,
   nr_buffer_add(buf, "[", 1);
 
   rv = nr_traces_json_print_segments(buf, txn, &(txn->root), 0, nodes,
-                                     node_names);
+                                     node_names, span_events, span_events_size,
+                                     NULL);
   nr_free(nodes);
   if (rv < 0) {
     /*

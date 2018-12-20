@@ -40,7 +40,8 @@ X-NewRelic-Synthetics=PwcbVVVRDQMHSEMQRUNFFBZDG0EQFBFPAVALVhVKRkBBSEsTQxNBEBZERR
         "timestamp": "??",
         "duration": "??",
         "totalTime": "??",
-        "nr.apdexPerfZone": "??"
+        "nr.apdexPerfZone": "??",
+        "error": false
       },
       "?? user attributes",
       "?? agent attributes"

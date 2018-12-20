@@ -3,18 +3,23 @@
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>
-#include <stdio.h>
 
 #include "nr_attributes.h"
 #include "nr_attributes_private.h"
 #include "nr_analytics_events.h"
+#include "nr_distributed_trace.h"
+#include "nr_distributed_trace_private.h"
 #include "nr_errors.h"
+#include "nr_guid.h"
 #include "nr_header.h"
 #include "nr_header_private.h"
 #include "nr_rules.h"
+#include "nr_segment.h"
 #include "nr_slowsqls.h"
 #include "nr_txn.h"
 #include "nr_txn_private.h"
+#include "util_base64.h"
+#include "util_flatbuffers.h"
 #include "util_memory.h"
 #include "util_metrics.h"
 #include "util_metrics_private.h"
@@ -22,6 +27,8 @@
 #include "util_strings.h"
 #include "util_text.h"
 #include "util_url.h"
+
+#include "nr_commands_private.h"
 
 #include "tlib_main.h"
 #include "test_node_helpers.h"
@@ -34,6 +41,42 @@ static char* stack_dump_callback(void) {
   return nr_strdup(
       "[\"Zip called on line 123 of script.php\","
       "\"Zap called on line 456 of hack.php\"]");
+}
+
+/*
+ * hash_is_subset_of is a callback that can be passed to nro_iteratehash. It
+ * asserts that one hashmap is a subset of another hashmap:
+ *
+ *   nro_iteratehash(subset, hash_is_subset_of, fullset);
+ *
+ * The composite hash_is_subset_of_data_t is used to let the tlib
+ * assertion print a valid test name. This is especially useful for
+ * cross agent tests read from JSON definitions.
+ */
+typedef struct {
+  const char* testname;
+  nrobj_t* set;
+} hash_is_subset_of_data_t;
+
+static nr_status_t hash_is_subset_of(const char* key,
+                                     const nrobj_t* val,
+                                     void* ptr) {
+  hash_is_subset_of_data_t* data = (hash_is_subset_of_data_t*)ptr;
+  /*
+   * Comparing the JSON representation allows us to compare values of arbitrary
+   * types.
+   */
+  char* expected = nro_to_json(val);
+  char* found = nro_to_json(nro_get_hash_value(data->set, key, NULL));
+
+  tlib_pass_if_true(data->testname, 0 == nr_strcmp(expected, found),
+                    "key='%s' expected='%s' found='%s'", NRSAFESTR(key),
+                    NRSAFESTR(expected), NRSAFESTR(found));
+
+  nr_free(expected);
+  nr_free(found);
+
+  return NR_SUCCESS;
 }
 
 #define TEST_DAEMON_ID 1357
@@ -224,8 +267,10 @@ static void test_key_txns_fn(const char* testname,
 }
 
 static void test_txn_cmp_options(void) {
-  nrtxnopt_t o1 = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  nrtxnopt_t o2 = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  nrtxnopt_t o1
+      = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  nrtxnopt_t o2
+      = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
   bool rv = false;
 
@@ -580,28 +625,32 @@ static void test_txn_metric_created_fn(const char* testname,
   test_pass_if_true(testname, 0 == nr_strcmp(nm, name), "nm=%s name=%s", nm,
                     name);
 
-  test_pass_if_true(testname, flags == m->flags, "name=%s flags=%u m->flags=%u",
-                    name, flags, m->flags);
-  test_pass_if_true(testname, nrm_count(m) == count,
-                    "name=%s nrm_count (m)=" NR_TIME_FMT " count=" NR_TIME_FMT,
-                    name, nrm_count(m), count);
-  test_pass_if_true(testname, nrm_total(m) == total,
-                    "name=%s nrm_total (m)=" NR_TIME_FMT " total=" NR_TIME_FMT,
-                    name, nrm_total(m), total);
-  test_pass_if_true(testname, nrm_exclusive(m) == exclusive,
-                    "name=%s nrm_exclusive (m)=" NR_TIME_FMT
-                    " exclusive=" NR_TIME_FMT,
-                    name, nrm_exclusive(m), exclusive);
-  test_pass_if_true(testname, nrm_min(m) == min,
-                    "name=%s nrm_min (m)=" NR_TIME_FMT " min=" NR_TIME_FMT,
-                    name, nrm_min(m), min);
-  test_pass_if_true(testname, nrm_max(m) == max,
-                    "name=%s nrm_max (m)=" NR_TIME_FMT " max=" NR_TIME_FMT,
-                    name, nrm_max(m), max);
-  test_pass_if_true(testname, nrm_sumsquares(m) == sumsquares,
-                    "name=%s nrm_sumsquares (m)=" NR_TIME_FMT
-                    " sumsquares=" NR_TIME_FMT,
-                    name, nrm_sumsquares(m), sumsquares);
+  if (m) {
+    test_pass_if_true(testname, flags == m->flags,
+                      "name=%s flags=%u m->flags=%u", name, flags, m->flags);
+    test_pass_if_true(testname, nrm_count(m) == count,
+                      "name=%s nrm_count (m)=" NR_TIME_FMT
+                      " count=" NR_TIME_FMT,
+                      name, nrm_count(m), count);
+    test_pass_if_true(testname, nrm_total(m) == total,
+                      "name=%s nrm_total (m)=" NR_TIME_FMT
+                      " total=" NR_TIME_FMT,
+                      name, nrm_total(m), total);
+    test_pass_if_true(testname, nrm_exclusive(m) == exclusive,
+                      "name=%s nrm_exclusive (m)=" NR_TIME_FMT
+                      " exclusive=" NR_TIME_FMT,
+                      name, nrm_exclusive(m), exclusive);
+    test_pass_if_true(testname, nrm_min(m) == min,
+                      "name=%s nrm_min (m)=" NR_TIME_FMT " min=" NR_TIME_FMT,
+                      name, nrm_min(m), min);
+    test_pass_if_true(testname, nrm_max(m) == max,
+                      "name=%s nrm_max (m)=" NR_TIME_FMT " max=" NR_TIME_FMT,
+                      name, nrm_max(m), max);
+    test_pass_if_true(testname, nrm_sumsquares(m) == sumsquares,
+                      "name=%s nrm_sumsquares (m)=" NR_TIME_FMT
+                      " sumsquares=" NR_TIME_FMT,
+                      name, nrm_sumsquares(m), sumsquares);
+  }
 }
 
 #define test_apdex_metric_created(...) \
@@ -749,6 +798,7 @@ static void test_create_error_metrics(void) {
   txn->status.background = 0;
   txn->trace_strings = 0;
   txn->unscoped_metrics = 0;
+  txn->options.distributed_tracing_enabled = false;
 
   /*
    * Test : Bad Params.  Should not blow up.
@@ -968,6 +1018,7 @@ static void test_create_duration_metrics_async(void) {
   txn->unscoped_metrics = 0;
   txn->root_kids_duration = 111;
   txn->intrinsics = 0;
+  txn->options.distributed_tracing_enabled = false;
 
   /*
    * Test : Bad Params.  Should not blow up.
@@ -1333,6 +1384,7 @@ static void test_record_error(void) {
   nrtxn_t* txn = &txnv;
 
   txn->options.err_enabled = 1;
+  txn->options.allow_raw_exception_messages = 1;
   txn->status.recording = 1;
   txn->error = 0;
   txn->high_security = 0;
@@ -1615,63 +1667,63 @@ static void test_save_trace_node(void) {
   stop.when = start.when + 100;
 
   /* Don't blow up */
-  nr_txn_save_trace_node(0, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(0, &start, &stop, "myname", NULL, data_hash, NULL);
 
-  nr_txn_save_trace_node(txn, 0, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, 0, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("null start", 0, txn->nodes_used);
   tlib_pass_if_null("null start", txn->last_added);
 
-  nr_txn_save_trace_node(txn, &start, 0, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, 0, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("null stop", 0, txn->nodes_used);
   tlib_pass_if_null("null stop", txn->last_added);
 
-  nr_txn_save_trace_node(txn, &start, &stop, 0, NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, 0, NULL, data_hash, NULL);
   tlib_pass_if_int_equal("null name", 0, txn->nodes_used);
   tlib_pass_if_null("null name", txn->last_added);
 
   txn->status.recording = 0;
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("not recording", 0, txn->nodes_used);
   tlib_pass_if_null("not recording", txn->last_added);
   txn->status.recording = 1;
 
   txn->options.tt_enabled = 0;
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("tt not enabled", 0, txn->nodes_used);
   tlib_pass_if_null("tt not enabled", txn->last_added);
   txn->options.tt_enabled = 1;
 
   stop.when = start.when - 1;
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("negative duration", 0, txn->nodes_used);
   tlib_pass_if_null("negative duration", txn->last_added);
   stop.when = start.when + 100;
 
   stop.stamp = start.stamp;
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("matching stamps", 0, txn->nodes_used);
   tlib_pass_if_null("matching stamps", txn->last_added);
   stop.stamp = start.stamp + 100;
 
   stop.stamp = start.stamp - 1;
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("stamps in wrong order", 0, txn->nodes_used);
   tlib_pass_if_null("stamps in wrong order", txn->last_added);
   stop.stamp = start.stamp + 100;
 
   stop.when = start.when;
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("zero duration", 1, txn->nodes_used);
   tlib_pass_if_not_null("zero duration", txn->last_added);
   stop.when = start.when + 100;
 
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, data_hash, NULL);
   tlib_pass_if_int_equal("success, no context", 2, txn->nodes_used);
   tlib_pass_if_not_null("success, no context", txn->last_added);
   tlib_pass_if_int_equal("success, no context", 0,
                          txn->last_added->async_context);
 
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", "mycontext", data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", "mycontext", data_hash, NULL);
   tlib_pass_if_int_equal("success, with context", 3, txn->nodes_used);
   tlib_pass_if_not_null("success, with context", txn->last_added);
   tlib_pass_if_int_equal("success, with context", 2,
@@ -1704,7 +1756,7 @@ static void test_save_trace_node_async(void) {
   stop.stamp = start.stamp + 100;
   stop.when = start.when + 100;
 
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", "foo", data_hash);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", "foo", data_hash, NULL);
   tlib_pass_if_true("node saved success", 1 == txn->nodes_used,
                     "txn->nodes_used=%d", txn->nodes_used);
   tlib_pass_if_true("node saved success", 0 != txn->last_added,
@@ -1726,14 +1778,14 @@ static void test_created_txn_fn(const char* testname,
                                 nrtxnopt_t* correct,
                                 const char* file,
                                 int line) {
+  const char* guid = nr_txn_get_guid(rv);
   nrtxnopt_t* opts = &rv->options;
 
   /*
    * Test : GUID Created
    */
-  test_pass_if_true(testname, 0 != rv->guid, "rv->guid=%p", rv->guid);
-  test_pass_if_true(testname, NR_GUID_SIZE == nr_strlen(rv->guid),
-                    "nr_strlen (rv->guid)=%d", nr_strlen(rv->guid));
+  tlib_pass_if_not_null(testname, guid);
+  tlib_pass_if_int_equal(testname, NR_GUID_SIZE, nr_strlen(guid));
 
   /*
    * Test : root times and stamp
@@ -1862,6 +1914,27 @@ static void test_created_txn_fn(const char* testname,
       opts->cross_process_enabled, correct->cross_process_enabled);
 }
 
+static void test_default_trace_id(void) {
+  nrapp_t app;
+  nrtxnopt_t opts;
+  nrtxn_t* txn;
+  const char* txnid;
+
+  nr_memset(&app, 0, sizeof(app));
+  app.state = NR_APP_OK;
+  nr_memset(&opts, 0, sizeof(opts));
+
+  txn = nr_txn_begin(&app, &opts, NULL);
+  txnid = nr_txn_get_guid(txn);
+
+  tlib_fail_if_null("txnid", txnid);
+  tlib_pass_if_str_equal(
+      "txnid=traceid", txnid,
+      nr_distributed_trace_get_trace_id(txn->distributed_trace));
+
+  nr_txn_destroy(&txn);
+}
+
 static void test_begin_bad_params(void) {
   nrapp_t app;
   nrtxnopt_t opts;
@@ -1929,6 +2002,7 @@ static void test_begin(void) {
   nr_random_seed(app->rnd, 345345);
   app->info.high_security = 0;
   app->connect_reply = nro_new_hash();
+  app->security_policies = nro_new_hash();
   nro_set_hash_boolean(app->connect_reply, "collect_errors", 1);
   nro_set_hash_boolean(app->connect_reply, "collect_traces", 1);
   nro_set_hash_double(app->connect_reply, "apdex_t", 0.6);
@@ -1940,6 +2014,11 @@ static void test_begin(void) {
   app->info.appname = nr_strdup("App Name;Foo;Bar");
   app->info.license = nr_strdup("1234567890123456789012345678901234567890");
   app->info.host_display_name = nr_strdup("foo_host");
+  app->info.security_policies_token = nr_strdup("");
+
+  nr_memset(&app->harvest, 0, sizeof(nr_app_harvest_t));
+  app->harvest.frequency = 60;
+  app->harvest.target_transactions_per_cycle = 10;
 
   /*
    * Test : Options provided.
@@ -2075,12 +2154,31 @@ static void test_begin(void) {
   tlib_pass_if_str_equal("primary_app_name", "App Name", rv->primary_app_name);
   nr_txn_destroy(&rv);
 
+  /*
+   * Test : Connect reply for DT
+   */
+  nro_set_hash_string(app->connect_reply, "trusted_account_key", "1");
+  nro_set_hash_string(app->connect_reply, "primary_application_id", "2");
+  nro_set_hash_string(app->connect_reply, "account_id", "3");
+  rv = nr_txn_begin(app, opts, attribute_config);
+  tlib_pass_if_str_equal(
+      "connect response", "1",
+      nr_distributed_trace_get_trusted_key(rv->distributed_trace));
+  tlib_pass_if_str_equal(
+      "connect response", "2",
+      nr_distributed_trace_get_app_id(rv->distributed_trace));
+  tlib_pass_if_str_equal(
+      "connect response", "3",
+      nr_distributed_trace_get_account_id(rv->distributed_trace));
   nr_txn_destroy(&rv);
+
   nr_free(app->agent_run_id);
   nr_free(app->info.appname);
   nr_free(app->info.license);
   nr_free(app->info.host_display_name);
+  nr_free(app->info.security_policies_token);
   nro_delete(app->connect_reply);
+  nro_delete(app->security_policies);
   nr_attribute_config_destroy(&attribute_config);
   nr_random_destroy(&app->rnd);
 }
@@ -2281,6 +2379,7 @@ static void test_end(void) {
   nro_delete(rules_ob);
   app->segment_terms = 0;
   app->connect_reply = nro_new_hash();
+  app->security_policies = nro_new_hash();
   nro_set_hash_boolean(app->connect_reply, "collect_traces", 1);
   nro_set_hash_boolean(app->connect_reply, "collect_errors", 1);
   nro_set_hash_double(app->connect_reply, "apdex_t", 0.5);
@@ -2288,6 +2387,12 @@ static void test_end(void) {
   app->info.appname = nr_strdup("App Name;Foo;Bar");
   app->info.license = nr_strdup("1234567890123456789012345678901234567890");
   app->info.host_display_name = nr_strdup("foo_host");
+  app->info.security_policies_token = nr_strdup("");
+
+  nr_memset(&app->harvest, 0, sizeof(nr_app_harvest_t));
+  app->harvest.frequency = 60;
+  app->harvest.target_transactions_per_cycle = 10;
+
   p->txns_app = app;
 
   /*
@@ -2421,31 +2526,12 @@ static void test_end(void) {
   nr_rules_destroy(&app->txn_rules);
   nrt_mutex_destroy(&app->app_lock);
   nro_delete(app->connect_reply);
+  nro_delete(app->security_policies);
   nr_free(app->agent_run_id);
   nr_free(app->info.appname);
   nr_free(app->info.license);
   nr_free(app->info.host_display_name);
-}
-
-static void test_create_guid(void) {
-  char* guid;
-  nr_random_t* rnd = nr_random_create();
-
-  nr_random_seed(rnd, 345345);
-
-  guid = nr_txn_create_guid(NULL);
-  tlib_pass_if_str_equal("NULL random", guid, "0000000000000000");
-  nr_free(guid);
-
-  guid = nr_txn_create_guid(rnd);
-  tlib_pass_if_str_equal("guid creation", guid, "078ad44c1960eab7");
-  nr_free(guid);
-
-  guid = nr_txn_create_guid(rnd);
-  tlib_pass_if_str_equal("repeat guid creation", guid, "11da3087c4400533");
-  nr_free(guid);
-
-  nr_random_destroy(&rnd);
+  nr_free(app->info.security_policies_token);
 }
 
 static void test_should_force_persist(void) {
@@ -2604,6 +2690,7 @@ static void test_add_user_custom_parameter(void) {
   nrobj_t* out;
 
   txn.attributes = nr_attributes_create(0);
+  txn.options.custom_parameters_enabled = 1;
   txn.high_security = 0;
 
   st = nr_txn_add_user_custom_parameter(NULL, NULL, NULL);
@@ -2640,6 +2727,7 @@ static void test_add_request_parameter(void) {
   char* json;
 
   txn.high_security = 0;
+  txn.lasp = 0;
   config = nr_attribute_config_create();
   nr_attribute_config_modify_destinations(
       config, "request.parameters.*", NR_ATTRIBUTE_DESTINATION_TXN_EVENT, 0);
@@ -2704,6 +2792,21 @@ static void test_add_request_parameter(void) {
       "json=%s", NRSAFESTR(json));
   nr_free(json);
   txn.high_security = 0;
+
+  txn.lasp = 1;
+  nr_txn_add_request_parameter(&txn, "zip", "zap", legacy_enable);
+  json = nr_attributes_debug_json(txn.attributes);
+  tlib_pass_if_true(
+      "LASP prevents capture",
+      0
+          == nr_strcmp(
+                 "{\"user\":[],\"agent\":[{\"dests\":[\"event\",\"trace\","
+                 "\"error\"],"
+                 "\"key\":\"request.parameters.key\",\"value\":\"gamma\"}]}",
+                 json),
+      "json=%s", NRSAFESTR(json));
+  nr_free(json);
+  txn.lasp = 0;
 
   nr_attributes_destroy(&txn.attributes);
 }
@@ -3278,6 +3381,18 @@ static void test_event_should_add_guid(void) {
   txn.type = NR_TXN_TYPE_CAT_OUTBOUND;
   tlib_pass_if_int_equal("outbound cat txn", 1,
                          nr_txn_event_should_add_guid(&txn));
+  txn.type = NR_TXN_TYPE_DT_INBOUND;
+  tlib_pass_if_int_equal("inbound dt txn", 0,
+                         nr_txn_event_should_add_guid(&txn));
+  txn.type = NR_TXN_TYPE_DT_OUTBOUND;
+  tlib_pass_if_int_equal("outbound dt txn", 0,
+                         nr_txn_event_should_add_guid(&txn));
+  txn.type = NR_TXN_TYPE_DT_INBOUND | NR_TXN_TYPE_SYNTHETICS;
+  tlib_pass_if_int_equal("inbound dt/synthetics txn", 0,
+                         nr_txn_event_should_add_guid(&txn));
+  txn.type = NR_TXN_TYPE_DT_OUTBOUND | NR_TXN_TYPE_SYNTHETICS;
+  tlib_pass_if_int_equal("outbound dt/synthetics txn", 0,
+                         nr_txn_event_should_add_guid(&txn));
   txn.type = NR_TXN_TYPE_CAT_OUTBOUND << 1;
   tlib_pass_if_int_equal("other txn type", 0,
                          nr_txn_event_should_add_guid(&txn));
@@ -3357,7 +3472,7 @@ static void test_add_cat_analytics_intrinsics(void) {
   txn->cat.inbound_guid = nr_strdup("eeeeeeee");
   txn->cat.referring_path_hash = nr_strdup("01234567");
   txn->cat.trip_id = nr_strdup("abcdef12");
-  txn->guid = nr_strdup("ffffffff");
+  nr_txn_set_guid(txn, "ffffffff");
 
   nr_txn_add_cat_analytics_intrinsics(txn, intrinsics);
 
@@ -3380,7 +3495,7 @@ static void test_add_cat_analytics_intrinsics(void) {
   nr_free(txn->cat.inbound_guid);
   nr_free(txn->cat.referring_path_hash);
   nr_free(txn->cat.trip_id);
-  nr_free(txn->guid);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
   nr_free(txn->primary_app_name);
 
   /*
@@ -3394,7 +3509,7 @@ static void test_add_cat_analytics_intrinsics(void) {
   txn->cat.inbound_guid = nr_strdup("eeeeeeee");
   txn->cat.referring_path_hash = nr_strdup("01234567");
   txn->cat.trip_id = nr_strdup("abcdef12");
-  txn->guid = nr_strdup("ffffffff");
+  nr_txn_set_guid(txn, "ffffffff");
 
   nr_txn_add_cat_analytics_intrinsics(txn, intrinsics);
 
@@ -3417,7 +3532,7 @@ static void test_add_cat_analytics_intrinsics(void) {
   nr_free(txn->cat.inbound_guid);
   nr_free(txn->cat.referring_path_hash);
   nr_free(txn->cat.trip_id);
-  nr_free(txn->guid);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
   nr_free(txn->primary_app_name);
 
   /*
@@ -3430,7 +3545,7 @@ static void test_add_cat_analytics_intrinsics(void) {
   txn->cat.inbound_guid = NULL;
   txn->cat.referring_path_hash = NULL;
   txn->cat.trip_id = NULL;
-  txn->guid = nr_strdup("ffffffff");
+  nr_txn_set_guid(txn, "ffffffff");
 
   nr_txn_add_cat_analytics_intrinsics(txn, intrinsics);
 
@@ -3453,7 +3568,7 @@ static void test_add_cat_analytics_intrinsics(void) {
   nr_free(txn->cat.inbound_guid);
   nr_free(txn->cat.referring_path_hash);
   nr_free(txn->cat.trip_id);
-  nr_free(txn->guid);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
   nr_free(txn->primary_app_name);
 
   nr_free(txn);
@@ -3603,9 +3718,9 @@ static void test_apdex_zone(void) {
 }
 
 static void test_get_cat_trip_id(void) {
-  char* guid = nr_strdup("GUID");
+  const char* guid = "GUID";
   char* trip_id = nr_strdup("Trip");
-  nrtxn_t txnv;
+  nrtxn_t txnv = {.high_security = 0};
   nrtxn_t* txn = &txnv;
 
   /*
@@ -3617,37 +3732,67 @@ static void test_get_cat_trip_id(void) {
    * Test : No trip ID or GUID.
    */
   txn->cat.trip_id = NULL;
-  txn->guid = NULL;
+  nr_txn_set_guid(txn, NULL);
   tlib_pass_if_null("NULL txn", nr_txn_get_cat_trip_id(txn));
 
   /*
    * Test : GUID only.
    */
   txn->cat.trip_id = NULL;
-  txn->guid = guid;
+  nr_txn_set_guid(txn, guid);
   tlib_pass_if_str_equal("GUID only", guid, nr_txn_get_cat_trip_id(txn));
 
   /*
    * Test : Trip ID only.
    */
   txn->cat.trip_id = trip_id;
-  txn->guid = NULL;
+  nr_txn_set_guid(txn, NULL);
   tlib_pass_if_str_equal("Trip only", trip_id, nr_txn_get_cat_trip_id(txn));
 
   /*
    * Test : Trip ID and GUID.
    */
   txn->cat.trip_id = trip_id;
-  txn->guid = guid;
+  nr_txn_set_guid(txn, guid);
   tlib_pass_if_str_equal("both", trip_id, nr_txn_get_cat_trip_id(txn));
 
-  nr_free(guid);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
   nr_free(trip_id);
+}
+
+static void test_get_guid(void) {
+  nrtxn_t txnv = {.high_security = 0};
+  nrtxn_t* txn = &txnv;
+
+  nr_memset((void*)txn, 0, sizeof(txnv));
+
+  /*
+   * Test : Bad parameters.
+   */
+  tlib_pass_if_null("NULL txn", nr_txn_get_guid(NULL));
+
+  /*
+   * Test : NULL distributed trace.
+   */
+  tlib_pass_if_null("NULL distributed trace", nr_txn_get_guid(txn));
+
+  /*
+   * Test : NULL GUID.
+   */
+  txnv.distributed_trace = nr_distributed_trace_create();
+  tlib_pass_if_null("NULL GUID", nr_txn_get_guid(txn));
+
+  /*
+   * Test : Valid GUID.
+   */
+  nr_distributed_trace_set_txn_id(txnv.distributed_trace, "foo");
+  tlib_pass_if_str_equal("valid GUID", "foo", (nr_txn_get_guid(txn)));
+  nr_distributed_trace_destroy(&txnv.distributed_trace);
 }
 
 static void test_get_path_hash(void) {
   char* result;
-  nrtxn_t txnv;
+  nrtxn_t txnv = {.high_security = 0};
   nrtxn_t* txn = &txnv;
 
   nr_memset((void*)txn, 0, sizeof(txnv));
@@ -3896,16 +4041,17 @@ static void test_namer(void) {
 }
 
 static void test_error_to_event(void) {
-  nrtxn_t txn;
+  nrtxn_t txn = {.high_security = 0};
   nr_analytics_event_t* event;
 
   txn.cat.inbound_guid = NULL;
   txn.error
       = nr_error_create(1, "the_msg", "the_klass", "[]", 123 * NR_TIME_DIVISOR);
-  txn.guid = nr_strdup("abcd");
+  nr_txn_set_guid(&txn, "abcd");
   txn.name = nr_strdup("my_txn_name");
   txn.options.analytics_events_enabled = 1;
   txn.options.error_events_enabled = 1;
+  txn.options.distributed_tracing_enabled = 0;
   txn.options.apdex_t = 10;
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
@@ -4009,7 +4155,7 @@ static void test_error_to_event(void) {
                          "]");
   nr_analytics_event_destroy(&event);
 
-  nr_free(txn.guid);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
   nr_free(txn.name);
   nr_free(txn.cat.inbound_guid);
   nr_error_destroy(&txn.error);
@@ -4019,7 +4165,7 @@ static void test_error_to_event(void) {
 }
 
 static void test_create_event(void) {
-  nrtxn_t txn;
+  nrtxn_t txn = {.high_security = 0};
   nr_analytics_event_t* event;
 
   txn.error = NULL;
@@ -4027,7 +4173,8 @@ static void test_create_event(void) {
   txn.status.ignore_apdex = 0;
   txn.options.analytics_events_enabled = 1;
   txn.options.apdex_t = 10;
-  txn.guid = nr_strdup("abcd");
+  txn.options.distributed_tracing_enabled = 0;
+  nr_txn_set_guid(&txn, "abcd");
   txn.name = nr_strdup("my_txn_name");
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
@@ -4067,7 +4214,8 @@ static void test_create_event(void) {
                          "\"timestamp\":123.00000,"
                          "\"duration\":0.98700,"
                          "\"totalTime\":0.98700,"
-                         "\"nr.apdexPerfZone\":\"F\""
+                         "\"nr.apdexPerfZone\":\"F\","
+                         "\"error\":false"
                          "},"
                          "{\"user_long\":1},"
                          "{\"agent_long\":2}"
@@ -4091,7 +4239,9 @@ static void test_create_event(void) {
                          "\"nr.apdexPerfZone\":\"F\","
                          "\"queueDuration\":3.00000,"
                          "\"externalDuration\":2.00000,"
-                         "\"databaseDuration\":1.00000"
+                         "\"databaseDuration\":1.00000,"
+                         "\"databaseCallCount\":1,"
+                         "\"error\":false"
                          "},"
                          "{\"user_long\":1},"
                          "{\"agent_long\":2}"
@@ -4111,7 +4261,9 @@ static void test_create_event(void) {
                          "\"totalTime\":0.98700,"
                          "\"queueDuration\":3.00000,"
                          "\"externalDuration\":2.00000,"
-                         "\"databaseDuration\":1.00000"
+                         "\"databaseDuration\":1.00000,"
+                         "\"databaseCallCount\":1,"
+                         "\"error\":false"
                          "},"
                          "{\"user_long\":1},"
                          "{\"agent_long\":2}"
@@ -4134,7 +4286,9 @@ static void test_create_event(void) {
                          "\"nr.apdexPerfZone\":\"F\","
                          "\"queueDuration\":3.00000,"
                          "\"externalDuration\":2.00000,"
-                         "\"databaseDuration\":1.00000"
+                         "\"databaseDuration\":1.00000,"
+                         "\"databaseCallCount\":1,"
+                         "\"error\":false"
                          "},"
                          "{\"user_long\":1},"
                          "{\"agent_long\":2}"
@@ -4155,21 +4309,23 @@ static void test_create_event(void) {
                          "\"nr.apdexPerfZone\":\"F\","
                          "\"queueDuration\":3.00000,"
                          "\"externalDuration\":2.00000,"
-                         "\"databaseDuration\":1.00000"
+                         "\"databaseDuration\":1.00000,"
+                         "\"databaseCallCount\":1,"
+                         "\"error\":false"
                          "},"
                          "{\"user_long\":1},"
                          "{\"agent_long\":2}"
                          "]");
   nr_analytics_event_destroy(&event);
 
-  nr_free(txn.guid);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
   nr_free(txn.name);
   nr_attributes_destroy(&txn.attributes);
   nrm_table_destroy(&txn.unscoped_metrics);
 }
 
 static void test_name_from_function(void) {
-  nrtxn_t txn;
+  nrtxn_t txn = {.high_security = 0};
 
   txn.status.path_is_frozen = 0;
   txn.status.path_type = NR_PATH_TYPE_UNKNOWN;
@@ -4268,20 +4424,6 @@ static void test_add_custom_metric(void) {
   nrm_table_destroy(&txn.unscoped_metrics);
 }
 
-static nr_status_t test_txn_cat_map_expected_intrinsics(const char* key,
-                                                        const nrobj_t* val,
-                                                        void* ptr) {
-  const nrobj_t* intrinsics = (const nrobj_t*)ptr;
-  const char* expected = nro_get_string(val, NULL);
-  const char* found = nro_get_hash_string(intrinsics, key, NULL);
-
-  tlib_pass_if_true("expected intrinsics", 0 == nr_strcmp(expected, found),
-                    "key='%s' expected='%s' found='%s'", NRSAFESTR(key),
-                    NRSAFESTR(expected), NRSAFESTR(found));
-
-  return NR_SUCCESS;
-}
-
 static void test_txn_cat_map_cross_agent_testcase(nrapp_t* app,
                                                   const nrobj_t* hash) {
   int i;
@@ -4309,8 +4451,7 @@ static void test_txn_cat_map_cross_agent_testcase(nrapp_t* app,
     return;
   }
 
-  nr_free(txn->guid);
-  txn->guid = nr_strdup(guid);
+  nr_txn_set_guid(txn, guid);
 
   nr_header_process_x_newrelic_transaction(txn, inbound_x_newrelic_txn);
 
@@ -4361,8 +4502,10 @@ static void test_txn_cat_map_cross_agent_testcase(nrapp_t* app,
   /*
    * Test presence of expected intrinsics.
    */
-  nro_iteratehash(expected_intrinsics, test_txn_cat_map_expected_intrinsics,
-                  intrinsics);
+  {
+    hash_is_subset_of_data_t data = {.testname = testname, .set = intrinsics};
+    nro_iteratehash(expected_intrinsics, hash_is_subset_of, &data);
+  }
 
   nro_delete(intrinsics);
 
@@ -4393,6 +4536,323 @@ static void test_txn_cat_map_cross_agent_tests(void) {
     const nrobj_t* hash = nro_get_array_hash(array, i, 0);
 
     test_txn_cat_map_cross_agent_testcase(&app, hash);
+  }
+
+  nr_free(app.info.appname);
+  nro_delete(app.connect_reply);
+  nro_delete(array);
+  nr_free(json);
+}
+
+/*
+ * This does some cheating to tweak DT payloads to make them easily
+ * comparable in cross agent tests. In combination with nro_iteratehash
+ * this transforms a payload like this
+ *
+ * {
+ *   "v": [0, 1],
+ *   "d": ["ac": "1", "tr":"2"]
+ * }
+ *
+ * into this
+ *
+ * {
+ *   "v": [0, 1],
+ *   "d": ["ac": "1", "tr":"2"],
+ *   "d.ac":"1",
+ *   "d.tr":"2"
+ * }
+ */
+static nr_status_t flatten_dt_payload_into(const char* key,
+                                           const nrobj_t* val,
+                                           void* ptr) {
+  nrobj_t* payload = (nrobj_t*)ptr;
+  char* flatkey = nr_formatf("d.%s", key);
+
+  nro_set_hash(payload, flatkey, val);
+
+  nr_free(flatkey);
+
+  return NR_SUCCESS;
+}
+
+static void test_txn_dt_cross_agent_intrinsics(const char* testname,
+                                               const char* objname,
+                                               nrobj_t* obj,
+                                               const nrobj_t* spec) {
+  const nrobj_t* unexpected = nro_get_hash_array(spec, "unexpected", NULL);
+  const nrobj_t* expected = nro_get_hash_array(spec, "expected", NULL);
+  const nrobj_t* exact = nro_get_hash_value(spec, "exact", NULL);
+
+  /* expected */
+  for (int j = 1; j <= nro_getsize(expected); j++) {
+    const char* key = nro_get_array_string(expected, j, NULL);
+    const nrobj_t* val = nro_get_hash_value(obj, key, NULL);
+
+    tlib_pass_if_true(testname, 0 != val, "missing key on %s, key='%s'",
+                      NRSAFESTR(objname), NRSAFESTR(key));
+  }
+
+  /* unexpected */
+  for (int j = 1; j <= nro_getsize(unexpected); j++) {
+    const char* key = nro_get_array_string(unexpected, j, NULL);
+    const nrobj_t* val = nro_get_hash_value(obj, key, NULL);
+
+    tlib_pass_if_true(testname, 0 == val, "unexpected key on %s, key='%s'",
+                      objname, NRSAFESTR(key));
+  }
+
+  /* exact */
+  {
+    hash_is_subset_of_data_t data = {.testname = testname, .set = obj};
+    nro_iteratehash(exact, hash_is_subset_of, &data);
+  }
+}
+
+static void test_txn_dt_cross_agent_testcase(nrapp_t* app,
+                                             const nrobj_t* hash) {
+  int size;
+  nrtxn_t* txn;
+  nrobj_t* txn_event;
+  nrobj_t* error_event;
+  nrobj_t* span_event;
+
+  const char* testname = nro_get_hash_string(hash, "test_name", NULL);
+  const char* trusted_account_key
+      = nro_get_hash_string(hash, "trusted_account_key", NULL);
+  const char* account_id = nro_get_hash_string(hash, "account_id", NULL);
+  bool web_transaction = nro_get_hash_boolean(hash, "web_transaction", NULL);
+  bool span_events = nro_get_hash_boolean(hash, "span_events_enabled", NULL);
+  bool raises_exception = nro_get_hash_boolean(hash, "raises_exception", NULL);
+  bool force_sampled = nro_get_hash_boolean(hash, "force_sampled_true", NULL);
+  const char* transport_type
+      = nro_get_hash_string(hash, "transport_type", NULL);
+  const nrobj_t* inbound_payloads
+      = nro_get_hash_array(hash, "inbound_payloads", NULL);
+  const nrobj_t* outbound_payloads
+      = nro_get_hash_array(hash, "outbound_payloads", NULL);
+  const nrobj_t* intrinsics = nro_get_hash_value(hash, "intrinsics", NULL);
+  const nrobj_t* intrinsics_common
+      = nro_get_hash_value(intrinsics, "common", NULL);
+  const nrobj_t* intrinsics_target_events
+      = nro_get_hash_array(intrinsics, "target_events", NULL);
+  const nrobj_t* metrics = nro_get_hash_value(hash, "expected_metrics", NULL);
+
+  /*
+   * Initialize the transaction.
+   * */
+  nro_delete(app->connect_reply);
+  app->connect_reply = nro_new_hash();
+  nro_set_hash_string(app->connect_reply, "primary_application_id", "1");
+  nro_set_hash_string(app->connect_reply, "trusted_account_key",
+                      trusted_account_key);
+  nro_set_hash_string(app->connect_reply, "account_id", account_id);
+
+  txn = nr_txn_begin(app, &nr_txn_test_options, NULL);
+  tlib_pass_if_not_null(testname, txn);
+
+  if (NULL == txn) {
+    return;
+  }
+
+  txn->name = nr_strdup("name");
+
+  txn->options.distributed_tracing_enabled = true;
+  txn->options.span_events_enabled = span_events;
+  txn->options.tt_enabled = true;
+  txn->options.tt_threshold = 0;
+  txn->options.error_events_enabled = true;
+  txn->options.err_enabled = true;
+
+  if (!web_transaction) {
+    txn->status.background = true;
+  }
+
+  if (force_sampled) {
+    nr_distributed_trace_set_sampled(txn->distributed_trace, true);
+  }
+
+  if (raises_exception) {
+    txn->options.err_enabled = 1;
+    txn->error = NULL;
+    nr_txn_record_error(txn, 2, "msg", "class", "[\"A\",\"B\"]");
+  }
+
+  /*
+   * Accept inbound payloads.
+   */
+  if (NULL == inbound_payloads) {
+    nr_txn_accept_distributed_trace_payload(txn, NULL, transport_type);
+  }
+
+  size = nro_getsize(inbound_payloads);
+  for (int i = 1; i <= size; i++) {
+    const nrobj_t* json_payload = nro_get_array_hash(inbound_payloads, i, NULL);
+    char* payload = nro_to_json(json_payload);
+
+    tlib_pass_if_not_null(testname, payload);
+
+    nr_txn_accept_distributed_trace_payload(txn, payload, transport_type);
+
+    nr_free(payload);
+  }
+
+  /*
+   * Send outbound payloads.
+   */
+  size = nro_getsize(outbound_payloads);
+  for (int i = 1; i <= size; i++) {
+    const nrobj_t* spec = nro_get_array_hash(outbound_payloads, i, NULL);
+    char* payload = nr_txn_create_distributed_trace_payload(txn);
+    nrobj_t* json_payload = nro_create_from_json(payload);
+    const nrobj_t* json_payload_d = nro_get_hash_value(json_payload, "d", NULL);
+
+    nro_iteratehash(json_payload_d, flatten_dt_payload_into, json_payload);
+
+    /*
+     * With flatten_dt_payload_into applied, attributes on an outbound payload
+     * can be compared the same way as attributes on intrinsics events.
+     */
+    test_txn_dt_cross_agent_intrinsics(testname, "outbound payload",
+                                       json_payload, spec);
+
+    nro_delete(json_payload);
+    nr_free(payload);
+  }
+
+  /*
+   * Intrinsics.
+   */
+  txn->root.start_time.stamp = txn->root.start_time.when = 1000;
+  txn->root.stop_time.stamp = txn->root.stop_time.when = 2000;
+
+  /* Initialize transaction event */
+  txn_event = nr_txn_event_intrinsics(txn);
+
+  /* Initialize error event */
+  {
+    nrobj_t* data;
+    nr_analytics_event_t* error_event_analytics;
+
+    nr_txn_record_error(txn, 100, "error", "class", "{}");
+    error_event_analytics = nr_error_to_event(txn);
+    data = nro_create_from_json(nr_analytics_event_json(error_event_analytics));
+    error_event = nro_copy(nro_get_array_hash(data, 1, NULL));
+
+    nro_delete(data);
+    nr_analytics_event_destroy(&error_event_analytics);
+  }
+
+  /* Pull a span event out of the flatbuffer. */
+  {
+    nrobj_t* data;
+    nr_flatbuffers_table_t tbl;
+    nr_flatbuffer_t* fb;
+    nr_aoffset_t events;
+
+    nr_txn_save_trace_node(txn, &txn->root.start_time, &txn->root.stop_time,
+                           "myname", NULL, NULL, NULL);
+
+    txn->root.name = nr_string_add(txn->trace_strings, txn->name);
+
+    fb = nr_txndata_encode(txn);
+    nr_flatbuffers_table_init_root(&tbl, nr_flatbuffers_data(fb),
+                                   nr_flatbuffers_len(fb));
+    nr_flatbuffers_table_read_i8(&tbl, MESSAGE_FIELD_DATA_TYPE,
+                                 MESSAGE_BODY_NONE);
+    nr_flatbuffers_table_read_union(&tbl, &tbl, MESSAGE_FIELD_DATA);
+    events
+        = nr_flatbuffers_table_read_vector(&tbl, TRANSACTION_FIELD_SPAN_EVENTS);
+    nr_flatbuffers_table_init(
+        &tbl, tbl.data, tbl.length,
+        nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+    data = nro_create_from_json(
+        (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+
+    span_event = nro_copy(nro_get_array_hash(data, 1, NULL));
+
+    nro_delete(data);
+    nr_flatbuffers_destroy(&fb);
+  }
+
+  size = nro_getsize(intrinsics_target_events);
+  for (int i = 1; i <= size; i++) {
+    const char* event_type
+        = nro_get_array_string(intrinsics_target_events, i, 0);
+    const nrobj_t* intrinsics_type
+        = nro_get_hash_value(intrinsics, event_type, NULL);
+
+    if (0 == nr_strcmp(event_type, "Transaction")) {
+      test_txn_dt_cross_agent_intrinsics(testname, "transaction event",
+                                         txn_event, intrinsics_common);
+      test_txn_dt_cross_agent_intrinsics(testname, "transaction event",
+                                         txn_event, intrinsics_type);
+    } else if (0 == nr_strcmp(event_type, "TransactionError")) {
+      test_txn_dt_cross_agent_intrinsics(testname, "error event", error_event,
+                                         intrinsics_common);
+      test_txn_dt_cross_agent_intrinsics(testname, "error event", error_event,
+                                         intrinsics_type);
+    } else if (0 == nr_strcmp(event_type, "Span")) {
+      test_txn_dt_cross_agent_intrinsics(testname, "span_event", span_event,
+                                         intrinsics_common);
+      test_txn_dt_cross_agent_intrinsics(testname, "span event", span_event,
+                                         intrinsics_type);
+    }
+  }
+  nro_delete(txn_event);
+  nro_delete(span_event);
+  nro_delete(error_event);
+
+  /*
+   * Metrics.
+   */
+  nr_txn_create_duration_metrics(txn, "WebTransaction/Action/not_words", 1);
+  nr_txn_create_error_metrics(txn, "WebTransaction/Action/not_words");
+  size = nro_getsize(metrics);
+  for (int i = 1; i <= size; i++) {
+    const nrobj_t* metric = nro_get_array_array(metrics, i, 0);
+    const char* name = nro_get_array_string(metric, 1, 0);
+    const nrtime_t count = nro_get_array_int(metric, 2, 0);
+
+    const nrmetric_t* m = nrm_find(txn->unscoped_metrics, name);
+    const char* nm = nrm_get_name(txn->unscoped_metrics, m);
+
+    tlib_pass_if_true(testname, 0 != m, "m=%p", m);
+    tlib_pass_if_true(testname, 0 == nr_strcmp(nm, name), "nm=%s name=%s", nm,
+                      name);
+    tlib_pass_if_true(testname, nrm_count(m) == count,
+                      "name=%s nrm_count (m)=" NR_TIME_FMT
+                      " count=" NR_TIME_FMT,
+                      name, nrm_count(m), count);
+  }
+
+  nr_txn_destroy(&txn);
+}
+
+static void test_txn_dt_cross_agent_tests(void) {
+  char* json = 0;
+  nrobj_t* array = 0;
+  nrotype_t otype;
+  int i;
+  nrapp_t app;
+  int size;
+
+  nr_memset(&app, 0, sizeof(app));
+  app.state = NR_APP_OK;
+
+  json = nr_read_file_contents(CROSS_AGENT_TESTS_DIR
+                               "/distributed_tracing/distributed_tracing.json",
+                               10 * 1000 * 1000);
+  array = nro_create_from_json(json);
+  otype = nro_type(array);
+  tlib_pass_if_int_equal("tests valid", (int)NR_OBJECT_ARRAY, (int)otype);
+
+  size = nro_getsize(array);
+  for (i = 1; i <= size; i++) {
+    const nrobj_t* hash = nro_get_array_hash(array, i, 0);
+
+    test_txn_dt_cross_agent_testcase(&app, hash);
   }
 
   nr_free(app.info.appname);
@@ -4506,7 +4966,10 @@ static void test_txn_set_attribute(void) {
 
 static void test_sql_recording_level(void) {
   nr_tt_recordsql_t level;
-  nrtxn_t* txn = new_txn(0);
+  nrtxn_t txnv;
+  nrtxn_t* txn = &txnv;
+
+  txn->high_security = 0;
 
   level = nr_txn_sql_recording_level(NULL);
   tlib_pass_if_equal("NULL pointer returns NR_SQL_NONE", NR_SQL_NONE, level,
@@ -4544,8 +5007,336 @@ static void test_sql_recording_level(void) {
   level = nr_txn_sql_recording_level(txn);
   tlib_pass_if_equal("SQL recording disabled, high security mode.", NR_SQL_NONE,
                      level, nr_tt_recordsql_t, "%d");
+}
 
-  nr_txn_destroy(&txn);
+static void test_sql_recording_level_lasp(void) {
+  nr_tt_recordsql_t level;
+  nrtxn_t txnv;
+  nrtxn_t* txn = &txnv;
+  nrobj_t* security_policies = nro_new_hash();
+  nrobj_t* connect_reply = nro_new_hash();
+
+  txn->high_security = 0;
+
+  /*
+   * Prepare the world so I can isolate testing to LASP settings.
+   * If the below key/value pairs are not present
+   * nr_txn_enforce_security_settings will modify local variables
+   * and alter the outcome I expect turning on/off LASP policies.
+   */
+  nro_set_hash_boolean(connect_reply, "collect_traces", 1);
+  nro_set_hash_boolean(connect_reply, "collect_errors", 1);
+  nro_set_hash_boolean(connect_reply, "collect_error_events", 1);
+
+  /* Before: NR_SQL_RAW
+     LASP Setting: least secure (true)
+     Expected: NR_SQL_OBFUSCATED */
+  txn->options.tt_recordsql = NR_SQL_RAW;
+  nro_set_hash_boolean(security_policies, "record_sql", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  level = nr_txn_sql_recording_level(txn);
+  tlib_pass_if_equal(
+      "Raw recording level overridden with obfuscated recording level",
+      NR_SQL_OBFUSCATED, level, nr_tt_recordsql_t, "%d");
+
+  /* Before: NR_SQL_RAW
+     LASP Setting: most secure (false)
+     Expected: NR_SQL_NONE */
+  txn->options.tt_recordsql = NR_SQL_RAW;
+  nro_set_hash_boolean(security_policies, "record_sql", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  level = nr_txn_sql_recording_level(txn);
+  tlib_pass_if_equal("Raw recording level overriden with none recording level",
+                     NR_SQL_NONE, level, nr_tt_recordsql_t, "%d");
+
+  /* Before: NR_SQL_OBFUSCATED
+     LASP Setting: least secure (true)
+     Expected: NR_SQL_OBFUSCATED */
+  txn->options.tt_recordsql = NR_SQL_OBFUSCATED;
+  nro_set_hash_boolean(security_policies, "record_sql", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  level = nr_txn_sql_recording_level(txn);
+  tlib_pass_if_equal("Obfuscated recording level not overridden",
+                     NR_SQL_OBFUSCATED, level, nr_tt_recordsql_t, "%d");
+
+  /* Before: NR_SQL_OBFUSCATED
+     LASP Setting: most secure (false)
+     Expected: NR_SQL_NONE */
+  txn->options.tt_recordsql = NR_SQL_OBFUSCATED;
+  nro_set_hash_boolean(security_policies, "record_sql", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  level = nr_txn_sql_recording_level(txn);
+  tlib_pass_if_equal(
+      "Obfuscated recording level overridden with none recording level",
+      NR_SQL_NONE, level, nr_tt_recordsql_t, "%d");
+
+  /* Before: NR_SQL_NONE
+     LASP Setting: least secure (true)
+     Expected: NR_SQL_NONE */
+  txn->options.tt_recordsql = NR_SQL_NONE;
+  nro_set_hash_boolean(security_policies, "record_sql", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  level = nr_txn_sql_recording_level(txn);
+  tlib_pass_if_equal("None recording level not overridden", NR_SQL_NONE, level,
+                     nr_tt_recordsql_t, "%d");
+
+  /* Before: NR_SQL_NONE
+     LASP Setting: most secure (false)
+     Expected: NR_SQL_NONE */
+  txn->options.tt_recordsql = NR_SQL_NONE;
+  nro_set_hash_boolean(security_policies, "record_sql", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  level = nr_txn_sql_recording_level(txn);
+  tlib_pass_if_equal("None recording level not overridden", NR_SQL_NONE, level,
+                     nr_tt_recordsql_t, "%d");
+
+  nro_delete(security_policies);
+  nro_delete(connect_reply);
+}
+
+static void test_custom_events_lasp(void) {
+  const char* json;
+  nrtxn_t txnv;
+  nrtxn_t* txn = &txnv;
+  nrobj_t* security_policies = nro_new_hash();
+  nrobj_t* connect_reply = nro_new_hash();
+  const char* type = "my_event_type";
+  nrobj_t* params = nro_create_from_json("{\"a\":\"x\",\"b\":\"z\"}");
+  nrtime_t now = 123 * NR_TIME_DIVISOR;
+
+  txn->custom_events = nr_analytics_events_create(10);
+  txn->status.recording = 1;
+  txn->high_security = 0;
+
+  /*
+   * Prepare the world so I can isolate testing to LASP settings.
+   * If the below key/value pairs are not present
+   * nr_txn_enforce_security_settings will modify local variables
+   * and alter the outcome I expect turning on/off LASP policies.
+   */
+  nro_set_hash_boolean(connect_reply, "collect_traces", 1);
+  nro_set_hash_boolean(connect_reply, "collect_errors", 1);
+  nro_set_hash_boolean(connect_reply, "collect_error_events", 1);
+
+  /* Before: Enabled
+     LASP Setting: most secure (false)
+     Expected: Disabled */
+  txn->options.custom_events_enabled = true;
+  nro_set_hash_boolean(security_policies, "custom_events", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_custom_event_internal(txn, type, params, now);
+  json = nr_analytics_events_get_event_json(txn->custom_events, 0);
+  tlib_pass_if_null("not recording", json);
+
+  /* Before: Disabled
+     LASP Setting: least secure (true)
+     Expected: Disabled */
+  txn->options.custom_events_enabled = false;
+  nro_set_hash_boolean(security_policies, "custom_events", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_custom_event_internal(txn, type, params, now);
+  json = nr_analytics_events_get_event_json(txn->custom_events, 0);
+  tlib_pass_if_null("not recording", json);
+
+  /* Before: Disabled
+     LASP Setting: most secure (false)
+     Expected: Disabled */
+  txn->options.custom_events_enabled = false;
+  nro_set_hash_boolean(security_policies, "custom_events", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_custom_event_internal(txn, type, params, now);
+  json = nr_analytics_events_get_event_json(txn->custom_events, 0);
+  tlib_pass_if_null("not recording", json);
+
+  /* Before: Enabled
+     LASP Setting: least secure (true)
+     Expected: Enabled */
+  txn->options.custom_events_enabled = true;
+  nro_set_hash_boolean(security_policies, "custom_events", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_custom_event_internal(txn, type, params, now);
+  json = nr_analytics_events_get_event_json(txn->custom_events, 0);
+  tlib_pass_if_str_equal(
+      "success", json,
+      "[{\"type\":\"my_event_type\",\"timestamp\":123.00000},"
+      "{\"b\":\"z\",\"a\":\"x\"},{}]");
+
+  nr_analytics_events_destroy(&txn->custom_events);
+  nro_delete(params);
+  nro_delete(connect_reply);
+  nro_delete(security_policies);
+}
+
+static void test_custom_parameters_lasp(void) {
+  nr_status_t st;
+  nrtxn_t txnv;
+  nrtxn_t* txn = &txnv;
+  nrobj_t* obj = nro_new_int(123);
+  nrobj_t* security_policies = nro_new_hash();
+  nrobj_t* connect_reply = nro_new_hash();
+
+  /* For the purpose of this unit test only force LASP
+   * to disable, allowing parameters to be added
+   * if the security setting isn't set to
+   * most secure. */
+  txn->high_security = 0;
+  txn->lasp = 0;
+  txn->attributes = nr_attributes_create(0);
+
+  /*
+   * Prepare the world so I can isolate testing to LASP settings.
+   * If the below key/value pairs are not present
+   * nr_txn_enforce_security_settings will modify local variables
+   * and alter the outcome I expect turning on/off LASP policies.
+   */
+  nro_set_hash_boolean(connect_reply, "collect_traces", 1);
+  nro_set_hash_boolean(connect_reply, "collect_errors", 1);
+  nro_set_hash_boolean(connect_reply, "collect_error_events", 1);
+
+  /* Before: Enabled
+     LASP Setting: least secure (true)
+     Expected: Enabled */
+  txn->options.custom_parameters_enabled = true;
+  nro_set_hash_boolean(security_policies, "custom_parameters", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  st = nr_txn_add_user_custom_parameter(txn, "my_key", obj);
+  tlib_pass_if_status_success("success", st);
+
+  /* Before: Disabled
+     LASP Setting: least secure (true)
+     Expected: Disabled */
+  txn->options.custom_parameters_enabled = false;
+  nro_set_hash_boolean(security_policies, "custom_parameters", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  st = nr_txn_add_user_custom_parameter(txn, "my_key", obj);
+  tlib_pass_if_status_failure("local higher security", st);
+
+  /* Before: Enabled
+     LASP Setting: most secure (false)
+     Expected: Disabled */
+  txn->options.custom_parameters_enabled = true;
+  nro_set_hash_boolean(security_policies, "custom_parameters", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  st = nr_txn_add_user_custom_parameter(txn, "my_key", obj);
+  tlib_pass_if_status_failure("server higher security", st);
+
+  /* Before: Disabled
+     LASP Setting: most secure (false)
+     Expected: Disabled */
+  txn->options.custom_parameters_enabled = false;
+  nro_set_hash_boolean(security_policies, "custom_parameters", false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  st = nr_txn_add_user_custom_parameter(txn, "my_key", obj);
+  tlib_pass_if_status_failure("both local and server higher security", st);
+
+  nr_attributes_destroy(&txn->attributes);
+  nro_delete(obj);
+  nro_delete(connect_reply);
+  nro_delete(security_policies);
+}
+
+static void test_allow_raw_messages_lasp(void) {
+  nrtxn_t txnv;
+  nrtxn_t* txn = &txnv;
+  nrobj_t* security_policies = nro_new_hash();
+  nrobj_t* connect_reply = nro_new_hash();
+
+  txn->status.recording = 1;
+  txn->error = 0;
+  txn->options.err_enabled = 1;
+  txn->high_security = 0;
+
+  /*
+   * Prepare the world so I can isolate testing to LASP settings.
+   * If the below key/value pairs are not present
+   * nr_txn_enforce_security_settings will modify local variables
+   * and alter the outcome I expect turning on/off LASP policies.
+   */
+  nro_set_hash_boolean(connect_reply, "collect_traces", 1);
+  nro_set_hash_boolean(connect_reply, "collect_errors", 1);
+  nro_set_hash_boolean(connect_reply, "collect_error_events", 1);
+
+  /* Before: Enabled
+     LASP Setting: least secure (true)
+     Expected: Enabled */
+  txn->options.allow_raw_exception_messages = true;
+  nro_set_hash_boolean(security_policies, "allow_raw_exception_messages", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_error(txn, 2, "", "class", "[\"A\",\"B\"]");
+  tlib_pass_if_true("nr_txn_record_error empty errmsg", 0 == txn->error,
+                    "txn->error=%p", txn->error);
+
+  /* Before: Enabled
+     LASP Setting: most secure (false)
+     Expected: Disabled */
+  txn->options.allow_raw_exception_messages = true;
+  nro_set_hash_boolean(security_policies, "allow_raw_exception_messages",
+                       false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_error(txn, 4, "don't show", "class", "[\"A\",\"B\"]");
+  tlib_pass_if_true("security setting error message stripped", 0 != txn->error,
+                    "txn->error=%p", txn->error);
+  tlib_pass_if_true("security setting error message stripped",
+                    0
+                        == nr_strcmp(NR_TXN_ALLOW_RAW_EXCEPTION_MESSAGE,
+                                     nr_error_get_message(txn->error)),
+                    "nr_error_get_message (txn->error)=%s",
+                    NRSAFESTR(nr_error_get_message(txn->error)));
+
+  /* Before: Disabled
+     LASP Setting: least secure (true)
+     Expected: Disabled */
+  txn->options.allow_raw_exception_messages = false;
+  nro_set_hash_boolean(security_policies, "allow_raw_exception_messages", true);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_error(txn, 4, "don't show", "class", "[\"A\",\"B\"]");
+  tlib_pass_if_true("security setting error message stripped", 0 != txn->error,
+                    "txn->error=%p", txn->error);
+  tlib_pass_if_true("security setting error message stripped",
+                    0
+                        == nr_strcmp(NR_TXN_ALLOW_RAW_EXCEPTION_MESSAGE,
+                                     nr_error_get_message(txn->error)),
+                    "nr_error_get_message (txn->error)=%s",
+                    NRSAFESTR(nr_error_get_message(txn->error)));
+
+  /* Before: Disabled
+     LASP Setting: most secure (false)
+     Expected: Disabled */
+  txn->options.allow_raw_exception_messages = false;
+  nro_set_hash_boolean(security_policies, "allow_raw_exception_messages",
+                       false);
+  nr_txn_enforce_security_settings(&txn->options, connect_reply,
+                                   security_policies);
+  nr_txn_record_error(txn, 4, "don't show", "class", "[\"A\",\"B\"]");
+  tlib_pass_if_true("security setting error message stripped", 0 != txn->error,
+                    "txn->error=%p", txn->error);
+  tlib_pass_if_true("security setting error message stripped",
+                    0
+                        == nr_strcmp(NR_TXN_ALLOW_RAW_EXCEPTION_MESSAGE,
+                                     nr_error_get_message(txn->error)),
+                    "nr_error_get_message (txn->error)=%s",
+                    NRSAFESTR(nr_error_get_message(txn->error)));
+
+  nr_error_destroy(&txn->error);
+  nro_delete(connect_reply);
+  nro_delete(security_policies);
 }
 
 static void test_nr_txn_is_current_path_named(void) {
@@ -4577,6 +5368,713 @@ static void test_nr_txn_is_current_path_named(void) {
   nr_txn_destroy_fields(&txn);
 }
 
+static void test_create_distributed_trace_payload(void) {
+  char* text;
+  nrtxn_t txn;
+
+  nr_memset(&txn, 0, sizeof(nrtxn_t));
+  txn.unscoped_metrics = nrm_table_create(0);
+
+  /*
+   * Test : Bad parameters.
+   */
+  tlib_pass_if_null("NULL txn", nr_txn_create_distributed_trace_payload(NULL));
+
+  /*
+   * Test : Distributed tracing disabled.
+   */
+  txn.options.distributed_tracing_enabled = 0;
+  tlib_pass_if_null("disabled", nr_txn_create_distributed_trace_payload(&txn));
+  test_txn_metric_created(
+      "exception", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/CreatePayload/Exception", 1, 0, 0, 0, 0,
+      0);
+
+  txn.options.distributed_tracing_enabled = true;
+  /*
+   * Test : Distributed tracing pointer is NULL.
+   */
+  txn.options.span_events_enabled = true;
+  tlib_pass_if_null("enabled", nr_txn_create_distributed_trace_payload(&txn));
+  test_txn_metric_created(
+      "exception", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/CreatePayload/Exception", 2, 0, 0, 0, 0,
+      0);
+
+  /*
+   * Test : Valid distributed trace, span events off, transaction events on.
+   */
+  txn.options.span_events_enabled = false;
+  txn.options.analytics_events_enabled = true;
+  nr_txn_set_guid(&txn, "wombat");
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  tlib_fail_if_null("valid guid wombat", nr_strstr(text, "\"tx\":\"wombat\""));
+  test_txn_metric_created(
+          "success", txn.unscoped_metrics, MET_FORCED,
+          "Supportability/DistributedTrace/CreatePayload/Success", 1, 0, 0, 0, 0,
+          0);
+  nr_free(text);
+
+  /*
+   * Test : Valid distributed trace, span events on, transaction events off.
+   */
+  txn.options.span_events_enabled = true;
+  txn.options.analytics_events_enabled = false;
+  nr_txn_set_guid(&txn, "kangaroos");
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  tlib_fail_if_null("valid guid kangaroos", nr_strstr(text, "\"tx\":\"kangaroos\""));
+  test_txn_metric_created(
+          "success", txn.unscoped_metrics, MET_FORCED,
+          "Supportability/DistributedTrace/CreatePayload/Success", 2, 0, 0, 0, 0,
+          0);
+  nr_free(text);
+
+  /*
+   * Test : Valid distributed trace setup.
+   *
+   * We'll only check the parameters we set here (namely the GUID); the rest can
+   * be tested within test_distributed_trace.c.
+   */
+  txn.options.span_events_enabled = true;
+  txn.options.analytics_events_enabled = true;
+  nr_txn_set_guid(&txn, "guid");
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  tlib_fail_if_null("valid text", text);
+  tlib_fail_if_null("valid guid", nr_strstr(text, "\"tx\":\"guid\""));
+  test_txn_metric_created(
+      "success", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/CreatePayload/Success", 3, 0, 0, 0, 0,
+      0);
+  nr_free(text);
+
+  nr_txn_destroy_fields(&txn);
+}
+
+static void test_accept_before_create_distributed_tracing(void) {
+  nrtxn_t txn;
+  char* text;
+  const char* json_payload
+      = "{ \
+    \"v\": [0,1],   \
+    \"d\": {        \
+      \"ty\": \"App\", \
+      \"ac\": \"9123\", \
+      \"ap\": \"51424\", \
+      \"id\": \"27856f70d3d314b7\", \
+      \"tr\": \"3221bf09aa0bcf0d\", \
+      \"pr\": 0.1234, \
+      \"sa\": false, \
+      \"ti\": 1482959525577 \
+    } \
+  }";
+
+  nr_memset(&txn, 0, sizeof(nrtxn_t));
+
+  txn.options.distributed_tracing_enabled = true;
+  txn.options.span_events_enabled = true;
+  txn.app_connect_reply
+      = nro_create_from_json("{\"trusted_account_key\":\"9123\"}");
+  txn.unscoped_metrics = nrm_table_create(0);
+
+  /*
+   * Test : Valid accept before create.
+   *
+   * Confirm the transaction id of the outbound payload matches the
+   * transaction id from the inbound payload.
+   */
+
+  // Accept
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_distributed_trace_set_txn_id(txn.distributed_trace, "txnid");
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_metric_created("transport duration all", txn.unscoped_metrics,
+                      MET_FORCED, 1482959525,
+                      "TransportDuration/App/9123/51424/HTTP/all");
+
+  // Create
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  tlib_fail_if_null("valid text", text);
+  tlib_fail_if_null("valid transaction id",
+                    nr_strstr(text, "\"tr\":\"3221bf09aa0bcf0d\""));
+  nr_free(text);
+
+  nr_txn_destroy_fields(&txn);
+}
+
+static void test_nr_txn_add_distributed_tracing_intrinsics(void) {
+  nrtxn_t txnv = {.high_security = 0};
+  nrtxn_t* txn = &txnv;
+  nrobj_t* ob = nro_create_from_json("{}");
+
+  nr_txn_set_guid(txn, "test-guid");
+
+  nr_distributed_trace_set_sampled(txn->distributed_trace, true);
+
+  // exercise null paths to ensure nothing bad happens
+  nr_txn_add_distributed_tracing_intrinsics(NULL, NULL);
+  nr_txn_add_distributed_tracing_intrinsics(txn, NULL);
+  nr_txn_add_distributed_tracing_intrinsics(NULL, ob);
+
+  // perform the real call
+  nr_txn_add_distributed_tracing_intrinsics(txn, ob);
+
+  // test that sampled is assigned to intrinsics nrobj_t
+  tlib_pass_if_int_equal("Sampled assigned to NRO correctly",
+                         nro_get_hash_boolean(ob, "sampled", NULL), true);
+
+  nro_delete(ob);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
+}
+
+static void test_txn_accept_distributed_trace_payload_metrics(void) {
+  nrtxn_t txn = {.unscoped_metrics = nrm_table_create(0)};
+
+  char* json_payload
+      = "{ \
+    \"v\": [0,1],   \
+    \"d\": {        \
+      \"ty\": \"App\", \
+      \"ac\": \"9123\", \
+      \"ap\": \"51424\", \
+      \"id\": \"27856f70d3d314b7\", \
+      \"tr\": \"3221bf09aa0bcf0d\", \
+      \"pr\": 0.1234, \
+      \"sa\": false, \
+      \"ti\": 1482959525577 \
+    } \
+  }";
+
+  txn.options.distributed_tracing_enabled = true;
+  txn.app_connect_reply
+      = nro_create_from_json("{\"trusted_account_key\":\"9123\"}");
+
+  /*
+   * Test : Successful (web)
+   */
+  txn.status.background = false;
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_metric_created("transport duration all", txn.unscoped_metrics,
+                      MET_FORCED, 1482959525,
+                      "TransportDuration/App/9123/51424/HTTP/all");
+  test_metric_created("transport duration allWeb", txn.unscoped_metrics,
+                      MET_FORCED, 1482959525,
+                      "TransportDuration/App/9123/51424/HTTP/allWeb");
+
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Test : Transport type user-specified (web)
+   */
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, "HTTPS");
+  test_metric_created("transport duration all", txn.unscoped_metrics,
+                      MET_FORCED, 1482959525,
+                      "TransportDuration/App/9123/51424/HTTPS/all");
+  test_metric_created("transport duration allWeb", txn.unscoped_metrics,
+                      MET_FORCED, 1482959525,
+                      "TransportDuration/App/9123/51424/HTTPS/allWeb");
+
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nrm_table_destroy(&txn.unscoped_metrics);
+
+  /*
+   * Background Task with no DT
+   */
+  txn.root_kids_duration = 111;
+  txn.status.background = true;
+  txn.async_duration = 222;
+
+  txn.unscoped_metrics = nrm_table_create(2);
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_create_duration_metrics(&txn, "WebTransaction/Action/not_words", 999);
+  test_txn_metric_created("background no exclusive", txn.unscoped_metrics,
+                          MET_FORCED, "OtherTransaction/all", 1, 999, 888, 999,
+                          999, 998001);
+  test_txn_metric_created(
+      "background", txn.unscoped_metrics, MET_FORCED,
+      "DurationByCaller/Unknown/Unknown/Unknown/Unknown/all", 1, 999, 999, 999,
+      999, 998001);
+  test_txn_metric_created(
+      "background", txn.unscoped_metrics, MET_FORCED,
+      "DurationByCaller/Unknown/Unknown/Unknown/Unknown/allOther", 1, 999, 999,
+      999, 999, 998001);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nrm_table_destroy(&txn.unscoped_metrics);
+
+  /*
+   * Background Task with accepted DT and unknown transport type
+   */
+  txn.unscoped_metrics = nrm_table_create(2);
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, "transport");
+  nr_txn_create_duration_metrics(&txn, "WebTransaction/Action/not_words", 999);
+  test_txn_metric_created("background no exclusive", txn.unscoped_metrics,
+                          MET_FORCED, "OtherTransaction/all", 1, 999, 888, 999,
+                          999, 998001);
+  test_txn_metric_created("background", txn.unscoped_metrics, MET_FORCED,
+                          "DurationByCaller/App/9123/51424/Unknown/all", 1, 999,
+                          999, 999, 999, 998001);
+  test_txn_metric_created("background", txn.unscoped_metrics, MET_FORCED,
+                          "DurationByCaller/App/9123/51424/Unknown/allOther", 1,
+                          999, 999, 999, 999, 998001);
+  nrm_table_destroy(&txn.unscoped_metrics);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Background Task with no DT and error occured
+   */
+  txn.unscoped_metrics = nrm_table_create(2);
+
+  nr_txn_create_error_metrics(&txn, "WebTransaction/Action/not_words");
+
+  test_txn_metric_created(
+      "background error no dt", txn.unscoped_metrics, MET_FORCED,
+      "ErrorsByCaller/Unknown/Unknown/Unknown/Unknown/all", 1, 0, 0, 0, 0, 0);
+  test_txn_metric_created(
+      "background error no dt", txn.unscoped_metrics, MET_FORCED,
+      "ErrorsByCaller/Unknown/Unknown/Unknown/Unknown/allOther", 1, 0, 0, 0, 0,
+      0);
+  nrm_table_destroy(&txn.unscoped_metrics);
+
+  /*
+   * Background Task with DT and error occured
+   */
+  txn.unscoped_metrics = nrm_table_create(2);
+
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, "Other");
+  nr_txn_create_error_metrics(&txn, "WebTransaction/Action/not_words");
+
+  test_txn_metric_created("background error with dt", txn.unscoped_metrics,
+                          MET_FORCED, "ErrorsByCaller/App/9123/51424/Other/all",
+                          1, 0, 0, 0, 0, 0);
+  test_txn_metric_created(
+      "background error with dt", txn.unscoped_metrics, MET_FORCED,
+      "ErrorsByCaller/App/9123/51424/Other/allOther", 1, 0, 0, 0, 0, 0);
+  nrm_table_destroy(&txn.unscoped_metrics);
+
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nro_delete(txn.app_connect_reply);
+  nrm_table_destroy(&txn.unscoped_metrics);
+}
+
+static void test_txn_accept_distributed_trace_payload(void) {
+  nrtxn_t txn;
+  char* create_payload;
+  char* json_payload
+      = "{ \
+    \"v\": [0,1],   \
+    \"d\": {        \
+      \"ty\": \"App\", \
+      \"ac\": \"9123\", \
+      \"ap\": \"51424\", \
+      \"id\": \"27856f70d3d314b7\", \
+      \"tr\": \"3221bf09aa0bcf0d\", \
+      \"pr\": 0.1234, \
+      \"sa\": false, \
+      \"ti\": 1482959525577 \
+    } \
+  }";
+
+  char* json_payload_wrong_version
+      = "{ \
+    \"v\": [2,1],   \
+    \"d\": {        \
+      \"ty\": \"App\", \
+      \"ac\": \"9123\", \
+      \"ap\": \"51424\", \
+      \"id\": \"27856f70d3d314b7\", \
+      \"tr\": \"3221bf09aa0bcf0d\", \
+      \"pr\": 0.1234, \
+      \"sa\": false, \
+      \"ti\": 1482959525577 \
+    } \
+  }";
+
+  char* json_payload_trusted_key
+      = "{ \
+    \"v\": [0,1],   \
+    \"d\": {        \
+      \"ty\": \"App\", \
+      \"ac\": \"9123\", \
+      \"ap\": \"51424\", \
+      \"id\": \"27856f70d3d314b7\", \
+      \"tr\": \"3221bf09aa0bcf0d\", \
+      \"pr\": 0.1234, \
+      \"sa\": false, \
+      \"ti\": 1482959525577, \
+      \"tk\": \"1010\" \
+    } \
+  }";
+
+#define TEST_TXN_ACCEPT_DT_PAYLOAD_RESET    \
+  txn.distributed_trace->inbound.set = 0;   \
+  nrm_table_destroy(&txn.unscoped_metrics); \
+  txn.unscoped_metrics = nrm_table_create(0);
+
+  nr_memset(&txn, 0, sizeof(nrtxn_t));
+  txn.unscoped_metrics = nrm_table_create(0);
+  txn.app_connect_reply = nro_new_hash();
+
+  /*
+   * Test : Bad parameters.  Make sure nothing explodes
+   * when NULL or DT-less txn is passed in
+   */
+  nr_txn_accept_distributed_trace_payload(NULL, NULL, NULL);
+  nr_txn_accept_distributed_trace_payload(&txn, NULL, NULL);
+
+  /*
+   * Test : Distributed tracing disabled
+   */
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, NULL, NULL);
+  test_txn_metric_created(
+      "exception", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Exception", 1, 0, 0, 0, 0,
+      0);
+
+  txn.options.distributed_tracing_enabled = true;
+  txn.options.span_events_enabled = true;
+  /*
+   * Test : NULL Payload
+   */
+  nr_txn_accept_distributed_trace_payload(&txn, NULL, NULL);
+  test_txn_metric_created(
+      "null", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/Null", 1, 0, 0, 0,
+      0, 0);
+
+  /*
+   * Test : Malformed Payload
+   */
+  nr_txn_accept_distributed_trace_payload(&txn, "payload", NULL);
+  test_txn_metric_created(
+      "parse exception", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/ParseException", 1, 0, 0,
+      0, 0, 0);
+
+  /*
+   * Test : Wrong major version in payload
+   */
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload_wrong_version,
+                                          NULL);
+  test_txn_metric_created(
+      "major version", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/MajorVersion", 1,
+      0, 0, 0, 0, 0);
+
+  /*
+   * Test : Valid Payload, no trusted accouts defined
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_txn_metric_created(
+      "untrusted account", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/UntrustedAccount",
+      1, 0, 0, 0, 0, 0);
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload_trusted_key, NULL);
+  test_txn_metric_created(
+      "untrusted account", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/UntrustedAccount",
+      1, 0, 0, 0, 0, 0);
+
+  /*
+   * Test : Valid Payload, trust key does not match trusted account key
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nro_set_hash_string(txn.app_connect_reply, "trusted_account_key", "9090");
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload_trusted_key, NULL);
+  test_txn_metric_created(
+      "untrusted account", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/UntrustedAccount",
+      1, 0, 0, 0, 0, 0);
+
+  /*
+   * Test : Valid Payload, trusted key does not match account id
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nro_set_hash_string(txn.app_connect_reply, "trusted_account_key", "0007");
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_txn_metric_created(
+      "untrusted account", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/UntrustedAccount",
+      1, 0, 0, 0, 0, 0);
+
+  /*
+   * Test : Valid Payload, transaction type set correctly.
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  txn.type = 0;
+  nro_set_hash_string(txn.app_connect_reply, "trusted_account_key", "1010");
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload_trusted_key, NULL);
+  tlib_pass_if_true("expected transaction type",
+                    txn.type & NR_TXN_TYPE_DT_INBOUND, "txn.type=%d", txn.type);
+
+  /*
+   * Test : Valid Payload, trust key matches trusted_account_key
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nro_set_hash_string(txn.app_connect_reply, "trusted_account_key", "1010");
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload_trusted_key, NULL);
+  test_txn_metric_created(
+      "success", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Success", 1, 0, 0, 0, 0,
+      0);
+
+  /*
+   * Test : Valid Payload, account id matches trusted_account_key
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nro_set_hash_string(txn.app_connect_reply, "trusted_account_key", "9123");
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_txn_metric_created(
+      "success", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Success", 1, 0, 0, 0, 0,
+      0);
+
+  /*
+   * Test : Multiple accepts
+   */
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_txn_metric_created(
+      "multiple", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Ignored/Multiple", 1, 0, 0,
+      0, 0, 0);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Test: Create before accept
+   */
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_distributed_trace_set_txn_id(txn.distributed_trace, "txnid");
+  create_payload = nr_txn_create_distributed_trace_payload(&txn);
+
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  test_txn_metric_created("create before accept", txn.unscoped_metrics,
+                          MET_FORCED,
+                          "Supportability/DistributedTrace/AcceptPayload/"
+                          "Ignored/CreateBeforeAccept",
+                          1, 0, 0, 0, 0, 0);
+  nr_free(create_payload);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nrm_table_destroy(&txn.unscoped_metrics);
+  txn.unscoped_metrics = nrm_table_create(0);
+
+  /*
+   * Test : Transport type unknown (non-web)
+   */
+  txn.status.background = true;
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  tlib_pass_if_str_equal(
+      "txn is background", "Unknown",
+      nr_distributed_trace_inbound_get_transport_type(txn.distributed_trace));
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Test : Transport type user-defined (non-web)
+   */
+  txn.status.background = true;
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, "HTTP");
+  tlib_pass_if_str_equal(
+      "txn is background", "HTTP",
+      nr_distributed_trace_inbound_get_transport_type(txn.distributed_trace));
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Test : Transport type unknown (web)
+   */
+  txn.status.background = false;
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  tlib_pass_if_str_equal(
+      "txn is http", "HTTP",
+      nr_distributed_trace_inbound_get_transport_type(txn.distributed_trace));
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Test : Transport type http (web)
+   */
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, NULL);
+  tlib_pass_if_str_equal(
+      "txn is http", "HTTP",
+      nr_distributed_trace_inbound_get_transport_type(txn.distributed_trace));
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+
+  /*
+   * Test : Transport type user-specified (web)
+   */
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_txn_accept_distributed_trace_payload(&txn, json_payload, "Other");
+  tlib_pass_if_str_equal(
+      "txn is http", "Other",
+      nr_distributed_trace_inbound_get_transport_type(txn.distributed_trace));
+
+  nr_txn_destroy_fields(&txn);
+}
+
+static void test_txn_accept_distributed_trace_payload_httpsafe(void) {
+  nrtxn_t txn = {.unscoped_metrics = nrm_table_create(0),
+                 .app_connect_reply = nro_new_hash(),
+                 .distributed_trace = nr_distributed_trace_create()};
+
+  char* json_payload
+      = "{ \
+    \"v\": [0,1],   \
+    \"d\": {        \
+      \"ty\": \"App\", \
+      \"ac\": \"9123\", \
+      \"ap\": \"51424\", \
+      \"id\": \"27856f70d3d314b7\", \
+      \"tr\": \"3221bf09aa0bcf0d\", \
+      \"pr\": 0.1234, \
+      \"sa\": false, \
+      \"ti\": 1482959525577 \
+    } \
+  }";
+  char* json_payload_encoded
+      = nr_b64_encode(json_payload, nr_strlen(json_payload), 0);
+  bool rv;
+
+#define TEST_TXN_ACCEPT_DT_PAYLOAD_RESET    \
+  txn.distributed_trace->inbound.set = 0;   \
+  nrm_table_destroy(&txn.unscoped_metrics); \
+  txn.unscoped_metrics = nrm_table_create(0);
+
+  txn.options.distributed_tracing_enabled = true;
+
+  /*
+   * Test : Bad parameters.  Make sure nothing explodes
+   * when NULL or DT-less txn is passed in
+   */
+  nr_txn_accept_distributed_trace_payload_httpsafe(NULL, NULL, NULL);
+  nr_txn_accept_distributed_trace_payload_httpsafe(&txn, NULL, NULL);
+
+  /*
+   * Test : Malformed Payload
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  rv = nr_txn_accept_distributed_trace_payload_httpsafe(&txn, "!!!!!!", NULL);
+  tlib_pass_if_false("expected return code", rv, "rv=%d", rv);
+  test_txn_metric_created(
+      "parse exception", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/ParseException", 1, 0, 0,
+      0, 0, 0);
+
+  /*
+   * Test : Valid Payload
+   */
+  TEST_TXN_ACCEPT_DT_PAYLOAD_RESET
+  nro_set_hash_string(txn.app_connect_reply, "trusted_account_key", "9123");
+  rv = nr_txn_accept_distributed_trace_payload_httpsafe(
+      &txn, json_payload_encoded, NULL);
+  tlib_pass_if_true("expected return code", rv, "rv=%d", rv);
+  test_txn_metric_created(
+      "success", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/AcceptPayload/Success", 1, 0, 0, 0, 0,
+      0);
+
+  nr_free(json_payload_encoded);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nro_delete(txn.app_connect_reply);
+  nrm_table_destroy(&txn.unscoped_metrics);
+}
+
+static void test_txn_current_span_event_id(void) {
+  nrtxn_t txnv;
+  nrtxn_t* txn = &txnv;
+  nrtxntime_t start;
+  nrtxntime_t stop;
+  const char* spanid;
+  char* text;
+  nrtime_t spanid_time;
+
+  nr_memset(txn, 0, sizeof(*txn));
+
+  txn->last_added = 0;
+  txn->nodes_used = 0;
+  txn->options.tt_enabled = 1;
+  txn->status.recording = 1;
+  txn->trace_strings = nr_string_pool_create();
+  txn->rnd = nr_random_create();
+
+  text = nr_txn_create_distributed_trace_payload(txn);
+  nr_free(text);
+  spanid = nr_distributed_trace_get_guid(txn->distributed_trace);
+  spanid_time = txn->current_node_time;
+
+  /*
+   * Save a trace node that does not contain the time the DT payload was
+   * created.
+   */
+  start.stamp = start.when = spanid_time + 1000;
+  stop.stamp = stop.when = spanid_time + 2000;
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", NULL, NULL, NULL);
+  tlib_pass_if_null("null id", txn->last_added->id);
+
+  start.stamp = start.when = spanid_time - 1000;
+  stop.stamp = stop.when = spanid_time + 3000;
+
+  /*
+   * Save a trace node that contains the time the DT payload was created.
+   */
+  nr_txn_save_trace_node(txn, &start, &stop, "othername", NULL, NULL, NULL);
+  tlib_pass_if_str_equal("current span id", txn->last_added->id, spanid);
+
+  nr_string_pool_destroy(&txn->trace_strings);
+  nr_free(txn->rnd);
+  nr_txn_node_dispose_fields(&txn->nodes[0]);
+  nr_txn_node_dispose_fields(&txn->nodes[1]);
+}
+
+static void test_should_create_span_events(void) {
+  nrtxn_t txn;
+  bool scenarios[][4]
+      = {/* { DT enabled, span events enabled, sampled, result } */
+         {false, false, false, false}, {false, false, true, false},
+         {false, true, false, false},  {false, true, true, false},
+         {true, false, false, false},  {true, false, true, false},
+         {true, true, false, false},   {true, true, true, true}};
+
+  txn.distributed_trace = nr_distributed_trace_create();
+
+  for (size_t i = 0; i < sizeof(scenarios) / sizeof(scenarios[0]); i++) {
+    txn.options.distributed_tracing_enabled = scenarios[i][0];
+    txn.options.span_events_enabled = scenarios[i][1];
+    nr_distributed_trace_set_sampled(txn.distributed_trace, scenarios[i][2]);
+    tlib_pass_if_true(__func__,
+                      nr_txn_should_create_span_events(&txn) == scenarios[i][3],
+                      "dt=%d,spans=%d,sampled=%d,result=%d", scenarios[i][0],
+                      scenarios[i][1], scenarios[i][2], scenarios[i][3]);
+  }
+
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+}
+
+static void test_parent_stack(void) {
+  nr_segment_t s = {.type = NR_SEGMENT_CUSTOM, .parent = NULL};
+
+ /*
+  * Test : Bad parameters
+  */
+  tlib_pass_if_null("Getting the current segment for a NULL txn must return NULL",
+  nr_txn_get_current_segment(NULL));
+
+  /* Setting the current segment for a NULL txn must not seg fault */
+  nr_txn_set_current_segment(NULL, &s);
+
+  /* Retiring the current segment for a NULL txn must not seg fault */
+  nr_txn_retire_current_segment(NULL);
+
+  /* See also: More meaningful unit-tests in test_segment.c.  Starting and
+   * ending a segment trigger nr_txn_set_current_segment() and
+   * nr_txn_retire_current_segment(). */
+}
+
 tlib_parallel_info_t parallel_info
     = {.suggested_nthreads = 2, .state_size = sizeof(test_txn_state_t)};
 
@@ -4596,7 +6094,6 @@ void test_main(void* p NRUNUSED) {
   test_begin_bad_params();
   test_begin();
   test_end();
-  test_create_guid();
   test_should_force_persist();
   test_save_trace_node();
   test_save_trace_node_async();
@@ -4627,6 +6124,7 @@ void test_main(void* p NRUNUSED) {
   test_alternate_path_hashes();
   test_apdex_zone();
   test_get_cat_trip_id();
+  test_get_guid();
   test_get_path_hash();
   test_get_primary_app_name();
   test_is_synthetics();
@@ -4639,9 +6137,24 @@ void test_main(void* p NRUNUSED) {
   test_txn_ignore();
   test_add_custom_metric();
   test_txn_cat_map_cross_agent_tests();
+  test_txn_dt_cross_agent_tests();
   test_force_single_count();
   test_fn_supportability_metric();
   test_txn_set_attribute();
   test_sql_recording_level();
+  test_sql_recording_level_lasp();
+  test_custom_events_lasp();
+  test_custom_parameters_lasp();
+  test_allow_raw_messages_lasp();
   test_nr_txn_is_current_path_named();
+  test_create_distributed_trace_payload();
+  test_accept_before_create_distributed_tracing();
+  test_nr_txn_add_distributed_tracing_intrinsics();
+  test_txn_accept_distributed_trace_payload_metrics();
+  test_txn_accept_distributed_trace_payload();
+  test_txn_accept_distributed_trace_payload_httpsafe();
+  test_txn_current_span_event_id();
+  test_default_trace_id();
+  test_should_create_span_events();
+  test_parent_stack();
 }

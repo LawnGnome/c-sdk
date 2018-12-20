@@ -18,13 +18,23 @@ table App {
   settings:           string; // pre-computed json
   labels:             string; // pre-computed json
   display_host:       string; // added in release 5.1
+  security_policy_token: string; //added for release 8.1
+  supported_security_policies: string; //added for release 8.1
 }
 
 enum AppStatus : byte { Unknown = 0, Disconnected = 1, InvalidLicense = 2, Connected = 3, StillValid = 4 }
 
 table AppReply {
-  status:        AppStatus;
-  connect_reply: string;   // raw json from the collector
+  status:             AppStatus;
+  connect_reply:      string;   // raw json from the collector
+  security_policies:  string;   // added in release 8.1; json marshalled in the
+                                // daemon
+  connect_timestamp:  uint64;   // added in release 8.2; ignored if the state is
+                                // not Connected or StillValid
+  harvest_frequency:  uint16;   // added in release 8.2; ignored if the state is
+                                // not Connected or StillValid
+  sampling_target:    uint16;   // added in release 8.3; ignored if the state is
+                                // not Connected or StillValid
 }
 
 table Event {
@@ -83,6 +93,8 @@ table Transaction {
   custom_events:          [Event];
   trace:                  Trace;
   error_events:           [Event]; // added in release 5.1
+  sampling_priority:      double;  // added in release 8.2
+  span_events:            [Event];
 }
 
 union MessageBody { App, AppReply, Transaction }

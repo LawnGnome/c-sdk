@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "nr_app_harvest.h"
 #include "nr_rules.h"
 #include "nr_segment_terms.h"
 #include "util_random.h"
@@ -61,13 +62,16 @@ typedef struct _nr_app_info_t {
                  (https://newrelic.atlassian.net/wiki/display/eng/Labels+for+Language+Agents)
                */
   char*
-      host_display_name;    /* Optional user-provided host name for UI
-                               (https://source.datanerd.us/agents/agent-specs/blob/master/2015-04-0001-CustomHostNames.md)
-                             */
-  char* lang;               /* Language */
-  char* version;            /* Version */
-  char* appname;            /* Application name */
-  char* redirect_collector; /* Collector proxy used for redirect command */
+      host_display_name;         /* Optional user-provided host name for UI
+                                    (https://source.datanerd.us/agents/agent-specs/blob/master/2015-04-0001-CustomHostNames.md)
+                                  */
+  char* lang;                    /* Language */
+  char* version;                 /* Version */
+  char* appname;                 /* Application name */
+  char* redirect_collector;      /* Collector proxy used for redirect command */
+  char* security_policies_token; /* LASP token */
+  nrobj_t*
+      supported_security_policies; /* list of supported security policies */
 } nr_app_info_t;
 
 typedef struct _nrapp_t {
@@ -81,14 +85,15 @@ typedef struct _nrapp_t {
   int failed_daemon_query_count; /* Used by agent: Number of times daemon query
                                     has not returned valid */
   nrrules_t* url_rules; /* From RPM - rules for txn path. Only used by agent. */
-  nrrules_t*
-      txn_rules; /* From RPM - rules for full txn metric name. Only used by
-                    agent. */
-  nr_segment_terms_t*
-      segment_terms; /* From RPM - rules for transaction segment terms. Only
-                        used by agent. */
-  nrobj_t* connect_reply;    /* From RPM - Full connect command reply */
-  nrthread_mutex_t app_lock; /* Serialization lock */
+  nrrules_t* txn_rules; /* From RPM - rules for full txn metric name. Only used
+                           by agent. */
+  nr_segment_terms_t* segment_terms; /* From RPM - rules for transaction segment
+                                        terms. Only used by agent. */
+  nrobj_t* connect_reply;            /* From RPM - Full connect command reply */
+  nrobj_t* security_policies;        /* from Daemon - full security policies map
+                                        obtained from Preconnect */
+  nrthread_mutex_t app_lock;         /* Serialization lock */
+  nr_app_harvest_t harvest;          /* Harvest timing and sampling data */
 } nrapp_t;
 
 typedef enum _nrapptype_t {

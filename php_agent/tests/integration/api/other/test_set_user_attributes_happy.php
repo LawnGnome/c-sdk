@@ -15,7 +15,8 @@ Tests newrelic_set_user_attributes() happy path.
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": false
       },
       {
         "product": "my_product",

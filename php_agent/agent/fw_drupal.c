@@ -118,6 +118,9 @@ static char* nr_drupal_http_request_get_response_header(
  */
 NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
   zval* arg1 = 0;
+  zval* arg2 = 0;
+  zval* arg3 = 0;
+  zval* method = 0;
   zval** return_value = NULL;
 
   (void)wraprec;
@@ -169,6 +172,31 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
     external_params.encoded_response_header
         = nr_drupal_http_request_get_response_header(return_value TSRMLS_CC);
 
+    /*
+     * Drupal 6 will have a third argument with the method, Drupal 7 will not
+     * have a third argument it must be parsed from the second.
+     */
+    arg3 = nr_php_arg_get(3, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
+    // There is no third arg, this is drupal 7
+    if (0 == arg3) {
+      arg2 = nr_php_arg_get(2, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
+      if (NULL != arg2) {
+        method = nr_php_zend_hash_find(Z_ARRVAL_P(arg2), "method");
+        if (nr_php_is_zval_valid_string(method)) {
+          external_params.procedure
+                  = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+        }
+      }
+    } else if (nr_php_is_zval_valid_string(arg3)) {
+      // This is drupal 6, the method is the third arg.
+      external_params.procedure
+          = strndup(Z_STRVAL_P(arg3), Z_STRLEN_P(arg3));
+    }
+    // If the method is not set, Drupal will default to GET
+    if (NULL == external_params.procedure){
+      external_params.procedure = nr_strdup("GET");
+    }
+
     if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
       nrl_verbosedebug(
           NRL_CAT, "CAT: outbound response: transport='Drupal 6-7' %s=" NRP_FMT,
@@ -179,12 +207,15 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
     nr_txn_end_node_external(NRPRG(txn), &external_params);
 
     nr_free(external_params.encoded_response_header);
+    nr_free(external_params.procedure);
   } else {
     NR_PHP_WRAPPER_CALL;
   }
 
 end:
   nr_php_arg_release(&arg1);
+  nr_php_arg_release(&arg2);
+  nr_php_arg_release(&arg3);
   NRPRG(drupal_http_request_depth) -= 1;
 }
 NR_PHP_WRAPPER_END
@@ -203,69 +234,6 @@ static void nr_drupal_name_the_wt(const zend_function* func TSRMLS_DC) {
                   NR_NOT_OK_TO_OVERWRITE);
 
   nr_free(action);
-}
-
-/*
- * Purpose : Given a function that is a hook function in a module, determine
- *           which component is the module and which is the hook, given that we
- *           know the hook from the module_invoke_all() call.
- */
-static nr_status_t module_invoke_all_parse_module_and_hook(
-    char** module_ptr,
-    size_t* module_len_ptr,
-    const char* hook,
-    size_t hook_len,
-    const zend_function* func) {
-  const char* module_hook = NULL;
-  size_t module_hook_len;
-  char* module = NULL;
-  size_t module_len;
-
-  *module_ptr = NULL;
-  *module_len_ptr = 0;
-
-  if (NULL == func) {
-    nrl_verbosedebug(NRL_FRAMEWORK, "%s: func is NULL", __func__);
-    return NR_FAILURE;
-  }
-
-  module_hook = nr_php_function_name(func);
-  module_hook_len = (size_t)nr_php_function_name_length(func);
-
-  if ((0 == module_hook) || (module_hook_len <= 0)) {
-    nrl_verbosedebug(NRL_FRAMEWORK, "%s: cannot get function name", __func__);
-    return NR_FAILURE;
-  }
-
-  if (hook_len >= module_hook_len) {
-    nrl_verbosedebug(NRL_FRAMEWORK,
-                     "%s: hook length (%zu) is greater than the full module "
-                     "hook function length (%zu); "
-                     "hook='%.*s'; module_hook='%.*s'",
-                     __func__, hook_len, module_hook_len, NRSAFELEN(hook_len),
-                     NRSAFESTR(hook), NRSAFELEN(module_hook_len),
-                     NRSAFESTR(module_hook));
-    return NR_FAILURE;
-  }
-
-  module_len = (size_t)nr_strnidx(module_hook, hook, module_hook_len)
-               - 1; /* Subtract 1 for underscore separator */
-
-  if (module_len == 0) {
-    nrl_verbosedebug(NRL_FRAMEWORK,
-                     "%s: cannot find hook in module hook; "
-                     "hook='%.*s'; module_hook='%.*s'",
-                     __func__, NRSAFELEN(hook_len), NRSAFESTR(hook),
-                     NRSAFELEN(module_hook_len), NRSAFESTR(module_hook));
-    return NR_FAILURE;
-  }
-
-  module = nr_strndup(module_hook, module_len);
-
-  *module_ptr = module;
-  *module_len_ptr = (size_t)module_len;
-
-  return NR_SUCCESS;
 }
 
 /*
