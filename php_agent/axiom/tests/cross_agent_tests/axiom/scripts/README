@@ -1,0 +1,3 @@
+This directory contains scripts useful for testing axiom.
+
+The gcovr script is a 3rd party python script; see the contents of that file for details.
