@@ -62,7 +62,8 @@ attributes.
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": true
       },
       {
       },

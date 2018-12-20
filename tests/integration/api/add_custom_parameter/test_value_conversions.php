@@ -19,7 +19,8 @@ newrelic.cross_application_tracer.enabled = 0
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": true
       },
       {
         "IS_STRING": "foo",

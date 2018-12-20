@@ -32,7 +32,10 @@ X-NewRelic-Synthetics=PwcbVVVRDQMHSEMQRUNFFBZDG0EQFBFPAVALVhVKRkBBSEsTQxNBEBZERR
 */
 
 /*EXPECT
-X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-Synthetics=found X-NewRelic-App-Data=missing cat endpoint reached
+X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-Synthetics=found tracing endpoint reached
+*/
+
+/*EXPECT_RESPONSE_HEADERS
 */
 
 /*EXPECT_METRICS
@@ -62,6 +65,6 @@ require_once(realpath(dirname(__FILE__)) . '/drupal_7_bootstrap.inc');
 require_once(realpath(dirname(__FILE__)) . '/drupal_7_common.inc');
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
-$url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+$url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 $rv = drupal_http_request($url);
 echo $rv->data;

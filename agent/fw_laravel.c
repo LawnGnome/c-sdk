@@ -3,6 +3,7 @@
 #include "php_user_instrument.h"
 #include "php_error.h"
 #include "php_execute.h"
+#include "php_globals.h"
 #include "php_wrapper.h"
 #include "fw_hooks.h"
 #include "php_hash.h"
@@ -1104,9 +1105,9 @@ void nr_laravel_enable(TSRMLS_D) {
                             nr_laravel_console_application_dorun TSRMLS_CC);
 
   /*
-   * Start Laravel queue instrumentation if enabled.
+   * Start Laravel queue instrumentation, provided it's not disabled.
    */
-  if (NR_PHP_FEATURE(laravel_queue)) {
+  if (0 == NR_PHP_PROCESS_GLOBALS(special_flags).disable_laravel_queue) {
     nr_laravel_queue_enable(TSRMLS_C);
   }
 }

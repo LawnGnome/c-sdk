@@ -45,15 +45,28 @@ static void test_is_localhost(void) {
 
 static void test_destroy(void) {
   nr_datastore_instance_t* instance = NULL;
+  nr_datastore_instance_t stack
+      = {.host = NULL, .port_path_or_id = NULL, .database_name = NULL};
 
   /* Don't explode! */
   nr_datastore_instance_destroy(NULL);
   nr_datastore_instance_destroy(&instance);
+  nr_datastore_instance_destroy_fields(NULL);
 
   instance = nr_datastore_instance_create("a", "b", "c");
   nr_datastore_instance_destroy(&instance);
 
   tlib_pass_if_null("it's dead, Jim", instance);
+
+  nr_datastore_instance_destroy_fields(&stack);
+
+  stack.host = nr_strdup("host");
+  stack.port_path_or_id = nr_strdup("port path or id");
+  stack.database_name = nr_strdup("database name");
+  nr_datastore_instance_destroy_fields(&stack);
+  tlib_pass_if_null("host", stack.host);
+  tlib_pass_if_null("port path or id", stack.port_path_or_id);
+  tlib_pass_if_null("database name", stack.database_name);
 }
 
 static void test_getters(void) {

@@ -15,7 +15,8 @@ The agent should generate a small set of attributes on every transaction.
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": false
       },
       {
       },

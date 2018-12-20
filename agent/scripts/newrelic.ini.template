@@ -88,6 +88,10 @@ newrelic.logfile = "/var/log/newrelic/php_agent.log"
 ;          UI security setting. If the two settings do not match, then no data
 ;          will be collected.
 ;
+;          IMPORTANT: This setting is not compatible with
+;          newrelic.security_policies_token. Only one may be set. If both are
+;          set an error will be thrown and the agent will not connect.
+;
 ;newrelic.high_security = false
 
 ; Setting: newrelic.appname
@@ -183,7 +187,7 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ;          newrelic.daemon.ssl_ca_path is also set (see below), the
 ;          certificates in this file will be searched first, followed by the
 ;          certificates contained in the newrelic.daemon.ssl_ca_path
-;          directory. 
+;          directory.
 ;
 ;newrelic.daemon.ssl_ca_bundle = ""
 
@@ -241,7 +245,7 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ; Setting: newrelic.daemon.collector_host
 ; Type   : string
 ; Scope  : system
-; Default: none 
+; Default: none
 ; Info   : Sets the host name of the New Relic data collector host to use.
 ;          Please note that this is NOT any form of local host. It refers to
 ;          the New Relic provided host. There is very little reason to ever
@@ -546,10 +550,10 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ; Default: empty (auto-detect framework)
 ; Info   : Disables automatic framework detection, telling the agent to
 ;          attempt to name transactions according to the specified framework.
-;          Specifying "no_framework" will disable framework-related transaction 
-;          naming entirely. Please let us know at support.newrelic.com if you 
+;          Specifying "no_framework" will disable framework-related transaction
+;          naming entirely. Please let us know at support.newrelic.com if you
 ;          encounter a failure with framework autodetection.
-;          
+;
 ;          Must be one of the following values:
 ;          cakephp, codeigniter, drupal, drupal8, joomla, kohana, laravel,
 ;          magento, magento2, mediawiki, silex, slim, symfony1, symfony2,
@@ -777,6 +781,27 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ;
 ;newrelic.cross_application_tracer.enabled = true
 
+; Setting: newrelic.distributed_tracing_enabled
+; Type   : boolean
+; Scope  : per-directory
+; Default: false
+; Info   : Distributed tracing lets you see the path that a request takes
+;          through your distributed system. Enabling distributed tracing changes
+;          the behavior of some New Relic features, so carefully consult the
+;          transition guide before you enable this feature:
+;          https://docs.newrelic.com/docs/transition-guide-distributed-tracing
+;
+;newrelic.distributed_tracing_enabled = false
+
+; Setting: newrelic.span_events_enabled
+; Type   : boolean
+; Scope  : per-directory
+; Default: true
+; Info   : Enables or disables the creation of span events. This requires
+;          Distributed Tracing to be enabled.
+;
+;newrelic.span_events_enabled = true
+
 ; Setting: newrelic.transaction_tracer.gather_input_queries
 ; Type   : boolean
 ; Scope  : per-directory
@@ -838,3 +863,17 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ;          SQL traces.
 ;
 ;newrelic.datastore_tracer.database_name_reporting.enabled = true
+
+; Setting: newrelic.security_policies_token
+; Type   : string
+; Scope  : per-directory
+; Default: none
+; Info   : Enables or disables security policies. If security policies are
+;          enabled on your account, you should paste the security policies token
+;          from the New Relic APM UI here.
+;
+;          IMPORTANT: This setting is not compatible with newrelic.high_security.
+;          Only one may be set. If both are set an error will be thrown and the
+;          agent will not connect.
+;
+;newrelic.security_policies_token = ""

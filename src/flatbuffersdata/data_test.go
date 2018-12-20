@@ -1,6 +1,7 @@
 package flatbuffersdata
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -63,8 +64,8 @@ func TestFlatbuffersAppInfo(t *testing.T) {
 	if out.AgentVersion != SampleAppInfo.AgentVersion {
 		t.Fatal(out.AgentVersion, SampleAppInfo.AgentVersion)
 	}
-	if string(out.Settings) != string(SampleAppInfo.Settings) {
-		t.Fatal(string(out.Settings), string(SampleAppInfo.Settings))
+	if !reflect.DeepEqual(out.Settings, SampleAppInfo.Settings) {
+		t.Fatal(out.Settings, SampleAppInfo.Settings)
 	}
 	if string(out.Environment) != string(SampleAppInfo.Environment) {
 		t.Fatal(string(out.Environment), string(SampleAppInfo.Environment))
@@ -82,7 +83,8 @@ func TestFlatbuffersAppInfo(t *testing.T) {
 
 func TestFlatbuffersTxnData(t *testing.T) {
 	txn := Txn{
-		Name: "heyo",
+		Name:             "heyo",
+		SamplingPriority: 0.80000,
 		Metrics: []metric{
 			metric{Name: "scoped", Data: [6]float64{1, 2, 3, 4, 5, 6}, Scoped: true},
 			metric{Name: "forced", Data: [6]float64{6, 5, 4, 3, 2, 1}, Forced: true},
@@ -115,6 +117,7 @@ func TestFlatbuffersTxnData(t *testing.T) {
 		AnalyticEvent: SampleAnalyticEvent,
 		CustomEvents:  SampleCustomEvents,
 		ErrorEvents:   SampleErrorEvents,
+		SpanEvents:    SampleSpanEvents,
 	}
 
 	data, err := txn.MarshalBinary()
@@ -135,7 +138,7 @@ func TestFlatbuffersTxnData(t *testing.T) {
 	// string.
 	expect := testFlatbuffersTxnDataExpectedJSON
 	if s != expect {
-		t.Fatal(s)
+		t.Fatal(s, expect)
 	}
 
 	now := time.Now()
@@ -164,6 +167,11 @@ func TestFlatbuffersTxnData(t *testing.T) {
 
 	out, err = harvest.CustomEvents.Data(id, now)
 	if nil != err || string(out) != `["12345",{"reservoir_size":10000,"events_seen":3},[[{"x":1}],[{"x":2}],[{"x":3}]]]` {
+		t.Fatal(err, string(out))
+	}
+
+	out, err = harvest.SpanEvents.Data(id, now)
+	if nil != err || string(out) != `["12345",{"reservoir_size":1000,"events_seen":3},[[{"Span1":1}],[{"Span2":2}],[{"Span3":3}]]]` {
 		t.Fatal(err, string(out))
 	}
 

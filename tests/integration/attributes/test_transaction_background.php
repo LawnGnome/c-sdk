@@ -72,7 +72,8 @@ X-Request-Start=1368811467146000
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": true
       },
       {
       },

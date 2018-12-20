@@ -27,6 +27,7 @@ const (
 	AppStateConnected
 	AppStateInvalidLicense
 	AppStateDisconnected
+	AppStateInvalidSecurityPolicies
 )
 
 // An AppKey uniquely identifies an application.
@@ -36,48 +37,90 @@ type AppKey struct {
 	RedirectCollector string
 	HighSecurity      bool
 	AgentLanguage     string
+	AgentPolicies     string
 }
 
 // AppInfo encapsulates information provided by an agent about an
 // application. The information is used to construct part of the connect
 // message sent to the collector, and the fields should not be modified.
 type AppInfo struct {
-	License           collector.LicenseKey
-	Appname           string
-	AgentLanguage     string
-	AgentVersion      string
-	HostDisplayName   string
-	Settings          JSONString
-	Environment       JSONString
-	HighSecurity      bool
-	Labels            JSONString
-	RedirectCollector string
+	License                   collector.LicenseKey
+	Appname                   string
+	AgentLanguage             string
+	AgentVersion              string
+	HostDisplayName           string
+	Settings                  map[string]interface{}
+	Environment               JSONString
+	HighSecurity              bool
+	Labels                    JSONString
+	RedirectCollector         string
+	SecurityPolicyToken       string
+	SupportedSecurityPolicies AgentPolicies
 }
 
 func (info *AppInfo) String() string {
 	return info.Appname
 }
 
+// Structure of the security policies used on Preconnect and Connect
+type SecurityPolicy struct {
+	Enabled  bool `json:"enabled"`
+	Required bool `json:"required,omitempty"`
+}
+
+type RawPreconnectPayload struct {
+	SecurityPolicyToken string `json:"security_policies_token,omitempty"`
+}
+
+type RawConnectPayload struct {
+	Pid              int                       `json:"pid"`
+	Language         string                    `json:"language"`
+	Version          string                    `json:"agent_version"`
+	Host             string                    `json:"host"`
+	HostDisplayName  string                    `json:"display_host,omitempty"`
+	Settings         map[string]interface{}    `json:"settings"`
+	AppName          []string                  `json:"app_name"`
+	HighSecurity     bool                      `json:"high_security"`
+	Labels           JSONString                `json:"labels"`
+	Environment      JSONString                `json:"environment"`
+	Identifier       string                    `json:"identifier"`
+	Util             *utilization.Data         `json:"utilization,omitempty"`
+	SecurityPolicies map[string]SecurityPolicy `json:"security_policies,omitempty"`
+}
+
+// PreconnectReply contains all of the fields from the app preconnect command reply
+// that are used in the daemon.
+type PreconnectReply struct {
+	Collector        string                    `json:"redirect_host"`
+	SecurityPolicies map[string]SecurityPolicy `json:"security_policies"`
+}
+
 // ConnectReply contains all of the fields from the app connect command reply
 // that are used in the daemon.  The reply contains many more fields, but most
 // of them are used in the agent.
 type ConnectReply struct {
-	ID          *AgentRunID            `json:"agent_run_id"`
-	MetricRules MetricRules            `json:"metric_name_rules"`
-	DataMethods *collector.DataMethods `json:"data_methods"`
+	ID                *AgentRunID            `json:"agent_run_id"`
+	MetricRules       MetricRules            `json:"metric_name_rules"`
+	DataMethods       *collector.DataMethods `json:"data_methods"`
+	SamplingFrequency int                    `json:"sampling_target_period_in_seconds"`
+	SamplingTarget    int                    `json:"sampling_target"`
 }
 
 // An App represents the state of an application.
 type App struct {
-	state              AppState
-	collector          string
-	lastConnectAttempt time.Time
-	info               *AppInfo
-	connectReply       *ConnectReply
-	RawConnectReply    []byte
-	HarvestTrigger     HarvestTriggerFunc
-	LastActivity       time.Time
-	Rules              MetricRules
+	state               AppState
+	collector           string
+	lastConnectAttempt  time.Time
+	connectTime         time.Time
+	harvestFrequency    time.Duration
+	samplingTarget      uint16
+	info                *AppInfo
+	connectReply        *ConnectReply
+	RawSecurityPolicies []byte
+	RawConnectReply     []byte
+	HarvestTrigger      HarvestTriggerFunc
+	LastActivity        time.Time
+	Rules               MetricRules
 }
 
 func (app *App) String() string {
@@ -91,6 +134,7 @@ func (info *AppInfo) Key() AppKey {
 		RedirectCollector: info.RedirectCollector,
 		HighSecurity:      info.HighSecurity,
 		AgentLanguage:     info.AgentLanguage,
+		AgentPolicies:     info.SupportedSecurityPolicies.getSupportedPoliciesHash(),
 	}
 }
 
@@ -111,8 +155,25 @@ func NewApp(info *AppInfo) *App {
 	}
 }
 
-func (info *AppInfo) ConnectJSONInternal(pid int, util *utilization.Data) ([]byte, error) {
-	// Per spec, the hostname we send up in ConnectJSON MUST be the same as the
+func EncodePayload(payload interface{}) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	buf.Grow(2048)
+	buf.WriteByte('[')
+
+	enc := json.NewEncoder(buf)
+	if err := enc.Encode(&payload); err != nil {
+		return nil, err
+	}
+
+	// json.Encoder always writes a trailing newline, replace it with the
+	// closing bracket for the connect array.
+	buf.Bytes()[buf.Len()-1] = ']'
+
+	return buf.Bytes(), nil
+}
+
+func (info *AppInfo) ConnectPayloadInternal(pid int, util *utilization.Data) *RawConnectPayload {
+	// Per spec, the hostname we send up in ConnectPayload MUST be the same as the
 	// hostname we send up in Utilization.
 
 	var hostname string
@@ -120,20 +181,7 @@ func (info *AppInfo) ConnectJSONInternal(pid int, util *utilization.Data) ([]byt
 		hostname = util.Hostname
 	}
 
-	var data = struct {
-		Pid             int               `json:"pid"`
-		Language        string            `json:"language"`
-		Version         string            `json:"agent_version"`
-		Host            string            `json:"host"`
-		HostDisplayName string            `json:"display_host,omitempty"`
-		Settings        JSONString        `json:"settings"`
-		AppName         []string          `json:"app_name"`
-		HighSecurity    bool              `json:"high_security"`
-		Labels          JSONString        `json:"labels"`
-		Environment     JSONString        `json:"environment"`
-		Identifier      string            `json:"identifier"`
-		Util            *utilization.Data `json:"utilization,omitempty"`
-	}{
+	data := &RawConnectPayload{
 		Pid:             pid,
 		Language:        info.AgentLanguage,
 		Version:         info.AgentVersion,
@@ -163,27 +211,28 @@ func (info *AppInfo) ConnectJSONInternal(pid int, util *utilization.Data) ([]byt
 		data.Labels = JSONString("[]")
 	}
 
-	buf := &bytes.Buffer{}
-	buf.Grow(2048)
-	buf.WriteByte('[')
-
-	enc := json.NewEncoder(buf)
-	if err := enc.Encode(&data); err != nil {
-		return nil, err
-	}
-
-	// json.Encoder always writes a trailing newline, replace it with the
-	// closing bracket for the connect array.
-	buf.Bytes()[buf.Len()-1] = ']'
-
-	return buf.Bytes(), nil
+	return data
 }
 
-// ConnectJSON creates the JSON of a connect request to be sent to the edge tier.
+// ConnectPayload creates the JSON of a connect request to be sent to the edge tier.
 //
 // Utilization is always expected to be present.
-func (info *AppInfo) ConnectJSON(util *utilization.Data) ([]byte, error) {
-	return info.ConnectJSONInternal(os.Getpid(), util)
+func (info *AppInfo) ConnectPayload(util *utilization.Data) *RawConnectPayload {
+	return info.ConnectPayloadInternal(os.Getpid(), util)
+}
+
+func (info *AppInfo) initSettings(data []byte) {
+	var dataDec interface{}
+
+	err := json.Unmarshal(data, &dataDec)
+	if err != nil {
+		return
+	}
+
+	dataMap, ok := dataDec.(map[string]interface{})
+	if ok {
+		info.Settings = dataMap
+	}
 }
 
 func (app *App) NeedsConnectAttempt(now time.Time, backoff time.Duration) bool {

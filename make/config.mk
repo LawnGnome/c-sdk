@@ -37,6 +37,31 @@ HAVE_BACKTRACE := $(shell test -e /usr/include/execinfo.h && echo 1 || echo 0)
 # Whether you have libexecinfo
 HAVE_LIBEXECINFO := $(shell test -e /usr/lib/libexecinfo.so -o -e /usr/lib/libexecinfo.a && echo 1 || echo 0)
 
+# Whether you have PTHREAD_MUTEX_ERRORCHECK
+#
+# The interesting dir/abspath/lastword/$(MAKEFILE_LIST) construct is required to
+# get the path to the directory this Makefile lives in, since that's where
+# pthread_test.c lives, and it is included from a variety of working directories
+# around this project.
+#
+# Note that there is no way to actually get errors out of this if there's a
+# problem besides the one we're looking for (a missing constant): all errors
+# will be incorporated into this variable, which is then unused besides testing
+# it against the literal string "1". We are pushing make in some interesting
+# directions here. If this is acting funny, the first thing you should try is
+# adding a $(info $(HAVE_PTHREAD_MUTEX_ERRORCHECK)) line immediately under the
+# line that sets $(HAVE_PTHREAD_MUTEX_ERRORCHECK) below to see what output
+# actually came back from the C compiler.
+#
+# This continues to tie us ever closer to GNU make; neither the POSIX
+# specification nor BSD implementation support any of these functions.
+HAVE_PTHREAD_MUTEX_ERRORCHECK := $(shell $(CC) $(dir $(abspath $(lastword $(MAKEFILE_LIST))))pthread_test.c -o /dev/null -pthread && echo 1 || echo 0)
+
+# Whether reallocarray() is available from the standard library.
+#
+# The same notes above apply to this check.
+HAVE_REALLOCARRAY := $(shell $(CC) $(dir $(abspath $(lastword $(MAKEFILE_LIST))))reallocarray_test.c -o /dev/null 2>&1 1>/dev/null && echo 1 || echo 0)
+
 ifeq (Darwin,$(UNAME))
   OS := Darwin
   ARCH := $(shell uname -m | sed -e 's/i386/x86/' -e 's/x86_64/x64/')
@@ -99,4 +124,12 @@ endif
 
 ifeq (1,$(HAVE_PROC_SELF_FD))
   PLATFORM_DEFS += -DHAVE_PROC_SELF_FD=1
+endif
+
+ifeq (1,$(HAVE_PTHREAD_MUTEX_ERRORCHECK))
+  PLATFORM_DEFS += -DHAVE_PTHREAD_MUTEX_ERRORCHECK=1
+endif
+
+ifeq (1,$(HAVE_REALLOCARRAY))
+  PLATFORM_DEFS += -DHAVE_REALLOCARRAY=1
 endif

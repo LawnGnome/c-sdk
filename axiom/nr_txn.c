@@ -9,11 +9,14 @@
 #include "nr_agent.h"
 #include "nr_commands.h"
 #include "nr_custom_events.h"
+#include "nr_guid.h"
 #include "nr_slowsqls.h"
 #include "nr_synthetics.h"
+#include "nr_distributed_trace.h"
 #include "nr_txn.h"
 #include "nr_txn_private.h"
 #include "node_datastore.h"
+#include "util_base64.h"
 #include "util_cpu.h"
 #include "util_hash.h"
 #include "util_logging.h"
@@ -21,6 +24,7 @@
 #include "util_metrics.h"
 #include "util_random.h"
 #include "util_reply.h"
+#include "util_sampling.h"
 #include "util_sql.h"
 #include "util_sleep.h"
 #include "util_strings.h"
@@ -135,22 +139,6 @@ void nr_txn_set_long_attribute(nrtxn_t* txn,
                                attribute->name, value);
 }
 
-char* nr_txn_create_guid(nr_random_t* rnd) {
-  int i;
-  char guid[NR_GUID_SIZE + 1];
-
-  guid[NR_GUID_SIZE] = '\0';
-
-  for (i = 0; i < NR_GUID_SIZE; i++) {
-    const char* hex_digits = "0123456789abcdef";
-    unsigned long r = nr_random_range(rnd, 0xf);
-
-    guid[i] = hex_digits[r];
-  }
-
-  return nr_strdup(guid);
-}
-
 /* These sample options are provided for tests. */
 const nrtxnopt_t nr_txn_test_options
     = {.custom_events_enabled = 0,
@@ -217,14 +205,154 @@ bool nr_txn_cmp_options(nrtxnopt_t* o1, nrtxnopt_t* o2) {
     return false;
   if (o1->cross_process_enabled != o2->cross_process_enabled)
     return false;
+  if (o1->distributed_tracing_enabled != o2->distributed_tracing_enabled)
+    return false;
+  if (o1->span_events_enabled != o2->span_events_enabled)
+    return false;
 
   return true;
 }
 
-nrtxn_t* nr_txn_begin(const nrapp_t* app,
+void nr_txn_enforce_security_settings(nrtxnopt_t* opts,
+                                      const nrobj_t* connect_reply,
+                                      const nrobj_t* sec_policies) {
+  if (NULL == opts) {
+    return;
+  }
+
+  /* LASP
+   * It is perfectly valid for any of the below policies to not exist
+   * in the security policies object that is captured from the daemon.
+   * Because of this  we return a default value of 2 indicating it
+   * doesn't exist, therefore take no action as a result.
+   */
+
+  if (0 == nr_reply_get_bool(sec_policies, "record_sql", 2)) {
+    opts->tt_recordsql = NR_SQL_NONE;
+    nrl_verbosedebug(NRL_TXN,
+                     "Setting newrelic.transaction_tracer.record_sql = \"off\" "
+                     "by server security policy");
+  } else if (1 == nr_reply_get_bool(sec_policies, "record_sql", 2)
+             && NR_SQL_RAW == opts->tt_recordsql) {
+    nrl_verbosedebug(NRL_TXN,
+                     "Setting newrelic.transaction_tracer.record_sql = "
+                     "\"obfuscated\" by server security policy");
+    opts->tt_recordsql = NR_SQL_OBFUSCATED;
+  }
+
+  if (0 == nr_reply_get_bool(sec_policies, "allow_raw_exception_messages", 2)) {
+    opts->allow_raw_exception_messages = 0;
+  }
+
+  if (0 == nr_reply_get_bool(sec_policies, "custom_events", 2)) {
+    opts->custom_events_enabled = 0;
+    nrl_verbosedebug(NRL_TXN,
+                     "Setting newrelic.custom_insights_events.enabled = false "
+                     "by server security policy");
+  }
+
+  if (0 == nr_reply_get_bool(sec_policies, "custom_parameters", 2)) {
+    opts->custom_parameters_enabled = 0;
+  }
+
+  /* Account level controlled fields
+   * Check if these values are more secure than the local config. This
+   * happens after LASPso any relevant debug messages get seen by the customer
+   */
+
+  if (0 == nr_reply_get_bool(connect_reply, "collect_analytics_events", 1)) {
+    opts->analytics_events_enabled = 0;
+    nrl_verbosedebug(
+        NRL_TXN, "Setting newrelic.analytics_events.enabled = false by server");
+  }
+
+  // LASP also modifies this setting. Kept seperate for readability.
+  if (0 == nr_reply_get_bool(connect_reply, "collect_custom_events", 1)) {
+    opts->custom_events_enabled = 0;
+    nrl_verbosedebug(
+        NRL_TXN,
+        "Setting newrelic.custom_insights_events.enabled = false by server");
+  }
+
+  if (0 == nr_reply_get_bool(connect_reply, "collect_traces", 0)) {
+    opts->tt_enabled = 0;
+    opts->ep_enabled = 0;
+    opts->tt_slowsql = 0;
+    nrl_verbosedebug(
+        NRL_TXN,
+        "Setting newrelic.transaction_tracer.enabled = false by server");
+    nrl_verbosedebug(NRL_TXN,
+                     "Setting newrelic.transaction_tracer.explain_enabled = "
+                     "false by server");
+    nrl_verbosedebug(
+        NRL_TXN,
+        "Setting newrelic.transaction_tracer.slow_sql = false by server");
+  }
+
+  if (0 == nr_reply_get_bool(connect_reply, "collect_errors", 0)) {
+    opts->err_enabled = 0;
+    nrl_verbosedebug(
+        NRL_TXN, "Setting newrelic.error_collector.enabled = false by server");
+  }
+
+  if (0 == nr_reply_get_bool(connect_reply, "collect_error_events", 1)) {
+    opts->error_events_enabled = 0;
+    nrl_verbosedebug(
+        NRL_TXN,
+        "Setting newrelic.error_collector.capture_events = false by server");
+  }
+}
+
+static inline void nr_txn_create_dt_metrics(nrtxn_t* txn,
+                                            const char* metric_prefix,
+                                            int value) {
+  char* all_metric;
+  char* all_web_other_metric;
+  char* metric_name;
+  const char* metric_postfix;
+
+  if (NULL == txn) {
+    return;
+  }
+
+  if (NULL == metric_prefix) {
+    return;
+  }
+
+  metric_postfix = txn->status.background ? "allOther" : "allWeb";
+
+  if (NULL != txn->distributed_trace
+      && nr_distributed_trace_inbound_is_set(txn->distributed_trace)) {
+    metric_name = nr_formatf(
+        "%s/%s/%s/%s",
+        nr_distributed_trace_inbound_get_type(txn->distributed_trace),
+        nr_distributed_trace_inbound_get_account_id(txn->distributed_trace),
+        nr_distributed_trace_inbound_get_app_id(txn->distributed_trace),
+        nr_distributed_trace_inbound_get_transport_type(
+            txn->distributed_trace));
+  } else {
+    metric_name = nr_strdup("Unknown/Unknown/Unknown/Unknown");
+  }
+
+  all_metric = nr_formatf("%s/%s/all", metric_prefix, metric_name);
+  all_web_other_metric
+      = nr_formatf("%s/%s/%s", metric_prefix, metric_name, metric_postfix);
+
+  nrm_force_add(txn->unscoped_metrics, all_metric, value);
+  nrm_force_add(txn->unscoped_metrics, all_web_other_metric, value);
+
+  nr_free(all_metric);
+  nr_free(all_web_other_metric);
+  nr_free(metric_name);
+}
+
+nrtxn_t* nr_txn_begin(nrapp_t* app,
                       const nrtxnopt_t* opts,
                       const nr_attribute_config_t* attribute_config) {
   nrtxn_t* nt;
+  char* guid;
+  nr_status_t err = 0;
+  nr_sampling_priority_t priority;
 
   if (0 == app) {
     return 0;
@@ -242,6 +370,7 @@ nrtxn_t* nr_txn_begin(const nrapp_t* app,
   nt->status.path_is_frozen = 0;
   nt->status.path_type = NR_PATH_TYPE_UNKNOWN;
   nt->agent_run_id = nr_strdup(app->agent_run_id);
+  nt->rnd = app->rnd;
 
   /*
    * Allocate the transaction-global string pools.
@@ -258,33 +387,9 @@ nrtxn_t* nr_txn_begin(const nrapp_t* app,
     nt->options.tt_threshold = 4 * nt->options.apdex_t;
   }
 
-  if (0
-      == nr_reply_get_bool(app->connect_reply, "collect_analytics_events", 1)) {
-    nt->options.analytics_events_enabled = 0;
-  }
-
-  if (0 == nr_reply_get_bool(app->connect_reply, "collect_custom_events", 1)) {
-    nt->options.custom_events_enabled = 0;
-  }
-
-  if (0 == nr_reply_get_bool(app->connect_reply, "collect_traces", 0)) {
-    nt->options.tt_enabled = 0;
-    nt->options.ep_enabled = 0;
-    nt->options.tt_slowsql = 0;
-  }
-
-  if (0 == nr_reply_get_bool(app->connect_reply, "collect_errors", 0)) {
-    nt->options.err_enabled = 0;
-  }
-
-  if (0 == nr_reply_get_bool(app->connect_reply, "collect_error_events", 1)) {
-    nt->options.error_events_enabled = 0;
-  }
-
 #define NR_TXN_MAX_SLOWSQLS 10
   nt->slowsqls = nr_slowsqls_create(NR_TXN_MAX_SLOWSQLS);
   nt->datastore_products = nr_string_pool_create();
-  nt->guid = nr_txn_create_guid(app->rnd);
   nt->unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
   nt->scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
   nt->attributes = nr_attributes_create(attribute_config);
@@ -294,6 +399,17 @@ nrtxn_t* nr_txn_begin(const nrapp_t* app,
 
 #define NR_TXN_MAX_CUSTOM_EVENTS (10 * 1000)
   nt->custom_events = nr_analytics_events_create(NR_TXN_MAX_CUSTOM_EVENTS);
+
+  /*
+   * Enforce SSC and LASP if enabled
+   */
+  nr_txn_enforce_security_settings(&nt->options, app->connect_reply,
+                                   app->security_policies);
+
+  /*
+   * Allocate the stack to manage segment parenting
+   */
+  nr_stack_init(&nt->parent_stack, NR_STACK_DEFAULT_CAPACITY);
 
   /*
    * And finally set in the status member those values that can be changed
@@ -323,8 +439,48 @@ nrtxn_t* nr_txn_begin(const nrapp_t* app,
     nt->high_security = 1;
   }
 
+  if (NULL != app->info.security_policies_token
+      && '\0' != app->info.security_policies_token[0]) {
+    nt->lasp = 1;
+    nt->options.request_params_enabled = 0;  // Force disabled
+  }
+
   nr_txn_set_string_attribute(nt, nr_txn_host_display_name,
                               app->info.host_display_name);
+
+  nt->distributed_trace = nr_distributed_trace_create();
+
+  /*
+   * Per the spec: The trace id is constant for the entire trip. Its value is
+   * equal to the guid of the first span in the trip (this is the id of root
+   * span of the transaction, which equals the transaction id).
+   *
+   * The trace id will be overwritten by accepting an inbound DT
+   * payload.
+   */
+  guid = nr_guid_create(app->rnd);
+  nr_distributed_trace_set_txn_id(nt->distributed_trace, guid);
+  nr_distributed_trace_set_trace_id(nt->distributed_trace, guid);
+
+  nr_distributed_trace_set_trusted_key(
+      nt->distributed_trace,
+      nro_get_hash_string(nt->app_connect_reply, "trusted_account_key", &err));
+  nr_distributed_trace_set_account_id(
+      nt->distributed_trace,
+      nro_get_hash_string(nt->app_connect_reply, "account_id", &err));
+  nr_distributed_trace_set_app_id(
+      nt->distributed_trace,
+      nro_get_hash_string(nt->app_connect_reply, "primary_application_id",
+                          &err));
+
+  priority = nr_generate_initial_priority(app->rnd);
+  if (nr_app_harvest_should_sample(&app->harvest, app->rnd)) {
+    nr_distributed_trace_set_sampled(nt->distributed_trace, true);
+    priority += 1.0;
+  }
+  nr_distributed_trace_set_priority(nt->distributed_trace, priority);
+
+  nr_free(guid);
 
   return nt;
 }
@@ -335,6 +491,8 @@ void nr_txn_node_dispose_fields(nrtxnnode_t* node) {
   }
 
   nro_delete(node->data_hash);
+  nr_txnnode_attributes_destroy(node->attributes);
+  nr_free(node->id);
   nr_memset(node, 0, sizeof(*node));
 }
 
@@ -446,7 +604,8 @@ void nr_txn_save_trace_node(nrtxn_t* txn,
                             const nrtxntime_t* stop,
                             const char* name,
                             const char* async_context,
-                            const nrobj_t* data_hash) {
+                            const nrobj_t* data_hash,
+                            const nr_txnnode_attributes_t* attributes) {
   nrtime_t duration;
   nrtxnnode_t* node;
 
@@ -485,6 +644,7 @@ void nr_txn_save_trace_node(nrtxn_t* txn,
   } else {
     node->data_hash = 0;
   }
+  nr_txnnode_set_attributes(node, attributes);
 
   if (NULL != async_context) {
     /* Async node */
@@ -492,6 +652,23 @@ void nr_txn_save_trace_node(nrtxn_t* txn,
   } else {
     /* Regular node */
     node->async_context = 0;
+  }
+
+  /*
+   * See comments in nr_txn_create_distributed_trace_payload for an
+   * explanation of this mechanism.
+   *
+   * txn->current_node_id and txn->current_node_time are set during outbound DT
+   * payload generation. A sanity check is done to verify, that the timestamp
+   * of the DT payload creation falls between the start and the end time of
+   * this trace node.
+   */
+  if (txn->current_node_id && NULL != attributes
+      && NR_EXTERNAL == attributes->type) {
+    node->id = txn->current_node_id;
+    txn->current_node_id = NULL;
+  } else {
+    node->id = NULL;
   }
 }
 
@@ -857,6 +1034,10 @@ void nr_txn_create_error_metrics(nrtxn_t* txn, const char* txnname) {
     nrm_force_add(txn->unscoped_metrics, "Errors/allWeb", 0);
   }
 
+  if (txn->options.distributed_tracing_enabled) {
+    nr_txn_create_dt_metrics(txn, "ErrorsByCaller", 0);
+  }
+
   nl = nr_strlen(txnname);
   buf = (char*)nr_alloca(nl + 8);
   bp = nr_strcpy(buf, eprefix);
@@ -927,6 +1108,10 @@ void nr_txn_create_duration_metrics(nrtxn_t* txn,
   nrm_force_add_ex(txn->unscoped_metrics, rollup_metric, duration, exclusive);
   nrm_force_add_ex(txn->unscoped_metrics, rollup_total_metric, total_duration,
                    total_duration);
+
+  if (txn->options.distributed_tracing_enabled) {
+    nr_txn_create_dt_metrics(txn, "DurationByCaller", duration);
+  }
 
   nro_set_hash_double(txn->intrinsics, "totalTime",
                       ((double)total_duration) / NR_TIME_DIVISOR_D);
@@ -1076,6 +1261,8 @@ void nr_txn_destroy_fields(nrtxn_t* txn) {
   nr_string_pool_destroy(&txn->datastore_products);
   nr_slowsqls_destroy(&txn->slowsqls);
   nr_error_destroy(&txn->error);
+  nr_distributed_trace_destroy(&txn->distributed_trace);
+  nr_stack_destroy_fields(&txn->parent_stack);
   nrm_table_destroy(&txn->unscoped_metrics);
   nrm_table_destroy(&txn->scoped_metrics);
   nr_string_pool_destroy(&txn->trace_strings);
@@ -1085,13 +1272,13 @@ void nr_txn_destroy_fields(nrtxn_t* txn) {
     nr_txn_node_dispose_fields(&txn->nodes[i]);
   }
 
-  nr_free(txn->guid);
   nr_free(txn->license);
 
   nr_free(txn->request_uri);
   nr_free(txn->path);
   nr_free(txn->name);
   nr_free(txn->agent_run_id);
+  nr_free(txn->current_node_id);
 
   nr_free(txn->cat.inbound_guid);
   nr_free(txn->cat.trip_id);
@@ -1212,6 +1399,15 @@ void nr_txn_end(nrtxn_t* txn) {
    * Add CAT intrinsics.
    */
   nr_txn_add_cat_intrinsics(txn, txn->intrinsics);
+
+  /*
+   * Add Distributed Tracing intrinsics to the transaction,
+   * these will propagate to the transaction traces and
+   * error data
+   */
+  if (txn->options.distributed_tracing_enabled) {
+    nr_txn_add_distributed_tracing_intrinsics(txn, txn->intrinsics);
+  }
 
   /*
    * Add synthetics intrinsics.
@@ -1349,6 +1545,10 @@ void nr_txn_record_error(nrtxn_t* txn,
     errmsg = NR_TXN_HIGH_SECURITY_ERROR_MESSAGE;
   }
 
+  if (0 == txn->options.allow_raw_exception_messages) {
+    errmsg = NR_TXN_ALLOW_RAW_EXCEPTION_MESSAGE;
+  }
+
   txn->error = nr_error_create(priority, errmsg, errclass, stacktrace_json,
                                nr_get_time());
 
@@ -1447,6 +1647,11 @@ nr_status_t nr_txn_add_user_custom_parameter(nrtxn_t* txn,
   if (txn->high_security) {
     return NR_FAILURE;
   }
+
+  if (0 == txn->options.custom_parameters_enabled) {
+    return NR_FAILURE;
+  }
+
   return nr_attributes_user_add(
       txn->attributes, NR_DEFAULT_USER_ATTRIBUTE_DESTINATIONS, key, value);
 }
@@ -1470,7 +1675,7 @@ void nr_txn_add_request_parameter(nrtxn_t* txn,
   if (0 == value) {
     return;
   }
-  if (txn->high_security) {
+  if (txn->high_security || txn->lasp) {
     return;
   }
 
@@ -1656,6 +1861,19 @@ static int nr_txn_is_cat(const nrtxn_t* txn) {
   return 0;
 }
 
+static int nr_txn_is_dt(const nrtxn_t* txn) {
+  if (NULL == txn) {
+    return 0;
+  }
+
+  if ((NR_TXN_TYPE_DT_INBOUND & txn->type)
+      || (NR_TXN_TYPE_DT_OUTBOUND & txn->type)) {
+    return 1;
+  }
+
+  return 0;
+}
+
 nr_tt_recordsql_t nr_txn_sql_recording_level(const nrtxn_t* txn) {
   if (NULL == txn) {
     return NR_SQL_NONE;
@@ -1729,6 +1947,63 @@ void nr_txn_add_cat_intrinsics(const nrtxn_t* txn, nrobj_t* intrinsics) {
   nro_set_hash_string(intrinsics, "path_hash", path_hash);
 
   nr_free(path_hash);
+}
+
+void nr_txn_add_distributed_tracing_intrinsics(const nrtxn_t* txn,
+                                               nrobj_t* intrinsics) {
+  nr_distributed_trace_t* dt;
+  const char* parent_guid;
+  const char* parent_txn_id;
+
+  if (NULL == txn) {
+    return;
+  }
+
+  if (NULL == intrinsics) {
+    return;
+  }
+
+  dt = txn->distributed_trace;
+
+  /*
+   * add the "always add" instrinsics
+   */
+  nro_set_hash_string(intrinsics, "guid", nr_txn_get_guid(txn));
+  nro_set_hash_boolean(intrinsics, "sampled",
+                       nr_distributed_trace_is_sampled(dt));
+  nro_set_hash_double(intrinsics, "priority",
+                      (double)nr_distributed_trace_get_priority(dt));
+  nro_set_hash_string(intrinsics, "traceId",
+                      nr_distributed_trace_get_trace_id(dt));
+
+  /*
+   * add inbound intrinsics
+   */
+  if (txn->type & NR_TXN_TYPE_DT_INBOUND) {
+    nro_set_hash_string(intrinsics, "parent.type",
+                        nr_distributed_trace_inbound_get_type(dt));
+    nro_set_hash_string(intrinsics, "parent.app",
+                        nr_distributed_trace_inbound_get_app_id(dt));
+    nro_set_hash_string(intrinsics, "parent.account",
+                        nr_distributed_trace_inbound_get_account_id(dt));
+    nro_set_hash_string(intrinsics, "parent.transportType",
+                        nr_distributed_trace_inbound_get_transport_type(dt));
+
+    nro_set_hash_double(intrinsics, "parent.transportDuration",
+                        nr_distributed_trace_inbound_get_timestamp_delta(
+                            dt, txn->root.start_time.when)
+                            / NR_TIME_DIVISOR);
+
+    parent_guid = nr_distributed_trace_inbound_get_guid(dt);
+    if (!nr_strempty(parent_guid)) {
+      nro_set_hash_string(intrinsics, "parentSpanId", parent_guid);
+    }
+
+    parent_txn_id = nr_distributed_trace_inbound_get_txn_id(dt);
+    if (!nr_strempty(parent_txn_id)) {
+      nro_set_hash_string(intrinsics, "parentId", parent_txn_id);
+    }
+  }
 }
 
 #define NR_TXN_MAX_ALTERNATE_PATH_HASHES 10
@@ -1849,7 +2124,27 @@ const char* nr_txn_get_cat_trip_id(const nrtxn_t* txn) {
     return NULL;
   }
 
-  return txn->cat.trip_id ? txn->cat.trip_id : txn->guid;
+  return txn->cat.trip_id ? txn->cat.trip_id : nr_txn_get_guid(txn);
+}
+
+const char* nr_txn_get_guid(const nrtxn_t* txn) {
+  if (NULL == txn) {
+    return NULL;
+  }
+
+  return nr_distributed_trace_get_txn_id(txn->distributed_trace);
+}
+
+void nr_txn_set_guid(nrtxn_t* txn, const char* guid) {
+  if (NULL == txn) {
+    return;
+  }
+
+  if (NULL == txn->distributed_trace) {
+    txn->distributed_trace = nr_distributed_trace_create();
+  }
+
+  nr_distributed_trace_set_txn_id(txn->distributed_trace, guid);
 }
 
 char* nr_txn_current_path_hash(const nrtxn_t* txn) {
@@ -1900,6 +2195,23 @@ int nr_txn_is_account_trusted(const nrtxn_t* txn, int account_id) {
   idx = nro_find_array_int(trusted_account_ids, account_id);
 
   return (idx > 0);
+}
+
+bool nr_txn_is_account_trusted_dt(const nrtxn_t* txn, const char* trusted_key) {
+  const char* trusted_account_id = NULL;
+
+  if (NULL == txn) {
+    return false;
+  }
+
+  if (NULL == trusted_key) {
+    return false;
+  }
+
+  trusted_account_id = nro_get_hash_string(txn->app_connect_reply,
+                                           "trusted_account_key", NULL);
+
+  return (0 == nr_strcmp(trusted_key, trusted_account_id));
 }
 
 int nr_txn_should_save_trace(const nrtxn_t* txn, nrtime_t duration) {
@@ -1977,6 +2289,9 @@ int nr_txn_valid_node_end(const nrtxn_t* txn,
 
 int nr_txn_event_should_add_guid(const nrtxn_t* txn) {
   if (NULL == txn) {
+    return 0;
+  }
+  if (nr_txn_is_dt(txn)) {
     return 0;
   }
   if (nr_txn_is_synthetics(txn)) {
@@ -2156,7 +2471,7 @@ nr_analytics_event_t* nr_error_to_event(const nrtxn_t* txn) {
   nr_txn_add_metric_count_as_attribute(params, txn->unscoped_metrics,
                                        "External/all", "externalCallCount");
 
-  nro_set_hash_string(params, "nr.transactionGuid", txn->guid);
+  nro_set_hash_string(params, "nr.transactionGuid", nr_txn_get_guid(txn));
 
   if (txn->cat.inbound_guid) {
     nro_set_hash_string(params, "nr.referringTransactionGuid",
@@ -2170,6 +2485,9 @@ nr_analytics_event_t* nr_error_to_event(const nrtxn_t* txn) {
                         nr_synthetics_job_id(txn->synthetics));
     nro_set_hash_string(params, "nr.syntheticsMonitorId",
                         nr_synthetics_monitor_id(txn->synthetics));
+  }
+  if (txn->options.distributed_tracing_enabled) {
+    nr_txn_add_distributed_tracing_intrinsics(txn, params);
   }
 
   agent_attributes = nr_attributes_agent_to_obj(txn->attributes,
@@ -2203,7 +2521,7 @@ nrobj_t* nr_txn_event_intrinsics(const nrtxn_t* txn) {
       ((double)duration + txn->async_duration) / NR_TIME_DIVISOR_D);
 
   if (nr_txn_event_should_add_guid(txn)) {
-    nro_set_hash_string(params, "nr.guid", txn->guid);
+    nro_set_hash_string(params, "nr.guid", nr_txn_get_guid(txn));
   }
 
   if (nr_txn_should_create_apdex_metrics(txn)) {
@@ -2232,6 +2550,22 @@ nrobj_t* nr_txn_event_intrinsics(const nrtxn_t* txn) {
                                        "External/all", "externalDuration");
   nr_txn_add_metric_total_as_attribute(params, txn->unscoped_metrics,
                                        "Datastore/all", "databaseDuration");
+  nr_txn_add_metric_count_as_attribute(params, txn->unscoped_metrics,
+                                       "Datastore/all", "databaseCallCount");
+
+  if (txn->options.distributed_tracing_enabled) {
+    nr_txn_add_distributed_tracing_intrinsics(txn, params);
+  }
+
+  /*
+   * Sets the error intrinsic, as defined in the attribute catalog
+   * https://pages.datanerd.us/engineering-management/architecture-notes/notes/123/#error
+   */
+  if (txn->error) {
+    nro_set_hash_boolean(params, "error", true);
+  } else {
+    nro_set_hash_boolean(params, "error", false);
+  }
 
   return params;
 }
@@ -2356,4 +2690,275 @@ bool nr_txn_is_current_path_named(const nrtxn_t* txn, const char* path) {
   }
 
   return false;
+}
+
+bool nr_txn_should_create_span_events(const nrtxn_t* txn) {
+  return nr_distributed_trace_is_sampled(txn->distributed_trace)
+         && txn->options.distributed_tracing_enabled
+         && txn->options.span_events_enabled;
+}
+
+char* nr_txn_create_distributed_trace_payload(nrtxn_t* txn) {
+  nr_distributed_trace_payload_t* payload;
+  char* text = NULL;
+
+  if (NULL == txn) {
+    goto end;
+  }
+
+  if (!txn->options.distributed_tracing_enabled) {
+    nrl_info(NRL_CAT,
+             "cannot create distributed tracing payload when distributed "
+             "tracing is disabled");
+    goto end;
+  }
+
+  if (!txn->options.span_events_enabled
+      && !txn->options.analytics_events_enabled) {
+    nrl_info(NRL_CAT,
+             "cannot create a distributed tracing payload when BOTH "
+             "transaction events (analytics_events_enabled) AND span "
+             "events (span_events_enabled) are false");
+    goto end;
+  }
+
+  /*
+   * span = segment = trace node
+   *
+   * Maybe one day, the id of the current span can be obtained in a clear and
+   * concise way:
+   *
+   *   nr_distributed_trace_set_guid(txn->distributed_trace,
+   *                                 nr_txn_current_span_id(txn));
+   *
+   * In the meantime, a workaround has to be used:
+   *
+   *  1. A new guid is assigned to txn->current_node_id, the current
+   *     time is assigned to txn->current_node_time.
+   *     txn->current_node_id is used as the guid (current span id) for the DT
+   *     payload.
+   *  2. When a new trace node is created, it is checked whether
+   *     txn->current_node_time falls in between the start and stop
+   *     times of the trace node. If so, the trace node represents the
+   *     current span and txn->current_node_id gets assigned to this trace node.
+   *
+   * This works for the following reasons:
+   *
+   *  - A segment is created only when it ends.
+   *  - As a DT payload is created in the current segment, the current segment
+   *    is an external segment.
+   *  - Currently only DT auto-instrumentation of certain PHP calls (e. g.
+   *    file_get_contents, curl_exec) is supported.
+   *  - The segments for those calls don't have children, but are leaves of the
+   *    segment tree.
+   *  - Due to the nature of the transaction tracer, every child segment ends
+   *    before its parent.
+   *  - Thus, the current segment is a leave in the segment tree, and
+   *    the next segment/trace node to be created is the current
+   *    segment.
+   */
+  if (NULL == txn->current_node_id) {
+    txn->current_node_id = nr_guid_create(txn->rnd);
+    txn->current_node_time = nr_get_time();
+  }
+
+  if (nr_txn_should_create_span_events(txn)) {
+    nr_distributed_trace_set_guid(txn->distributed_trace, txn->current_node_id);
+  }
+
+  payload = nr_distributed_trace_payload_create(
+      txn->distributed_trace,
+      nr_distributed_trace_inbound_get_guid(txn->distributed_trace));
+  text = nr_distributed_trace_payload_as_text(payload);
+  nr_distributed_trace_payload_destroy(&payload);
+
+end:
+  if (text) {
+    nr_txn_force_single_count(txn, NR_DISTRIBUTED_TRACE_CREATE_SUCCESS);
+  } else {
+    nr_txn_force_single_count(txn, NR_DISTRIBUTED_TRACE_CREATE_EXCEPTION);
+  }
+  return text;
+}
+
+bool nr_txn_accept_distributed_trace_payload_httpsafe(
+    nrtxn_t* txn,
+    const char* payload,
+    const char* transport_type) {
+  bool rv;
+  char* decoded_payload = nr_b64_decode(payload, 0);
+
+  if (NULL == decoded_payload) {
+    nrl_warning(NRL_CAT, "cannot base64 decode distributed tracing payload %s",
+                payload);
+    nr_txn_force_single_count(txn, NR_DISTRIBUTED_TRACE_ACCEPT_PARSE_EXCEPTION);
+    return false;
+  }
+
+  rv = nr_txn_accept_distributed_trace_payload(txn, decoded_payload,
+                                               transport_type);
+
+  nr_free(decoded_payload);
+
+  return rv;
+}
+
+bool nr_txn_accept_distributed_trace_payload(nrtxn_t* txn,
+                                             const char* str_payload,
+                                             const char* transport_type) {
+  nr_distributed_trace_t* dt;
+  const char* error = NULL;
+  const char* trusted_key = NULL;
+  nrobj_t* obj_payload;
+  bool create_successful = false;
+
+  if (NULL == txn || NULL == txn->distributed_trace) {
+    return false;
+  }
+
+  if (!txn->options.distributed_tracing_enabled) {
+    nrl_info(NRL_CAT,
+             "cannot accept distributed tracing payload when distributed "
+             "tracing is disabled");
+    nr_txn_force_single_count(txn, NR_DISTRIBUTED_TRACE_ACCEPT_EXCEPTION);
+    return false;
+  }
+
+  // Check if Accept or Create has previously been called
+  create_successful = (NULL
+                       != nrm_find(txn->unscoped_metrics,
+                                   NR_DISTRIBUTED_TRACE_CREATE_SUCCESS));
+
+  if (nr_distributed_trace_inbound_is_set(txn->distributed_trace)) {
+    nr_txn_force_single_count(txn, NR_DISTRIBUTED_TRACE_ACCEPT_MULTIPLE);
+    return false;
+  } else if (create_successful) {
+    nr_txn_force_single_count(txn,
+                              NR_DISTRIBUTED_TRACE_ACCEPT_CREATE_BEFORE_ACCEPT);
+    return false;
+  }
+
+  dt = txn->distributed_trace;
+
+  obj_payload
+      = nr_distributed_trace_convert_payload_to_object(str_payload, &error);
+
+  // Check if payload was invalid
+  if (NULL == obj_payload) {
+    nr_txn_force_single_count(txn, error);
+    return false;
+  }
+
+  // Make sure the payload is trusted.
+  trusted_key = nr_distributed_trace_object_get_trusted_key(obj_payload);
+  if (!trusted_key) {
+    trusted_key = nr_distributed_trace_object_get_account_id(obj_payload);
+  }
+  if (0 == nr_txn_is_account_trusted_dt(txn, trusted_key)) {
+    nr_txn_force_single_count(txn,
+                              NR_DISTRIBUTED_TRACE_ACCEPT_UNTRUSTED_ACCOUNT);
+    nro_delete(obj_payload);
+    return false;
+  }
+
+  // attempt to accept payload
+  if (!nr_distributed_trace_accept_inbound_payload(
+          txn->distributed_trace, obj_payload, transport_type, &error)) {
+    nr_txn_force_single_count(txn, error);
+    nro_delete(obj_payload);
+    return false;
+  }
+
+  /*
+   * Set the correct transport type
+   * - If transport type was not specified, check web transaction type.
+   * - If non-web set to "unknown", otherwise set to "http"
+   */
+  if (NULL == transport_type) {
+    if (txn->status.background) {
+      nr_distributed_trace_inbound_set_transport_type(dt, "Unknown");
+    } else {
+      nr_distributed_trace_inbound_set_transport_type(dt, "HTTP");
+    }
+  } else {
+    nr_distributed_trace_inbound_set_transport_type(dt, transport_type);
+  }
+
+  // Accept was successful
+  nr_txn_force_single_count(txn, NR_DISTRIBUTED_TRACE_ACCEPT_SUCCESS);
+
+  nr_txn_create_dt_metrics(txn, "TransportDuration",
+                           nr_distributed_trace_inbound_get_timestamp_delta(
+                               dt, txn->root.start_time.when)
+                               / NR_TIME_DIVISOR);
+
+  txn->type |= NR_TXN_TYPE_DT_INBOUND;
+
+  nro_delete(obj_payload);
+  return true;
+}
+
+nr_segment_t* nr_txn_get_current_segment(nrtxn_t* txn) {
+  if (nrunlikely(NULL == txn)) {
+    return NULL;
+  }
+  return nr_stack_get_top(&txn->parent_stack);
+}
+
+void nr_txn_set_current_segment(nrtxn_t* txn, nr_segment_t* segment) {
+  if (nrunlikely(NULL == txn)) {
+    return;
+  }
+  nr_stack_push(&txn->parent_stack, (void*)segment);
+}
+
+void nr_txn_retire_current_segment(nrtxn_t* txn) {
+  if (nrunlikely(NULL == txn)) {
+    return;
+  }
+  nr_stack_pop(&txn->parent_stack);
+}
+
+nr_txnnode_attributes_t* nr_txnnode_attributes_create() {
+  return (nr_txnnode_attributes_t*)nr_zalloc(sizeof(nr_txnnode_attributes_t));
+}
+
+void nr_txnnode_attributes_destroy(nr_txnnode_attributes_t* attributes) {
+  if (NULL == attributes) {
+    return;
+  }
+  switch (attributes->type) {
+    case NR_DATASTORE:
+      nr_free(attributes->datastore.component);
+      break;
+    case NR_EXTERNAL:
+      break;
+    case NR_CUSTOM:
+    default:
+      break;
+  }
+  nr_free(attributes);
+}
+
+void nr_txnnode_set_attributes(nrtxnnode_t* node,
+                               const nr_txnnode_attributes_t* attributes) {
+  node->attributes = nr_txnnode_attributes_create();
+  if (NULL == attributes) {
+    node->attributes->type = NR_CUSTOM;
+    return;
+  }
+  switch (attributes->type) {
+    case NR_DATASTORE:
+      node->attributes->type = NR_DATASTORE;
+      node->attributes->datastore.component
+          = nr_strdup(attributes->datastore.component);
+      break;
+    case NR_EXTERNAL:
+      node->attributes->type = NR_EXTERNAL;
+      break;
+    case NR_CUSTOM:
+    default:
+      node->attributes->type = NR_CUSTOM;
+      break;
+  }
 }

@@ -13,6 +13,62 @@ static void test_valid_callable(const char* expr TSRMLS_DC) {
   nr_php_zval_free(&zv);
 }
 
+static void test_is_zval_null(TSRMLS_D) {
+  zval* value = NULL;
+  zval* helper = NULL;
+
+  tlib_php_request_start();
+
+  tlib_php_request_eval(
+      "class NewrelicTestZvalHelper { "
+      "    public $foo; "
+      "    public function getExplicitNull() { "
+      "        $value = null;"
+      "        return $value;"
+      "    } "
+
+      "    public function getUndefinedNull() { "
+      "        return @$value; "
+      "    } "
+
+      "    public function getDefined() { "
+      "        $value = 'foo';"
+      "        return $value; "
+      "    } "
+
+      "    public function getNeverDefinedObjectProperty() { "
+      "        return $this->foo; "
+      "    } "
+
+      "} " TSRMLS_CC);
+
+  helper = tlib_php_request_eval_expr("new \\NewrelicTestZvalHelper" TSRMLS_CC);
+
+  value = nr_php_call(helper, "getDefined");
+  tlib_pass_if_false("Testing with Defined Value", nr_php_is_zval_null(value),
+                     "Expected false, returned true");
+  nr_php_zval_free(&value);
+
+  value = nr_php_call(helper, "getExplicitNull");
+  tlib_pass_if_true("Testing with Explicit NULL", nr_php_is_zval_null(value),
+                    "Expected true, returned false");
+  nr_php_zval_free(&value);
+
+  value = nr_php_call(helper, "getUndefinedNull");
+  tlib_pass_if_true("Testing with Undefined Value", nr_php_is_zval_null(value),
+                    "Expected true, returned false");
+  nr_php_zval_free(&value);
+
+  value = nr_php_call(helper, "getNeverDefinedObjectProperty");
+  tlib_pass_if_true("Testing with Undefined Object Property",
+                    nr_php_is_zval_null(value),
+                    "Expected true, returned false");
+  nr_php_zval_free(&value);
+
+  nr_php_zval_free(&helper);
+  tlib_php_request_end();
+}
+
 static void test_is_zval_valid_callable(TSRMLS_D) {
   size_t i;
   zval** invalid_zvals;
@@ -52,6 +108,6 @@ void test_main(void* p NRUNUSED) {
   tlib_php_engine_create("" PTSRMLS_CC);
 
   test_is_zval_valid_callable(TSRMLS_C);
-
+  test_is_zval_null(TSRMLS_C);
   tlib_php_engine_destroy(TSRMLS_C);
 }

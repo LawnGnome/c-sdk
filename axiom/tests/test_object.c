@@ -1238,6 +1238,8 @@ static void test_object_long(void) {
   nrobj_t* tob;
   nrobj_t* hash;
   nrobj_t* array;
+  nrobj_t* json;
+
   int rv;
   int size;
   nr_status_t err;
@@ -1342,9 +1344,20 @@ Object Dump (10):\n\
   tlib_pass_if_true("get array int fails", (-1 == rv) && (NR_FAILURE == err),
                     "rv=%d err=%d", rv, (int)err);
 
+  nro_delete(hash);
+  hash = nro_new_hash();
+  nro_set_hash_long(hash, "ti", 1482959525577);
+  lv = 1482959525577;
+  tlib_pass_if_long_equal("get double passes", lv, nro_get_hash_long(hash, "ti", NULL));
+
+  json = nro_create_from_json("{ \"ti\": 1482959525577 }");
+  lv = 1482959525577;
+  tlib_pass_if_long_equal("get double passes", lv, nro_get_hash_long(json, "ti", NULL));
+
   nro_delete(array);
   nro_delete(hash);
   nro_delete(ob);
+  nro_delete(json);
 }
 
 /*

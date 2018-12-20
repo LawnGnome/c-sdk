@@ -24,8 +24,7 @@
 ;
 ;          Current flags:
 ;
-;          - laravel_queue: This enables improved transaction handling for
-;                           Laravel queue workers and listeners.
+;          - None.
 ;
 ;newrelic.feature_flag = ""
 
@@ -50,6 +49,7 @@
 ;            debug_autorum
 ;            show_loaded_files
 ;            debug_cat
+;            disable_laravel_queue
 ;
 ;newrelic.special = show_executes, show_execute_params, show_execute_stack, show_execute_returns, show_executes_untrimmed
 
@@ -197,3 +197,21 @@
 ;
 ;          Please refer to the attribute configuration options for more
 ;          information.
+
+; Setting: newrelic.allow_raw_exception_messages
+; Info   : This setting was introduced as part of the LASP/Protocol 16 work.
+;          Before this flag, the only way to enable the stripping of exception
+;          and error messages was to enable high security mode.  Since the
+;          agent can now be told to turn this feature on or off, we needed a
+;          a way to have this behavior turned on/off.
+; newrelic.allow_raw_exception_messages = 1
+
+; Setting: newrelic.custom_parameters_enabled
+; Info   : Indicate if custom parameters will be sent to New Relic.
+;
+;          This setting was introduced as part of the LASP/Protocol 16 work.
+;          We needed a way to turn off custom attributes/parameters added by
+;          the end-user-programmer.  The attributes.include system, while
+;          powerful, only allows (appears to allow?) us to turn off specific
+;          named attributes.
+; newrelic.custom_parameters_enabled = 1

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"newrelic"
+	"newrelic/collector"
 	"newrelic/integration"
 	"newrelic/log"
 	"newrelic/utilization"
@@ -27,20 +28,85 @@ var (
 	flagAgent     = flag.String("agent", "", "")
 	flagCGI       = flag.String("cgi", "", "")
 	flagCollector = flag.String("collector", "", "the collector host")
-	flagInsecure  = flag.Bool("insecure", false, "disable TLS")
-	flagJunit     = flag.String("junit", "", "")
 	flagLoglevel  = flag.String("loglevel", "", "agent log level")
 	flagOutputDir = flag.String("output-dir", ".", "")
+	flagPattern   = flag.String("pattern", "test_*.php", "shell pattern describing tests to run")
 	flagPHP       = flag.String("php", "", "")
 	flagPort      = flag.String("port", defaultPort(), "")
 	flagRetry     = flag.Int("retry", 0, "maximum retry attempts")
 	flagTimeout   = flag.Duration("timeout", 10*time.Second, "")
 	flagValgrind  = flag.String("valgrind", "", "if given, this is the path to valgrind")
 	flagWorkers   = flag.Int("threads", 1, "")
+	flagTime      = flag.Bool("time", false, "time each test")
 
 	// externalPort is the port on which we start a server to handle
 	// external calls.
 	flagExternalPort = flag.Int("external_port", 0, "")
+
+	// Allows an end user to change the hard coded license key the integration runner
+	// uses.  Useful for running a set of integration tests that are separate from
+	// the main suite.
+	//
+	// Supports an @license.txt format to allow reading the license in from a file.
+	//
+	// Expected format:
+	//
+	// abcdefghij1234567890abcdefghij1234567890
+	//
+	flagLicense FlagStringOrFile
+
+	// Allows an end user to set a security policy token to use when connecting.  In the
+	// real world daemon, this value comes from the application's php.ini configuration.
+	// However, since the integration runner handles agent/daemon communication in its
+	// own specialized way, we need to allow integration runner users to set this value
+	//
+	// Supports an @security-token.txt format to allow reading the token in from
+	// a file.
+	//
+	// Expected format:
+	//
+	// ffff-fffb-ffff-ffff
+	//
+	flagSecurityToken FlagStringOrFile
+
+	// Allows an end user to pass in a set of supported security policies to use when
+	// connecting.  In the real world daemon, this value comes from values hard coded in
+	// the agent source code.  However, since the integration runner handles agent/daemon
+	// communication in its own specialized way, we need to allow integration runner users
+	// to set this value.
+	//
+	// Flag supports an @file-name.json format to allow reading supported  policies in
+	// from a file.
+	//
+	// Expected format:
+	//
+	// {
+	//    "record_sql": {
+	//        "enabled": false,
+	//        "supported": true
+	//    },
+	//    "allow_raw_exception_messages": {
+	//        "enabled": false,
+	//        "supported": true
+	//    },
+	//    "custom_events": {
+	//        "enabled": false,
+	//        "supported": true
+	//    },
+	//    "custom_parameters": {
+	//        "enabled": false,
+	//        "supported": true
+	//    }
+	// }
+	flagSecuityPolicies FlagStringOrFile
+
+	// Header names for headers that are ignored when conducting response
+	// header checks.
+	ignoreResponseHeaders = map[string]bool{"Content-Type": true, "X-Powered-By": true}
+
+	// Global storage for response headers that are sent by the CAT
+	// endpoint during a test run.
+	responseHeaders http.Header
 )
 
 // Default directories to search for tests.
@@ -58,7 +124,7 @@ var (
 
 	TestApp = newrelic.AppInfo{
 		// Changing the application will break the cross process ids in
-		// the cross application trace tests:  '432507#73695'
+		// the cross application trace tests:  '432507#4741547'
 		//
 		// Note:  If this is a problem, we could swap the
 		// 'cross_process_id' in the connect response JSON with a fixed
@@ -73,7 +139,8 @@ var (
 		Labels:            nil,
 		Settings:
 		// Ensure that we get Javascript agent code in the reply
-		newrelic.JSONString(`{"newrelic.browser_monitoring.debug":false,"newrelic.browser_monitoring.loader":"rum"}`),
+		map[string]interface{}{"newrelic.browser_monitoring.debug": false, "newrelic.browser_monitoring.loader": "rum"},
+		SecurityPolicyToken: "",
 	}
 
 	commonSettings map[string]string
@@ -130,10 +197,20 @@ func catRequest(w http.ResponseWriter, r *http.Request) {
 	for key, vals := range headers {
 		for _, val := range vals {
 			h.Add(key, val)
+			if true != ignoreResponseHeaders[key] && responseHeaders != nil {
+				responseHeaders.Add(key, val)
+			}
 		}
 	}
 
 	w.Write(body)
+}
+
+func init() {
+	//setup typed flags
+	flag.Var(&flagLicense, "license", "use a license key other than the hard coded default. Supports @filename syntax for loading from files.")
+	flag.Var(&flagSecurityToken, "security_token", "if given, the integration runner will connect with this security token. Supports @filename syntax for loading from files.")
+	flag.Var(&flagSecuityPolicies, "supported_policies", "if given, the integration runner will connect with the provided supported policies. Supports @filename syntax for loading from files.")
 }
 
 func main() {
@@ -151,6 +228,10 @@ func main() {
 
 	if *flagPHP == "" {
 		*flagPHP = "php"
+	}
+
+	if flagLicense != "" {
+		TestApp.License = collector.LicenseKey(flagLicense)
 	}
 
 	if len(*flagCGI) == 0 {
@@ -227,7 +308,7 @@ func main() {
 	ctx.Env["EXTERNAL_HOST"] = externalHost
 
 	// TODO: support tcp
-	handler, err := startDaemon("unix", *flagPort)
+	handler, err := startDaemon("unix", *flagPort, flagSecurityToken.String(), flagSecuityPolicies.String())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -238,7 +319,7 @@ func main() {
 		args = defaultArgs
 	}
 
-	testFiles := discoverTests("test_*.php", args)
+	testFiles := discoverTests(*flagPattern, args)
 	tests := make([]*integration.Test, 0, len(testFiles))
 	testsToRun := make(chan *integration.Test, len(testFiles))
 	for _, filename := range testFiles {
@@ -380,13 +461,36 @@ func runTest(t *integration.Test) {
 		}
 	}
 
+	// Reset global response headers before the test is run. This feature
+	// only works for sequential test runs.
+	responseHeaders = make(http.Header)
+
 	run, _ := t.MakeRun(ctx)
+
+	start := time.Now()
 	_, body, err := run.Execute()
+
+	// Set the duration on the test if --time was given. A zero duration
+	// will not be printed.
+	if *flagTime {
+		t.Duration = time.Since(start)
+	} else {
+		t.Duration = 0
+	}
 
 	// Always save the test output. If an error occurred it may contain
 	// critical information regarding the cause. Currently, it may also
 	// contain valgrind commentary which we want to display.
 	t.Output = body
+
+	if *flagWorkers == 1 && t.ShouldCheckResponseHeaders() {
+		// Response header test active.
+		t.ResponseHeaders = responseHeaders
+	} else if t.ShouldCheckResponseHeaders() {
+		// Response headers expected but disabled because of parallel
+		// test runs.
+		fmt.Println("SKIPPING response header test for ", t.Name)
+	}
 
 	if err != nil {
 		if _, ok := err.(*exec.ExitError); !ok {
@@ -462,9 +566,10 @@ func substituteAgentRunID(reply []byte, newRunID string) []byte {
 }
 
 type IntegrationDataHandler struct {
-	sync.Mutex                              // Protects harvests
-	harvests   map[string]*newrelic.Harvest // Keyed by tc.Name (which is used as AgentRunID)
-	reply      []byte                       // Constant after creation
+	sync.Mutex                                       // Protects harvests
+	harvests            map[string]*newrelic.Harvest // Keyed by tc.Name (which is used as AgentRunID)
+	reply               []byte                       // Constant after creation
+	rawSecurityPolicies []byte                       // policies from connection attempt, needed for AppInfo reply
 }
 
 func (h *IntegrationDataHandler) IncomingTxnData(id newrelic.AgentRunID, sample newrelic.AggregaterInto) {
@@ -489,7 +594,11 @@ func (h *IntegrationDataHandler) IncomingAppInfo(id *newrelic.AgentRunID, info *
 		// Use the appname (which has been set to the filename) as
 		// the agent run id to enable running the tests in
 		// parallel.
-		ConnectReply: substituteAgentRunID(h.reply, info.Appname),
+		ConnectReply:     substituteAgentRunID(h.reply, info.Appname),
+		SecurityPolicies: h.rawSecurityPolicies,
+		ConnectTimestamp: uint64(time.Now().Unix()),
+		HarvestFrequency: 60,
+		SamplingTarget:   10,
 	}
 }
 
@@ -513,10 +622,10 @@ func deleteSockfile(network, address string) {
 // Note: with a little refactoring in the daemon we could continue to
 // stub out appinfo queries and inspect txndata while preserving the
 // harvest.
-func startDaemon(network, address string) (*IntegrationDataHandler, error) {
+func startDaemon(network, address string, securityToken string, securityPolicies string) (*IntegrationDataHandler, error) {
 	// TODO(msl): Do we need to gather utilization data during integration tests?
 	client, _ := newrelic.NewClient(&newrelic.ClientConfig{})
-	connectData, err := TestApp.ConnectJSON(utilization.Gather(
+	connectPayload := TestApp.ConnectPayload(utilization.Gather(
 		utilization.Config{
 			DetectAWS:    true,
 			DetectAzure:  true,
@@ -524,15 +633,17 @@ func startDaemon(network, address string) (*IntegrationDataHandler, error) {
 			DetectPCF:    true,
 			DetectDocker: true,
 		}))
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect application: %v", err)
-	}
+
+	policies := newrelic.AgentPolicies{}
+	json.Unmarshal([]byte(securityPolicies), &policies.Policies)
 
 	connectAttempt := newrelic.ConnectApplication(&newrelic.ConnectArgs{
-		RedirectCollector: TestApp.RedirectCollector,
-		Payload:           connectData,
-		License:           TestApp.License,
-		Client:            client,
+		RedirectCollector:            TestApp.RedirectCollector,
+		PayloadRaw:                   connectPayload,
+		License:                      TestApp.License,
+		Client:                       client,
+		SecurityPolicyToken:          securityToken,
+		AppSupportedSecurityPolicies: policies,
 	})
 
 	if nil != connectAttempt.Err {
@@ -540,8 +651,9 @@ func startDaemon(network, address string) (*IntegrationDataHandler, error) {
 	}
 
 	handler := &IntegrationDataHandler{
-		reply:    connectAttempt.RawReply,
-		harvests: make(map[string]*newrelic.Harvest),
+		reply:               connectAttempt.RawReply,
+		harvests:            make(map[string]*newrelic.Harvest),
+		rawSecurityPolicies: connectAttempt.RawSecurityPolicies,
 	}
 
 	go func() {

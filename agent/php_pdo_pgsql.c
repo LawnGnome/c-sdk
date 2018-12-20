@@ -32,7 +32,7 @@ nr_datastore_instance_t* nr_php_pdo_pgsql_create_datastore_instance(
    * Last ditch effort to populate database name if it wasn't provided in the
    * DSN, since the user name is used as a default.
    */
-  if ((NULL == database_name) || (nr_strlen(database_name) <= 0)) {
+  if (nr_strempty(database_name)) {
     nr_free(database_name);
     database_name = nr_strdup(dbh->username);
   }

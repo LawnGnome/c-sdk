@@ -12,9 +12,9 @@
 char* nr_postgres_default_host() {
   char* host = getenv("PGHOSTADDR");
 
-  if (nr_strlen(host) <= 0) {
+  if (nr_strempty(host)) {
     host = getenv("PGHOST");
-    if (nr_strlen(host) <= 0) {
+    if (nr_strempty(host)) {
       host = "localhost";
     }
   }
@@ -25,7 +25,7 @@ char* nr_postgres_default_host() {
 char* nr_postgres_default_port() {
   char* port_path_or_id = getenv("PGPORT");
 
-  if (nr_strlen(port_path_or_id) <= 0) {
+  if (nr_strempty(port_path_or_id)) {
     /*
      * 5432 is the compiled-in default.
      * See:
@@ -40,7 +40,7 @@ char* nr_postgres_default_port() {
 char* nr_postgres_default_database_name() {
   char* database_name = getenv("PGDATABASE");
 
-  if (nr_strlen(database_name) <= 0) {
+  if (nr_strempty(database_name)) {
     database_name = getenv("PGUSER");
   }
 
@@ -191,7 +191,7 @@ fill_defaults:
    * Now that we've successfully parsed the info string, we'll check for
    * localhost, sockets-as-hosts, and use default values for any empty fields.
    */
-  if ((NULL == *host) || (nr_strlen(*host) <= 0)) {
+  if (nr_strempty(*host)) {
     *host = nr_postgres_default_host();
     if ((0 == nr_stricmp(*host, "localhost")) && (NULL == *port_path_or_id)) {
       /*
@@ -216,13 +216,13 @@ fill_defaults:
     *host = nr_strdup(*host);
   }
 
-  if ((NULL == *port_path_or_id) || (nr_strlen(*port_path_or_id) <= 0)) {
+  if (nr_strempty(*port_path_or_id)) {
     *port_path_or_id = nr_postgres_default_port();
   } else {
     *port_path_or_id = nr_strdup(*port_path_or_id);
   }
 
-  if ((NULL == *database_name) || (nr_strlen(*database_name) <= 0)) {
+  if (nr_strempty(*database_name)) {
     *database_name = nr_postgres_default_database_name();
   } else {
     *database_name = nr_strdup(*database_name);

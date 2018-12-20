@@ -23,7 +23,8 @@ ok - should reject NaN
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": false
       },
       {
       },

@@ -11,6 +11,7 @@
 #include "php_curl.h"
 #include "php_error.h"
 #include "php_execute.h"
+#include "php_globals.h"
 #include "php_hooks.h"
 #include "php_internal_instrument.h"
 #include "php_user_instrument.h"
@@ -1074,7 +1075,7 @@ nr_php_execute_do_add_metric_node(const nr_php_execute_metadata_t* metadata,
     nr_php_execute_add_custom_metric(buf, duration, kids_duration TSRMLS_CC);
   }
 
-  nr_txn_save_trace_node(NRPRG(txn), start, stop, buf, NULL, 0);
+  nr_txn_save_trace_node(NRPRG(txn), start, stop, buf, NULL, 0, NULL);
 }
 
 /*

@@ -48,7 +48,8 @@ newrelic.special.expensive_node_min = 0
         "name": "OtherTransaction/php__FILE__",
         "timestamp": "??",
         "duration": "??",
-        "totalTime": "??"
+        "totalTime": "??",
+        "error": true
       },
       {
         "hat": "who"

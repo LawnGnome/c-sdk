@@ -1269,7 +1269,7 @@ static const char* parse_number(nrintobj_t* item, const char* num) {
       item->u.dval = d;
     }
   } else {
-    if ((LONG_MIN == i) || (LONG_MAX == i)) {
+    if ((i <= INT_MIN) || (i >= INT_MAX)) {
       int64_t l = (int64_t)strtoll(num, &ret, 0);
       item->type = NR_OBJECT_LONG;
       item->u.lval = l;

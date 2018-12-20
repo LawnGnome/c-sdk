@@ -103,7 +103,8 @@ CONTENT_LENGTH=348
         "duration": "??",
         "totalTime": "??",
         "nr.apdexPerfZone": "F",
-        "queueDuration": "??"
+        "queueDuration": "??",
+        "error": true
       },
       {
       },

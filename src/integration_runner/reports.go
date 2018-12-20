@@ -60,7 +60,11 @@ func tapOutput(tests []*integration.Test) {
 				}
 			}
 		default:
-			fmt.Println("ok -", name)
+			fmt.Printf("ok - %s", name)
+			if test.Duration > 0 {
+				fmt.Printf(" # time=%vs", test.Duration.Seconds())
+			}
+			fmt.Printf("\n")
 		}
 	}
 	fmt.Println("#", totals.passed, "passed")

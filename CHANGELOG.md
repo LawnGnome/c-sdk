@@ -6,36 +6,17 @@
 
 ### New Features ###
 
-### Upgrade Notices ###
+* Added support for PHP 7.3.
+* Http Span Events in Distributed Tracing now include the "http.method".
+* We expanded [PHPUnit support](https://blog.newrelic.com/product-news/create-phpunit-dashboard/) to include PHPUnit 6, PHPUnit 7, and PHPUnit 8.
 
-* `newrelic.daemon.ssl` ini setting has been removed to increase security. TLS will
-   now always be used in communication with New Relic Servers.
+### Upgrade Notices ###
 
 ### Notes ###
 
 ### Bug Fixes ###
 
-* On FreeBSD and Solaris, when
-  [`newrelic.daemon.port`](https://docs.newrelic.com/docs/agents/php-agent/configuration/php-agent-configuration#inivar-daemon-port)
-  is configured to use TCP to connect the agent to the daemon, the agent would
-  have difficulty receiving application configuration data from the daemon due
-  to the default timeout of 100 milliseconds matching the delay enforced by the
-  FreeBSD kernel as part of its implementation of
-  [Nagle's algorithm](https://en.wikipedia.org/wiki/Nagle%27s_algorithm).
-
-  The PHP agent will now set the `TCP_NODELAY` flag when connecting to the
-  daemon via TCP, which increases the reliability of the agent-daemon
-  connection.
-
 ### Internal Changes ###
-
-* External node creation was refactored to use a unified API within axiom. This
-  should be invisible to customers, but any unusual external segment reporting
-  issues that began in this version should likely be investigated in
-  conjunction with those changes.
-
-* Datastore node creation was slightly modified to make it easier to reuse in
-  the C agent.
 
 ### Acquia-only Notes ###
 
@@ -43,6 +24,11 @@
 
 | Release Number | Release Date |
 | ------------- |-------------|
+| [8.4.0](#840) | 2018-12-05 |
+| [8.3.0](#830) | 2018-10-08 |
+| [8.2.0](#820) | 2018-08-29 |
+| [8.1.0](#810) | 2018-04-30 |
+| [8.0.0](#800) | 2018-03-12 |
 | [7.7.0](#770) | 2018-01-10 |
 | [7.6.0](#760) | 2017-10-10 |
 | [7.5.0](#750) | 2017-08-29 |
@@ -105,6 +91,138 @@
 | [4.5.5.38](#45538) | 2014-02-13 |
 | [4.4.5.35](#44535) | 2014-01-08 |
 | [4.3.5.33](#43533) | 2013-12-11 |
+
+## 8.4 ##
+
+### End of Life Notices ###
+
+### New Features ###
+
+**Support for Distributed tracing**
+
+Distributed tracing lets you see the path that a request
+takes as it travels through your distributed system. By
+showing the distributed activity through a unified view,
+you can troubleshoot and understand a complex system better
+than ever before.
+
+Distributed tracing is available with an APM Pro or
+equivalent subscription. To see a complete distributed
+trace, you need to enable the feature on a set of
+neighboring services. Enabling distributed tracing changes
+the behavior of some New Relic features, so carefully
+consult the transition guide before you enable this feature.
+
+To enable distributed tracing, two parameters should be changed
+in the newrelic.ini file:
+
+    newrelic.distributed_tracing_enabled = true
+and
+
+    newrelic.transaction_tracer.threshold = 0
+
+### Upgrade Notices ###
+
+### Notes ###
+
+### Bug Fixes ###
+
+* A bug in the PHP agent resulted in `databaseCallCount` attributes no longer being attached to `Transaction`
+  events. These attributes have been restored.
+
+* Predis 2 cluster connections could not be instrumented due to internal
+  changes in Predis. This has been fixed.
+
+### Internal Changes ###
+
+* The user agent reported by the daemon now includes the agent language and
+  version in the general format (where `LANG` is the language, `X.Y.Z` is the
+  agent version, and `A.B.C` is the daemon version):
+  `NewRelic-LANG-Agent/X.Y.Z NewRelic-GoDaemon/A.B.C`
+
+### Acquia-only Notes ###
+
+## 8.3.0 ##
+
+### Bug Fixes ###
+
+* In rare cases, during a reset of the apache web server, the agent and
+  `mod_php` would hang with 100% CPU utilization. This has been fixed.
+
+### Internal Changes ###
+
+* Includes BetterCAT v0.2, which is not yet customer facing.
+
+## 8.2.0 ##
+
+### Bug Fixes ###
+
+* Fixed bug where a Drupal hook whose hook name matched its module name resulted in the generation of an empty metric name.
+
+### Internal Changes ###
+
+* Axiom now offers `nr_strempty()` as a safe check for strings that that are "".
+
+* Updated the vendored flatbuffers library for Go to version 1.9.0.
+
+* New fields have been added to the `APPINFO` response message to transmit
+  harvest timing information. This does not break backward or forward
+  compatibility: old agents will ignore the fields, and old daemons simply
+  won't send the fields.
+
+* Includes in progress version of BetterCAT v0.1, which is not yet customer facing
+
+## 8.1.0 ##
+
+### Upgrade Notices ###
+
+* The PHP Agent API call [`newrelic_set_appname`](https://docs.newrelic.com/docs/agents/php-agent/php-agent-api/newrelic_set_appname)
+  has been updated with security improvements in anticipation of future releases.
+
+### Internal Changes ###
+
+* When a LASP policy is set with `newrelic.security_policies_token`, the
+  license key cannot be changed using `newrelic_set_appname()`. Attempting
+  to do so will result in a PHP warning.
+
+## 8.0.0 ##
+
+### Upgrade Notices ###
+
+* `newrelic.daemon.ssl` ini setting has been removed to increase security. TLS will
+   now always be used in communication with New Relic Servers.
+
+* Laravel Queue support has now been enabled for all users.
+
+  If `newrelic.feature_flag=laravel_queue` is set, it will now be ignored.
+
+### Bug Fixes ###
+
+* On FreeBSD and Solaris, when
+  [`newrelic.daemon.port`](https://docs.newrelic.com/docs/agents/php-agent/configuration/php-agent-configuration#inivar-daemon-port)
+  is configured to use TCP to connect the agent to the daemon, the agent would
+  have difficulty receiving application configuration data from the daemon due
+  to the default timeout of 100 milliseconds matching the delay enforced by the
+  FreeBSD kernel as part of its implementation of
+  [Nagle's algorithm](https://en.wikipedia.org/wiki/Nagle%27s_algorithm).
+
+  The PHP agent will now set the `TCP_NODELAY` flag when connecting to the
+  daemon via TCP, which increases the reliability of the agent-daemon
+  connection.
+
+### Internal Changes ###
+
+* External node creation was refactored to use a unified API within axiom. This
+  should be invisible to customers, but any unusual external segment reporting
+  issues that began in this version should likely be investigated in
+  conjunction with those changes.
+
+* Datastore node creation was slightly modified to make it easier to reuse in
+  the C agent.
+
+* Laravel Queue support can be disabled via the private setting
+  `newrelic.special=disable_laravel_queue`.
+
 
 ## 7.7.0 ##
 

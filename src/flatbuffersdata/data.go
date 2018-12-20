@@ -51,15 +51,17 @@ func MarshalAppInfo(info *newrelic.AppInfo) ([]byte, error) {
 }
 
 type Txn struct {
-	RunID         string
-	Name          string
-	Metrics       []metric
-	Errors        []*newrelic.Error
-	Trace         *newrelic.TxnTrace
-	SlowSQLs      []*newrelic.SlowSQL
-	AnalyticEvent json.RawMessage
-	CustomEvents  []json.RawMessage
-	ErrorEvents   []json.RawMessage
+	RunID            string
+	Name             string
+	SamplingPriority newrelic.SamplingPriority
+	Metrics          []metric
+	Errors           []*newrelic.Error
+	Trace            *newrelic.TxnTrace
+	SlowSQLs         []*newrelic.SlowSQL
+	AnalyticEvent    json.RawMessage
+	CustomEvents     []json.RawMessage
+	ErrorEvents      []json.RawMessage
+	SpanEvents       []json.RawMessage
 }
 
 type metric struct {
@@ -85,6 +87,7 @@ func (t *Txn) MarshalBinary() ([]byte, error) {
 		customEvents = encodeEvents(buf, t.CustomEvents)
 		errorEvents  = encodeErrorEvents(buf, t.ErrorEvents)
 		trace        = encodeTrace(buf, t.Trace)
+		spanEvents   = encodeSpanEvents(buf, t.SpanEvents)
 	)
 
 	var txnName, txnURI, syntheticsResourceID flatbuffers.UOffsetT
@@ -115,6 +118,7 @@ func (t *Txn) MarshalBinary() ([]byte, error) {
 	protocol.TransactionAddCustomEvents(buf, customEvents)
 	protocol.TransactionAddErrorEvents(buf, errorEvents)
 	protocol.TransactionAddTrace(buf, trace)
+	protocol.TransactionAddSpanEvents(buf, spanEvents)
 	dataOffset := protocol.TransactionEnd(buf)
 
 	id := buf.CreateString(t.RunID)
@@ -186,6 +190,23 @@ func encodeEvents(b *flatbuffers.Builder, events []json.RawMessage) flatbuffers.
 		}
 
 		protocol.TransactionStartCustomEventsVector(b, n)
+		for i := n - 1; i >= 0; i-- {
+			b.PrependUOffsetT(offsets[i])
+		}
+
+		return b.EndVector(n)
+	}
+	return 0
+}
+
+func encodeSpanEvents(b *flatbuffers.Builder, events []json.RawMessage) flatbuffers.UOffsetT {
+	if n := len(events); n > 0 {
+		offsets := make([]flatbuffers.UOffsetT, n)
+		for i := n - 1; i >= 0; i-- {
+			offsets[i] = protocol.EncodeEvent(b, []byte(events[i]))
+		}
+
+		protocol.TransactionStartSpanEventsVector(b, n)
 		for i := n - 1; i >= 0; i-- {
 			b.PrependUOffsetT(offsets[i])
 		}

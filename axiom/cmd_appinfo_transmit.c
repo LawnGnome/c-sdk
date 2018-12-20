@@ -121,6 +121,9 @@ nr_flatbuffer_t* nr_appinfo_create_query(const char* agent_run_id,
   uint32_t appinfo;
   uint32_t agent_run_id_offset;
   uint32_t message;
+  uint32_t security_policy_token;
+  uint32_t supported_security_policies;
+  char* json_supported_security_policies;
 
   fb = nr_flatbuffers_create(0);
 
@@ -133,8 +136,19 @@ nr_flatbuffer_t* nr_appinfo_create_query(const char* agent_run_id,
   agent_lang = nr_flatbuffers_prepend_string(fb, info->lang);
   appname = nr_flatbuffers_prepend_string(fb, info->appname);
   license = nr_flatbuffers_prepend_string(fb, info->license);
+  security_policy_token
+      = nr_flatbuffers_prepend_string(fb, info->security_policies_token);
+
+  json_supported_security_policies
+      = nro_to_json(info->supported_security_policies);
+  supported_security_policies
+      = nr_flatbuffers_prepend_string(fb, json_supported_security_policies);
 
   nr_flatbuffers_object_begin(fb, APP_NUM_FIELDS);
+  nr_flatbuffers_object_prepend_uoffset(fb, APP_SUPPORTED_SECURITY_POLICIES,
+                                        supported_security_policies, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, APP_SECURITY_POLICY_TOKEN,
+                                        security_policy_token, 0);
   nr_flatbuffers_object_prepend_uoffset(fb, APP_DISPLAY_HOST, display_host, 0);
   nr_flatbuffers_object_prepend_uoffset(fb, APP_FIELD_LABELS, labels, 0);
   nr_flatbuffers_object_prepend_uoffset(fb, APP_FIELD_SETTINGS, settings, 0);
@@ -167,6 +181,7 @@ nr_flatbuffer_t* nr_appinfo_create_query(const char* agent_run_id,
 
   nr_flatbuffers_finish(fb, message);
 
+  nr_free(json_supported_security_policies);
   return fb;
 }
 
@@ -179,6 +194,38 @@ int nr_command_is_flatbuffer_invalid(nr_flatbuffer_t* msg, size_t msglen) {
   }
 
   return 0;
+}
+
+void nr_cmd_appinfo_process_harvest_timing(nr_flatbuffers_table_t* reply,
+                                           nrapp_t* app) {
+  nrtime_t connect_timestamp;
+  nrtime_t harvest_frequency;
+  uint16_t sampling_target;
+
+  /* Try to read the connect timestamp. If it's unavailable, we need to call
+   * nr_get_time(), but we don't want to do that as the default value for
+   * nr_flatbuffers_table_read_u64() because it's potentially costly on systems
+   * with slow gettimeofday() implementations, and is unnecessary in the normal
+   * case where the daemon version is the same as the agent version. */
+  connect_timestamp = nr_flatbuffers_table_read_u64(
+      reply, APP_REPLY_FIELD_CONNECT_TIMESTAMP, 0);
+  if (0 == connect_timestamp) {
+    connect_timestamp = nr_get_time();
+  } else {
+    connect_timestamp *= NR_TIME_DIVISOR;
+  }
+
+  /* Try to get the harvest frequency. Unlike the above case, the default here
+   * is always 60 seconds. */
+  harvest_frequency = nr_flatbuffers_table_read_u16(
+      reply, APP_REPLY_FIELD_HARVEST_FREQUENCY, 60);
+
+  /* Try to get the sampling_target. The default here is 10 seconds. */
+  sampling_target = nr_flatbuffers_table_read_u16(
+      reply, APP_REPLY_FIELD_SAMPLING_TARGET, 10);
+
+  nr_app_harvest_init(&app->harvest, connect_timestamp,
+                      harvest_frequency * NR_TIME_DIVISOR, sampling_target);
 }
 
 nr_status_t nr_cmd_appinfo_process_reply(const uint8_t* data,
@@ -281,6 +328,24 @@ nr_status_t nr_cmd_appinfo_process_reply(const uint8_t* data,
 
   nrl_debug(NRL_ACCT, "APPINFO reply full app='%.*s' agent_run_id=%s",
             NRP_APPNAME(app->info.appname), app->agent_run_id);
+
+  /*
+   * Grab security policies (empty hash when non-LASP).
+   */
+
+  reply_len = (int)nr_flatbuffers_table_read_vector_len(
+      &reply, APP_REPLY_FIELD_SECURITY_POLICIES);
+  reply_json = (const char*)nr_flatbuffers_table_read_bytes(
+      &reply, APP_REPLY_FIELD_SECURITY_POLICIES);
+
+  nro_delete(app->security_policies);
+  app->security_policies
+      = nro_create_from_json_unterminated(reply_json, reply_len);
+
+  /*
+   * Finally, handle the harvest timing information.
+   */
+  nr_cmd_appinfo_process_harvest_timing(&reply, app);
 
   return NR_SUCCESS;
 }

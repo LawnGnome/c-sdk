@@ -5,6 +5,8 @@
 
 #include "tlib_php_includes.h"
 
+#include "php_includes.h"
+
 #include "tlib_main.h"
 #include "util_buffer.h"
 
@@ -101,8 +103,13 @@ extern nrbuf_t* tlib_php_request_output(void);
  */
 extern int tlib_php_require_extension(const char* extension TSRMLS_DC);
 
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
 typedef void (*tlib_php_internal_function_handler_t)(
     INTERNAL_FUNCTION_PARAMETERS);
+#else
+typedef void(ZEND_FASTCALL* tlib_php_internal_function_handler_t)(
+    INTERNAL_FUNCTION_PARAMETERS);
+#endif /* PHP < 7.3 */
 
 /*
  * Purpose : Replace an internal function.

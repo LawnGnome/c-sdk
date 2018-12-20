@@ -4,7 +4,7 @@ This chapter can't possibly replace a guide like _Extending and Embedding PHP_ o
 
 ## Executors
 
-Each request is handled by an executor: effectively, an instance of the Zend VM that runs whatever code it's given. Executors maintain state in so called "executor globals", which are instances of the [`zend_executor_globals` struct](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_executor_globals&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=master) that encapsulate the current state of the executor. Ultimately, all variables and functions within the current request scope can be accessed in some way through those fields.
+Each request is handled by an executor: effectively, an instance of the Zend VM that runs whatever code it's given. Executors maintain state in so called "executor globals", which are instances of the [`zend_executor_globals` struct](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_executor_globals&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=PHP-7.3&project=master) that encapsulate the current state of the executor. Ultimately, all variables and functions within the current request scope can be accessed in some way through those fields.
 
 Accessing this structure is usually done through the `EG()` macro, which takes the field name as its only parameter. For instance, to access the `active_op_array` field, you would use `EG(active_op_array)`. In the normal case, this is simply syntactic sugar for `executor_globals.active_op_array`, but if PHP is compiled with thread safety on, it gets more complicated.
 
@@ -38,7 +38,7 @@ On PHP 7, all accesses are handled implicitly through better use of each OS's na
 
 ## `zval`
 
-A [`zval`](https://php-lxr.adamharvey.name/source/search?q=&defs=_zval_struct&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=master) is a C structure that represents a PHP variable. It contains type information, the value of the variable in a union, and for garbage collected types (which is all of them in PHP 5, and non-scalar types in PHP 7), reference counting information.
+A [`zval`](https://php-lxr.adamharvey.name/source/search?q=&defs=_zval_struct&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=PHP-7.3&project=master) is a C structure that represents a PHP variable. It contains type information, the value of the variable in a union, and for garbage collected types (which is all of them in PHP 5, and non-scalar types in PHP 7), reference counting information.
 
 On PHP 5, a `zval` is always passed as a pointer; PHP 7 is a bit murkier (at least internally). In the PHP agent we always use them as pointers for consistency.
 
@@ -60,17 +60,17 @@ Note that we used `Z_TYPE_P()` to check the type (the `_P` suffix indicates that
 
 ## `zend_execute_data`
 
-PHP's call stack is implemented internally as a linked list of [execute data frames](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_execute_data&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=master). Each frame has pointers linking it back to the function or file that is being run, fields representing the current state of the executor, and `zval`s representing the given arguments<sup id="a1">[1](#f1)</sup> and return value<sup id="a2">[2](#f2)</sup>.
+PHP's call stack is implemented internally as a linked list of [execute data frames](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_execute_data&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=PHP-7.3&project=master). Each frame has pointers linking it back to the function or file that is being run, fields representing the current state of the executor, and `zval`s representing the given arguments<sup id="a1">[1](#f1)</sup> and return value<sup id="a2">[2](#f2)</sup>.
 
 The current execute data frame is available from the executor globals via `EG(current_execute_data)`.
 
 ## `zend_function`
 
-Both internal and user functions are represented within PHP as [`zend_function` unions](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_function&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=master). Instances of this union will either be `zend_internal_function` or `zend_op_array` structs: these structs include a common set of fields at the start to encapsulate common concerns such as the function type, name, scope, and prototype.
+Both internal and user functions are represented within PHP as [`zend_function` unions](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_function&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=PHP-7.3&project=master). Instances of this union will either be `zend_internal_function` or `zend_op_array` structs: these structs include a common set of fields at the start to encapsulate common concerns such as the function type, name, scope, and prototype.
 
 ## `zend_op_array`
 
-The [`zend_op_array` struct](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_op_array&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=master) is used to represent a user function. The most useful aspect of this to note is that the actual opcodes to be executed by the Zend Engine are stored within this array as the `opcodes` array field.
+The [`zend_op_array` struct](https://php-lxr.adamharvey.name/source/search?q=&defs=_zend_op_array&refs=&path=&hist=&type=&project=PHP-5.2&project=PHP-5.3&project=PHP-5.4&project=PHP-5.5&project=PHP-5.6&project=PHP-7.0&project=PHP-7.1&project=PHP-7.2&project=PHP-7.3&project=master) is used to represent a user function. The most useful aspect of this to note is that the actual opcodes to be executed by the Zend Engine are stored within this array as the `opcodes` array field.
 
 This struct also includes a `reserved` array, which can be used by third party extensions to associate metadata with user functions. The PHP agent uses this to store wrap records for functions we're interested in.
 

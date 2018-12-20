@@ -113,6 +113,9 @@ static void nr_php_file_get_contents_add_headers_internal(zval* context,
   }
 
   if (IS_ARRAY == Z_TYPE_P(http_header)) {
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+    SEPARATE_ARRAY(http_header);
+#endif /* PHP >= 7.3 */
     nr_php_add_next_index_string(http_header, headers);
     return;
   }
@@ -154,9 +157,10 @@ static char* nr_php_file_get_contents_create_outbound_headers(nrtxn_t* txn) {
   char* x_newrelic_id = NULL;
   char* x_newrelic_transaction = NULL;
   char* x_newrelic_synthetics = NULL;
+  char* newrelic = NULL;
 
   nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics);
+                             &x_newrelic_synthetics, &newrelic);
 
   if (txn && txn->special_flags.debug_cat) {
     nrl_verbosedebug(
@@ -167,7 +171,8 @@ static char* nr_php_file_get_contents_create_outbound_headers(nrtxn_t* txn) {
         NRP_CAT(x_newrelic_transaction));
   }
 
-  if ((0 == x_newrelic_id) || (0 == x_newrelic_transaction)) {
+  if (((0 == x_newrelic_id) || (0 == x_newrelic_transaction))
+      && (0 == newrelic)) {
     goto leave;
   }
 
@@ -176,21 +181,74 @@ static char* nr_php_file_get_contents_create_outbound_headers(nrtxn_t* txn) {
    * nr_php_file_get_contents_remove_headers_internal will need to be
    * changed.
    */
-  if (x_newrelic_synthetics) {
-    headers = nr_formatf("%s: %s\r\n%s: %s\r\n%s: %s\r\n", X_NEWRELIC_ID,
-                         x_newrelic_id, X_NEWRELIC_TRANSACTION,
-                         x_newrelic_transaction, X_NEWRELIC_SYNTHETICS,
-                         x_newrelic_synthetics);
-  } else {
-    headers = nr_formatf("%s: %s\r\n%s: %s\r\n", X_NEWRELIC_ID, x_newrelic_id,
+  char* hdr_newrelic = 0;
+  char* hdr_synthetics = 0;
+  char* hdr_cat = 0;
+
+  if (newrelic) {
+    hdr_newrelic = nr_formatf("%s: %s\r\n", NEWRELIC, newrelic);
+  }
+  if (x_newrelic_id && x_newrelic_transaction) {
+    hdr_cat = nr_formatf("%s: %s\r\n%s: %s\r\n", X_NEWRELIC_ID, x_newrelic_id,
                          X_NEWRELIC_TRANSACTION, x_newrelic_transaction);
   }
+  if (x_newrelic_synthetics) {
+    hdr_synthetics = nr_formatf("%s: %s\r\n", X_NEWRELIC_SYNTHETICS,
+                                x_newrelic_synthetics);
+  }
+
+  headers = nr_formatf("%s%s%s", hdr_newrelic ? hdr_newrelic : "",
+                       hdr_cat ? hdr_cat : "",
+                       hdr_synthetics ? hdr_synthetics : "");
+
+  nr_free(hdr_newrelic);
+  nr_free(hdr_cat);
+  nr_free(hdr_synthetics);
 
 leave:
   nr_free(x_newrelic_id);
   nr_free(x_newrelic_transaction);
   nr_free(x_newrelic_synthetics);
+  nr_free(newrelic);
   return headers;
+}
+
+zval* nr_php_file_get_contents_get_method(zval* context TSRMLS_DC) {
+  zval* context_options = 0;
+  zval* http_context_options = 0;
+  zval* method = 0;
+
+  if (0 == nr_php_recording(TSRMLS_C)) {
+    return 0;
+  }
+  if (0 == NRPRG(txn)->options.cross_process_enabled
+      && 0 == NRPRG(txn)->options.distributed_tracing_enabled) {
+    return 0;
+  }
+  if (0 == context) {
+    return 0;
+  }
+  if (IS_RESOURCE != Z_TYPE_P(context)) {
+    return 0;
+  }
+
+  context_options = nr_php_call(NULL, "stream_context_get_options", context);
+
+  if (0 == context_options) {
+    return 0;
+  }
+
+  http_context_options
+      = nr_php_zend_hash_find(Z_ARRVAL_P(context_options), "http");
+
+  nr_php_zval_free(&context_options);
+  if (0 == http_context_options) {
+    return 0;
+  }
+
+  method = nr_php_zend_hash_find(Z_ARRVAL_P(http_context_options), "method");
+
+  return method;
 }
 
 void nr_php_file_get_contents_add_headers(zval* context TSRMLS_DC) {
@@ -200,7 +258,8 @@ void nr_php_file_get_contents_add_headers(zval* context TSRMLS_DC) {
   if (0 == nr_php_recording(TSRMLS_C)) {
     return;
   }
-  if (0 == NRPRG(txn)->options.cross_process_enabled) {
+  if (0 == NRPRG(txn)->options.cross_process_enabled
+      && 0 == NRPRG(txn)->options.distributed_tracing_enabled) {
     return;
   }
   if (0 == context) {
@@ -278,15 +337,7 @@ static void nr_php_file_get_contents_remove_headers_internal(
 
   /*
    * This code assumes that the New Relic headers are at the beginning of the
-   * headers string, and that they both are terminated by \n. It also checks
-   * for an optional X-NewRelic-Synthetics header.
-   *
-   * For Example:
-   *  "X-NewRelic-ID: VQQEVVNADgQIXQ==\r\nX-NewRelic-Transaction:
-   * PxQHUFRQDAYGU1lbdnN0IiF3FB8EBw8RVT8=\r\nAlpha: Beta\r\n" Or:
-   *  "X-NewRelic-ID: VQQEVVNADgQIXQ==\r\nX-NewRelic-Transaction:
-   * PxQHUFRQDAYGU1lbdnN0IiF3FB8EBw8RVT8=\r\nX-NewRelic-Synthetics:
-   * PwcbUFZTFBFRRk1AVRMbRAcTaw==\r\nAlpha: Beta\r\n"
+   * headers string, and that they are terminated by \n.
    *
    * See:
    *   nr_php_file_get_contents_create_outbound_headers
@@ -294,26 +345,30 @@ static void nr_php_file_get_contents_remove_headers_internal(
    */
   {
     char* dup = nr_strndup(Z_STRVAL_P(http_header), Z_STRLEN_P(http_header));
+    char* iter = dup;
 
-    if (0 == nr_strncaseidx(dup, X_NEWRELIC_ID, nr_strlen(X_NEWRELIC_ID))) {
-      int i;
-      int newlines_seen = 0;
+    while (*iter) {
+      /* break on line that is not a New Relic header */
+      if (0 != nr_strncaseidx(iter, X_NEWRELIC_ID, nr_strlen(X_NEWRELIC_ID))
+          && 0
+                 != nr_strncaseidx(iter, X_NEWRELIC_TRANSACTION,
+                                   nr_strlen(X_NEWRELIC_TRANSACTION))
+          && 0
+                 != nr_strncaseidx(iter, X_NEWRELIC_SYNTHETICS,
+                                   nr_strlen(X_NEWRELIC_SYNTHETICS))
+          && 0 != nr_strncaseidx(iter, NEWRELIC, nr_strlen(NEWRELIC))) {
+        break;
+      }
 
-      for (i = 0; dup[i]; i++) {
-        if ('\n' == dup[i]) {
-          newlines_seen += 1;
-          if (((2 == newlines_seen)
-               && 0
-                      != nr_strncaseidx(dup + i + 1, X_NEWRELIC_SYNTHETICS,
-                                        nr_strlen(X_NEWRELIC_SYNTHETICS)))
-              || (3 == newlines_seen)) {
-            nr_php_add_assoc_string(http_context_options, "header",
-                                    dup + i + 1);
-            break;
-          }
-        }
+      /* next line */
+      while (*iter && *iter != '\n') {
+        iter++;
+      }
+      if (*iter == '\n') {
+        iter++;
       }
     }
+    nr_php_add_assoc_string(http_context_options, "header", iter);
 
     nr_free(dup);
   }
@@ -325,7 +380,8 @@ void nr_php_file_get_contents_remove_headers(zval* context TSRMLS_DC) {
   if (0 == nr_php_recording(TSRMLS_C)) {
     return;
   }
-  if (0 == NRPRG(txn)->options.cross_process_enabled) {
+  if (0 == NRPRG(txn)->options.cross_process_enabled
+      && 0 == NRPRG(txn)->options.distributed_tracing_enabled) {
     return;
   }
   if (0 == context) {

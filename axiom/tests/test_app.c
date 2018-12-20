@@ -423,6 +423,7 @@ static void test_agent_find_or_add_app(void) {
   info.labels = nro_create_from_json(TEST_LABELS_JSON);
   info.high_security = 555;
   info.redirect_collector = nr_strdup("collector.newrelic.com");
+  info.security_policies_token = nr_strdup("");
 
   tlib_pass_if_int_equal("applist starts empty", 0, applist->num_apps);
 
@@ -467,6 +468,9 @@ static void test_agent_find_or_add_app(void) {
     test_obj_as_json("new app", app->info.labels, TEST_LABELS_JSON);
     tlib_pass_if_str_equal("new app", info.redirect_collector,
                            app->info.redirect_collector);
+
+    /* No unlock here because the app actually came in unlocked from the
+     * applist. */
   }
 
   /*
@@ -484,6 +488,9 @@ static void test_agent_find_or_add_app(void) {
                            app->failed_daemon_query_count);
     test_obj_as_json("settings added from callback", app->info.settings,
                      "[\"my_settings\"]");
+
+    /* No unlock here because the app actually came in unlocked from the
+     * applist. */
   }
 
   /*
@@ -523,6 +530,9 @@ static void test_agent_find_or_add_app(void) {
   tlib_pass_if_not_null("new app NULL labels", app);
   if (0 != app) {
     test_obj_as_json("new app NULL labels", app->info.labels, "null");
+
+    /* No unlock here because the app actually came in unlocked from the
+     * applist. */
   }
 
   /*
@@ -537,6 +547,36 @@ static void test_agent_find_or_add_app(void) {
   tlib_pass_if_null("full applist", app);
   tlib_pass_if_int_equal("full applist", 0, p->cmd_appinfo_called);
 
+  /*
+   * Test : HSM and LASP are both set.
+   * First try to add app when both HSM and LASP are set, expect
+   * failure. Then turn off HSM and try again, expecting success.
+   */
+  p->cmd_appinfo_succeed = 1;
+  p->cmd_appinfo_called = 0;
+  applist->num_apps = 2;
+  nr_free(info.appname);
+  info.appname = nr_strdup("appname_security");
+  info.high_security = 1;
+  nr_free(info.security_policies_token);
+  info.security_policies_token = nr_strdup("any_token");
+  app = nr_agent_find_or_add_app(applist, &info, settings_callback_fn);
+  tlib_pass_if_null("new app test HSM and LASP", app);
+  tlib_pass_if_int_equal("new app test HSM and LASP", 0, p->cmd_appinfo_called);
+  // Turn HSM off and try again, expecting a success
+  info.high_security = 0;
+  app = nr_agent_find_or_add_app(applist, &info, settings_callback_fn);
+  tlib_pass_if_not_null("new app test HSM and LASP", app);
+  tlib_pass_if_int_equal("new app test HSM and LASP", 1, p->cmd_appinfo_called);
+  tlib_pass_if_int_equal("new app test HSM and LASP", app->info.high_security,
+                         0);
+  tlib_pass_if_str_equal("new app test HSM and LASP",
+                         app->info.security_policies_token, "any_token");
+
+  nrt_mutex_unlock(&app->app_lock);
+
+  nr_free(info.appname);
+  nr_free(info.security_policies_token);
   nr_app_info_destroy_fields(&info);
   nr_applist_destroy(&applist);
 }
@@ -565,9 +605,11 @@ static void test_verify_id(void) {
   /*
    * Add an app and connect it.
    */
-  nr_agent_find_or_add_app(applist, &info, settings_callback_fn);
+  app = nr_agent_find_or_add_app(applist, &info, settings_callback_fn);
+  tlib_fail_if_null("new app", app);
   applist->apps[0]->state = NR_APP_OK;
   applist->apps[0]->agent_run_id = nr_strdup(TEST_AGENT_RUN_ID);
+  nrt_mutex_unlock(&app->app_lock);
 
   app = nr_app_verify_id(applist, NULL);
   tlib_pass_if_null("zero agent run id", app);

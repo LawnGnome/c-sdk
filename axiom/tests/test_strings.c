@@ -150,6 +150,40 @@ static void test_strcpy(void) {
                     "rp=%p rp[0]=%d", rp, rp[0]);
 }
 
+static void test_strempty(void) {
+  int rp;
+  int op;
+  const char* emptystr = "";
+  const char* nonemptystr = "abc";
+
+  rp = nr_strempty(NULL);
+  tlib_pass_if_true("nr_strempty NULL returns 1", 1 == rp, "rp=%d", rp);
+
+  rp = nr_strempty(emptystr);
+  tlib_pass_if_true("nr_strempty \"\" returns 1", 1 == rp, "rp=%d", rp);
+
+  rp = nr_strempty(nonemptystr);
+  tlib_pass_if_true("nr_strempty \"abc\" returns 0", 0 == rp, "rp=%d", rp);
+
+  rp = nr_strempty("    ");
+  tlib_pass_if_true("nr_strempty \"    \" returns 0", 0 == rp, "rp=%d", rp);
+
+  rp = nr_strempty("a");
+  tlib_pass_if_true("nr_strempty \"a\" returns 0", 0 == rp, "rp=%d", rp);
+
+  rp = !nr_strempty(NULL);
+  op = (NULL != NULL);
+  tlib_pass_if_true("!nr_strempty NULL returns 0", op == rp, "rp=%d", rp);
+
+  rp = !nr_strempty(emptystr);
+  op = (NULL != emptystr && '\0' != *emptystr);
+  tlib_pass_if_true("!nr_strempty \"\" returns 0", op == rp, "rp=%d", rp);
+
+  rp = !nr_strempty(nonemptystr);
+  op = (NULL != nonemptystr && '\0' != *nonemptystr);
+  tlib_pass_if_true("!nr_strempty \"a\" returns 1", op == rp, "rp=%d", rp);
+}
+
 static void test_strcat(void) {
   char* rp;
   char dest[16];
@@ -1169,6 +1203,7 @@ void test_main(void* p NRUNUSED) {
   test_strlcpy();
   test_strcpy();
   test_strcat();
+  test_strempty();
   test_strlen();
   test_strnlen();
   test_strcmp();

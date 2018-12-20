@@ -28,8 +28,11 @@ X-NewRelic-Synthetics=PwcbVVVRDQMHSEMQRUNFFBZDG0EQFBFPAVALVhVKRkBBSEsTQxNBEBZERR
 */
 
 /*EXPECT
-X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-App-Data=missing cat endpoint reached
+X-NewRelic-ID=missing X-NewRelic-Transaction=missing tracing endpoint reached
 ok - execute request
+ */
+
+/*EXPECT_RESPONSE_HEADERS
 */
 
 /*EXPECT_METRICS
@@ -62,7 +65,7 @@ require_once(realpath(dirname(__FILE__)) . '/../../../include/tap.php');
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
 function test_curl() {
-  $url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+  $url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
   $ch = curl_init($url);
 
   $result = curl_exec($ch);

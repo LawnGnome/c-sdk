@@ -14,10 +14,8 @@ static int nr_php_curl_do_cross_process(TSRMLS_D) {
   if (0 == nr_php_recording(TSRMLS_C)) {
     return 0;
   }
-  if (0 == NRPRG(txn)->options.cross_process_enabled) {
-    return 0;
-  }
-  return 1;
+  return (NRPRG(txn)->options.cross_process_enabled
+          || NRPRG(txn)->options.distributed_tracing_enabled);
 }
 
 static void nr_php_curl_save_response_header_from_zval(
@@ -43,6 +41,30 @@ static void nr_php_curl_save_response_header_from_zval(
 
   nr_free(NRPRG(curl_exec_x_newrelic_app_data));
   NRPRG(curl_exec_x_newrelic_app_data) = hdr;
+}
+
+static void nr_php_curl_header_destroy(zval* header) {
+  nr_php_zval_free(&header);
+}
+
+static inline nr_hashmap_t* nr_php_curl_get_headers(TSRMLS_D) {
+  if (NULL == NRPRG(curl_headers)) {
+    NRPRG(curl_headers)
+        = nr_hashmap_create((nr_hashmap_dtor_func_t)nr_php_curl_header_destroy);
+  }
+  return NRPRG(curl_headers);
+}
+
+static void nr_php_curl_method_destroy(char* method) {
+  nr_free(method);
+}
+
+static inline nr_hashmap_t* nr_php_curl_get_method_hash(TSRMLS_D) {
+  if (NULL == NRPRG(curl_method)) {
+    NRPRG(curl_method)
+        = nr_hashmap_create((nr_hashmap_dtor_func_t)nr_php_curl_method_destroy);
+  }
+  return NRPRG(curl_method);
 }
 
 /*
@@ -179,6 +201,8 @@ static int nr_php_curl_copy_outbound_headers_iterator(zval* element,
               >= 0)
           || (nr_strncaseidx(Z_STRVAL_P(element), X_NEWRELIC_SYNTHETICS,
                              Z_STRLEN_P(element))
+              >= 0)
+          || (nr_strncaseidx(Z_STRVAL_P(element), NEWRELIC, Z_STRLEN_P(element))
               >= 0))) {
     return ZEND_HASH_APPLY_KEEP;
   }
@@ -199,17 +223,33 @@ static int nr_php_curl_copy_outbound_headers_iterator(zval* element,
   return ZEND_HASH_APPLY_KEEP;
 }
 
-static void nr_php_curl_setopt_curlopt_httpheader(zval* curlres,
-                                                  zval* curlopt,
-                                                  zval* curlval TSRMLS_DC) {
+char* nr_php_curl_exec_get_method(zval* curlres TSRMLS_DC) {
+  char* method = nr_hashmap_index_get(nr_php_curl_get_method_hash(TSRMLS_C),
+                                      nr_php_zval_resource_id(curlres));
+  return method;
+}
+
+void nr_php_curl_exec_set_httpheaders(zval* curlres TSRMLS_DC) {
   zval* headers = NULL;
   int old_curl_ignore_setopt = NRPRG(curl_ignore_setopt);
   zval* retval = NULL;
   char* x_newrelic_id = 0;
   char* x_newrelic_transaction = 0;
   char* x_newrelic_synthetics = 0;
+  char* newrelic = 0;
+  zval* curlopt;
+  zval* curlval = nr_hashmap_index_get(nr_php_curl_get_headers(TSRMLS_C),
+                                       nr_php_zval_resource_id(curlres));
 
   if ((0 == curlval) || (IS_ARRAY != Z_TYPE_P(curlval))) {
+    nrl_warning(NRL_CAT,
+                "Could not instrument curl handle, it may have been "
+                "initialized in a different transaction.");
+    return;
+  }
+
+  curlopt = nr_php_get_constant("CURLOPT_HTTPHEADER" TSRMLS_CC);
+  if (NULL == curlopt) {
     return;
   }
 
@@ -226,7 +266,8 @@ static void nr_php_curl_setopt_curlopt_httpheader(zval* curlres,
       headers TSRMLS_CC);
 
   nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
-                             &x_newrelic_transaction, &x_newrelic_synthetics);
+                             &x_newrelic_transaction, &x_newrelic_synthetics,
+                             &newrelic);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
     nrl_verbosedebug(NRL_CAT,
@@ -257,6 +298,14 @@ static void nr_php_curl_setopt_curlopt_httpheader(zval* curlres,
     nr_free(h3);
   }
 
+  if (newrelic) {
+    char* h4 = nr_header_format_name_value(NEWRELIC, newrelic, 0);
+
+    nr_php_add_next_index_string(headers, h4);
+
+    nr_free(h4);
+  }
+
   /*
    * Call curl_setopt() with the modified headers, taking care to set the
    * curl_ignore_setopt flag to avoid infinite recursion.
@@ -273,6 +322,8 @@ static void nr_php_curl_setopt_curlopt_httpheader(zval* curlres,
   NRPRG(curl_ignore_setopt) = old_curl_ignore_setopt;
   nr_php_zval_free(&headers);
   nr_php_zval_free(&retval);
+  nr_php_zval_free(&curlopt);
+  nr_free(newrelic);
   nr_free(x_newrelic_id);
   nr_free(x_newrelic_transaction);
   nr_free(x_newrelic_synthetics);
@@ -364,6 +415,8 @@ void nr_php_curl_setopt_pre(zval* curlres,
 void nr_php_curl_setopt_post(zval* curlres,
                              zval* curlopt,
                              zval* curlval TSRMLS_DC) {
+  char* method = NULL;
+
   if (0 == nr_php_curl_do_cross_process(TSRMLS_C)) {
     return;
   }
@@ -374,8 +427,32 @@ void nr_php_curl_setopt_post(zval* curlres,
   }
 
   if (nr_php_is_zval_named_constant(curlopt, "CURLOPT_HTTPHEADER" TSRMLS_CC)) {
-    nr_php_curl_setopt_curlopt_httpheader(curlres, curlopt, curlval TSRMLS_CC);
-    return;
+    zval* headers = nr_php_zval_alloc();
+    array_init(headers);
+
+    // Save the headers
+    nr_php_zend_hash_zval_apply(
+        Z_ARRVAL_P(curlval),
+        (nr_php_zval_apply_t)nr_php_curl_copy_outbound_headers_iterator,
+        headers TSRMLS_CC);
+    nr_hashmap_index_update(nr_php_curl_get_headers(TSRMLS_C),
+                            nr_php_zval_resource_id(curlres), headers);
+
+  } else if (nr_php_is_zval_named_constant(curlopt, "CURLOPT_POST" TSRMLS_CC)) {
+    method = nr_strdup("POST");
+  } else if (nr_php_is_zval_named_constant(curlopt, "CURLOPT_PUT" TSRMLS_CC)) {
+    method = nr_strdup("PUT");
+  } else if (nr_php_is_zval_named_constant(curlopt,
+                                           "CURLOPT_CUSTOMREQUEST" TSRMLS_CC)) {
+    method = strndup(Z_STRVAL_P(curlval), Z_STRLEN_P(curlval));
+  } else if (nr_php_is_zval_named_constant(curlopt,
+                                           "CURLOPT_HTTPGET" TSRMLS_CC)) {
+    method = nr_strdup("GET");
+  }
+
+  if (NULL != method) {
+    nr_hashmap_index_update(nr_php_curl_get_method_hash(TSRMLS_C),
+                            nr_php_zval_resource_id(curlres), method);
   }
 }
 

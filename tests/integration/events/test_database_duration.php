@@ -21,7 +21,9 @@ occur.
         "timestamp": "??",
         "duration": "??",
         "totalTime": "??",
-        "databaseDuration": "??"
+        "databaseDuration": "??",
+        "databaseCallCount": 1,
+        "error": false
       },
       {
       },

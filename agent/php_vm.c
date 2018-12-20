@@ -6,6 +6,18 @@
 #ifdef PHP7
 
 /*
+ * An entry in the previous_opcode_handlers table.
+ *
+ * The is_set flag is needed to correctly identify NULL opcode handlers that 
+ * were overwritten by us (see PHP-1798).
+ */
+typedef struct {
+  bool is_set; /* true if the opcode handler was overwritten by us. */
+  user_opcode_handler_t
+      handler; /* The original opcode handler before we overwrote it. */
+} nr_php_opcode_handler_entry_t;
+
+/*
  * Opcode handlers are per-process, not per-request or per-thread, so in order
  * to track the opcode handlers we replaced and still call them, we have to
  * keep them in a per-process global.
@@ -14,7 +26,7 @@
  * outside of MINIT and MSHUTDOWN.
  */
 #define OPCODE_COUNT 256
-static user_opcode_handler_t previous_opcode_handlers[OPCODE_COUNT];
+static nr_php_opcode_handler_entry_t previous_opcode_handlers[OPCODE_COUNT];
 
 /*
  * Purpose : Set a single opcode handler.
@@ -24,7 +36,8 @@ static user_opcode_handler_t previous_opcode_handlers[OPCODE_COUNT];
  */
 static void nr_php_set_opcode_handler(zend_uchar opcode,
                                       user_opcode_handler_t handler) {
-  user_opcode_handler_t previous = zend_get_user_opcode_handler(opcode);
+  nr_php_opcode_handler_entry_t previous
+      = {.is_set = true, .handler = zend_get_user_opcode_handler(opcode)};
 
   /*
    * We want to store this even if it's NULL, because that allows us to restore
@@ -66,7 +79,7 @@ static void nr_php_set_opcode_handler(zend_uchar opcode,
 static int nr_php_handle_cufa_fcall(zend_execute_data* execute_data) {
   nrphpcufafn_t cufa_callback = NRPRG(cufa_callback);
   zend_uchar opcode;
-  user_opcode_handler_t prev_handler;
+  nr_php_opcode_handler_entry_t prev_handler;
   const zend_op* prev_opline;
 
   /*
@@ -165,8 +178,8 @@ call_previous_and_return:
    * it.
    */
   prev_handler = previous_opcode_handlers[opcode];
-  if (UNEXPECTED(NULL != prev_handler)) {
-    return (prev_handler)(execute_data);
+  if (UNEXPECTED(prev_handler.is_set && prev_handler.handler)) {
+    return (prev_handler.handler)(execute_data);
   }
 
   /*
@@ -184,8 +197,9 @@ void nr_php_remove_opcode_handlers(void) {
   size_t i;
 
   for (i = 0; i < OPCODE_COUNT; i++) {
-    if (previous_opcode_handlers[i]) {
-      zend_set_user_opcode_handler(i, previous_opcode_handlers[i]);
+    if (previous_opcode_handlers[i].is_set) {
+      zend_set_user_opcode_handler(i, previous_opcode_handlers[i].handler);
+      previous_opcode_handlers[i].is_set = false;
     }
   }
 }

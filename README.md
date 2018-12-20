@@ -8,7 +8,7 @@ This can be done by running the command:
 git submodule update --init
 ```
 
-For installation instructions, INI file settings, 
+For installation instructions, INI file settings,
 and API descriptions please see the online FAQ at:
   http://newrelic.com/docs/php/new-relic-for-php
 

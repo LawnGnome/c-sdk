@@ -1,5 +1,8 @@
 #include "nr_axiom.h"
 
+#include <errno.h>
+#include <limits.h>
+
 #include "util_memory.h"
 #include "util_strings.h"
 
@@ -54,6 +57,111 @@ static void test_calloc_null_valid(void) {
   tlib_pass_if_true("nr_realloc (0, 0) returns a pointer", 0 != rp, "rp=%p",
                     rp);
   nr_free(rp);
+}
+
+/*
+ * So that valgrind will report invalid reads and writes, these functions will
+ * do something to every byte in the given memory block.
+ */
+static void read_all_bytes(void* ptr, size_t size) {
+  uint8_t* buf = (uint8_t*)ptr;
+  size_t i;
+
+  for (i = 0; i < size; i++) {
+    uint8_t expected = i % UINT8_MAX;
+    tlib_pass_if_uint8_t_equal("read check", expected, buf[i]);
+  }
+}
+
+static void poke_all_bytes(void* ptr, size_t size) {
+  uint8_t* buf = (uint8_t*)ptr;
+  size_t i;
+
+  for (i = 0; i < size; i++) {
+    buf[i] = i % UINT8_MAX;
+  }
+
+  read_all_bytes(ptr, size);
+}
+
+static void test_reallocarray(void) {
+  char* op;
+  char* rp;
+
+  /*
+   * reallocarray(NULL, nmemb, size) is equivalent to calloc(nmemb, size) for
+   * all values of nmemb and size.
+   */
+  op = (char*)nr_reallocarray(NULL, 0, 0);
+  tlib_pass_if_not_null("nr_reallocarray(NULL, 0, 0)", op);
+  nr_free(op);
+
+  op = (char*)nr_reallocarray(NULL, 10, 10);
+  tlib_pass_if_not_null("nr_reallocarray(NULL, 10, 10)", op);
+  poke_all_bytes(op, 10 * 10);
+  nr_free(op);
+
+  /*
+   * Let's check our overflow tests. Note that gcc is actually pretty good at
+   * the static compile time assertions controlled by the NRMALLOC and
+   * NRCALLOCSZ macros, so we have to use variables to provide the values.
+   */
+  {
+    size_t size_max = SIZE_MAX;
+
+    tlib_pass_if_null("overflow nmemb", nr_reallocarray(NULL, size_max, 2));
+    tlib_pass_if_int_equal("overflow nmemb errno", ENOMEM, errno);
+    errno = 0;
+
+    tlib_pass_if_null("overflow size", nr_reallocarray(NULL, 2, size_max));
+    tlib_pass_if_int_equal("overflow nmemb errno", ENOMEM, errno);
+    errno = 0;
+  }
+
+  /*
+   * Now try actually reallocating to a larger size. Firstly, we'll try an
+   * initially zero length allocation.
+   */
+  op = (char*)nr_reallocarray(NULL, 0, 0);
+  tlib_pass_if_not_null("nr_reallocarray(NULL, 0, 0)", op);
+  rp = (char*)nr_reallocarray(op, 10, 10);
+  tlib_pass_if_not_null("nr_reallocarray(op, 10, 10)", rp);
+  poke_all_bytes(rp, 10 * 10);
+  nr_free(rp);
+
+  /*
+   * Now a non-zero allocation.
+   */
+  op = (char*)nr_reallocarray(NULL, 5, 5);
+  tlib_pass_if_not_null("nr_reallocarray(NULL, 5, 5)", op);
+  poke_all_bytes(op, 5 * 5);
+  rp = (char*)nr_reallocarray(op, 10, 10);
+  tlib_pass_if_not_null("nr_reallocarray(op, 10, 10)", rp);
+  read_all_bytes(rp, 5 * 5);
+  poke_all_bytes(rp, 10 * 10);
+  nr_free(rp);
+
+  /*
+   * Now we'll reallocate to a smaller size.
+   */
+  op = (char*)nr_reallocarray(NULL, 10, 10);
+  tlib_pass_if_not_null("nr_reallocarray(NULL, 10, 10)", op);
+  poke_all_bytes(op, 10 * 10);
+  rp = (char*)nr_reallocarray(op, 5, 5);
+  tlib_pass_if_not_null("nr_reallocarray(op, 5, 5)", rp);
+  read_all_bytes(rp, 5 * 5);
+  poke_all_bytes(rp, 5 * 5);
+  nr_free(rp);
+
+  /*
+   * Finally, reallocarray(ptr, 0, 0) is equivalent to free(ptr), so let's do
+   * that without a corresponding free() and ensure that Valgrind doesn't
+   * complain.
+   */
+  op = (char*)nr_reallocarray(NULL, 10, 10);
+  tlib_pass_if_not_null("nr_reallocarray(NULL, 10, 10)", op);
+  rp = (char*)nr_reallocarray(op, 0, 0);
+  tlib_pass_if_null("nr_reallocarray(op, 0, 0)", rp);
 }
 
 /*
@@ -190,11 +298,6 @@ static void test_memcpy(void) {
   tlib_pass_if_bytes_equal("memcpy zero size doesn't modify dest", dest, len,
                            as, len);
 
-  retval = nr_memcpy(dest, bs, -1);
-  tlib_pass_if_ptr_equal("memcpy from NULL src", dest, retval);
-  tlib_pass_if_bytes_equal("memcpy negative size doesn't modify dest", dest,
-                           len, as, len);
-
   nr_free(as);
   nr_free(bs);
   nr_free(dest);
@@ -230,11 +333,6 @@ static void test_memmove(void) {
   tlib_pass_if_bytes_equal("memmove zero size doesn't modify dest", dest, len,
                            as, len);
 
-  retval = nr_memmove(dest, bs, -1);
-  tlib_pass_if_ptr_equal("memmove from NULL src", dest, retval);
-  tlib_pass_if_bytes_equal("memmove negative size doesn't modify dest", dest,
-                           len, as, len);
-
   nr_free(as);
   nr_free(bs);
   nr_free(dest);
@@ -242,25 +340,6 @@ static void test_memmove(void) {
 
 static void test_memcmp(void) {
   int rv;
-
-  /*
-   * Test invalid length.
-   */
-
-  rv = nr_memcmp(NULL, NULL, -1);
-  tlib_pass_if_int_equal("nr_memcmp(NULL, NULL, 0)", 0, rv);
-
-  rv = nr_memcmp("", NULL, -1);
-  tlib_pass_if_int_equal("nr_memcmp(\"\", NULL, 0)", 0, rv);
-
-  rv = nr_memcmp(NULL, "", -1);
-  tlib_pass_if_int_equal("nr_memcmp(NULL, \"\", 0)", 0, rv);
-
-  rv = nr_memcmp("", "", -1);
-  tlib_pass_if_int_equal("nr_memcmp(\"\", \"\", -1)", 0, rv);
-
-  rv = nr_memcmp("a", "b", -1);
-  tlib_pass_if_int_equal("nr_memcmp(\"a\", \"b\", -1)", 0, rv);
 
   /*
    * Test zero-length comparisons.
@@ -308,15 +387,6 @@ static void test_memchr(void) {
   char buf[] = "abc";
   void* rv;
 
-  rv = nr_memchr(NULL, 'a', -1);
-  tlib_pass_if_null("null buffer and negative length", rv);
-
-  rv = nr_memchr(buf, 'd', -1);
-  tlib_pass_if_null("negative length and value not present", rv);
-
-  rv = nr_memchr(buf, 'a', -1);
-  tlib_pass_if_null("negative length and value present", rv);
-
   rv = nr_memchr(NULL, 'a', 0);
   tlib_pass_if_null("null buffer", rv);
 
@@ -340,6 +410,7 @@ void test_main(void* p NRUNUSED) {
   test_malloc_valid();
   test_calloc_0_valid();
   test_calloc_null_valid();
+  test_reallocarray();
   test_free_side_effect();
 
   test_strdup();

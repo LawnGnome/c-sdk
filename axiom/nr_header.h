@@ -12,6 +12,7 @@
 #define X_NEWRELIC_APP_DATA "X-NewRelic-App-Data"
 #define X_NEWRELIC_APP_DATA_LOWERCASE "x-newrelic-app-data"
 #define X_NEWRELIC_SYNTHETICS "X-NewRelic-Synthetics"
+#define NEWRELIC "newrelic"
 
 /*
  * Request Headers:
@@ -30,6 +31,13 @@
  *   This header is optional, and will only be used by applications which
  *   support cross application tracing. trip_id and path_hash were added by the
  *   changes required for CATMQ and CAT Map: we need to support both cases.
+ *
+ *   NEWRELIC
+ *
+ *   This header contains a base64 encoded json distributed tracing payload.
+ *
+ *   This header is optional, and will be used by applications which support
+ *   distributed tracing.
  *
  * Response Header:
  *
@@ -80,6 +88,8 @@
 #define X_NEWRELIC_SYNTHETICS_MQ_LOWERCASE "newrelicsynthetics"
 #define X_NEWRELIC_TRANSACTION_MQ "NewRelicTransaction"
 #define X_NEWRELIC_TRANSACTION_MQ_LOWERCASE "newrelictransaction"
+#define X_NEWRELIC_DT_PAYLOAD_MQ "newrelic"
+#define X_NEWRELIC_DT_PAYLOAD_MQ_LOWERCASE "newrelic"
 
 typedef enum _nr_response_hdr_field_index_t {
   NR_RESPONSE_HDR_FIELD_INDEX_CROSS_PROCESS_ID = 1,
@@ -121,6 +131,7 @@ extern char* nr_header_inbound_response(nrtxn_t* txn, int content_length);
  *           2. Pointer to location to return the X_NEWRELIC_ID header.
  *           3. Pointer to location to return the X_NEWRELIC_TRANSACTION header.
  *           4. Pointer to location to return the X_NEWRELIC_SYNTHETICS header.
+ *           4. Pointer to location to return the NEWRELIC header used for DT.
  *
  * Returns : Nothing. The headers are returned through the pointer parameters.
  *           The caller must free these strings after use.
@@ -128,7 +139,8 @@ extern char* nr_header_inbound_response(nrtxn_t* txn, int content_length);
 extern void nr_header_outbound_request(nrtxn_t* txn,
                                        char** x_newrelic_id_ptr,
                                        char** x_newrelic_transaction_ptr,
-                                       char** x_newrelic_synthetics_ptr);
+                                       char** x_newrelic_synthetics_ptr,
+                                       char** newrelic_ptr);
 
 /*
  * Purpose : Process the response header from an outbound external request.

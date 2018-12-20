@@ -1,4 +1,5 @@
 #include "php_agent.h"
+#include "php_globals.h"
 #include "php_user_instrument.h"
 #include "php_wrapper.h"
 #include "lib_guzzle_common.h"

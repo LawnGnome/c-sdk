@@ -1,8 +1,8 @@
 Integration Runner: Theory of Operation
 --------------------------------------------------
-The integration runner is a binary application that runs PHP integration tests.  It's written in Go, and reuses components of the daemon application.  
+The integration runner is a binary application that runs PHP integration tests.  It's written in Go, and reuses components of the daemon application.
 
-When diagnosing integration test failures, it's important to understand how the integration runner does what it does.  The best way to understand the integration runner is to compare its operation to the normal operation of the PHP agent. 
+When diagnosing integration test failures, it's important to understand how the integration runner does what it does.  The best way to understand the integration runner is to compare its operation to the normal operation of the PHP agent.
 
 PHP Agent: Normal Operation
 --------------------------------------------------
@@ -16,17 +16,17 @@ Our customers install the `newrelic.so` extension on their servers. The `newreli
 
 The `newrelic-daemon` collects and holds this instrumentation data.  On a regular schedule, (once per minute for most customers) the daemon will send the information it has collected to New Relic's collector server.  This is known as a harvest cycle.  The daemon also has a set of rules, logic, and limits for how long to hold onto this data, and how it should cull the data when it needs to drop metrics, events, or traces.  These limits are in place to ensure the agent does not cause resource issues on our customer's servers.
 
-The New Relic collector **is not** installed on our customer's servers.  It lives "in the cloud" (i.e. a New Relic hosted data center).  
+The New Relic collector **is not** installed on our customer's servers.  It lives "in the cloud" (i.e. a New Relic hosted data center).
 
 Integration Runner
 --------------------------------------------------
 The integration runner sets up an environment similar to the standard customer setup, with a few important differences.
 
-When running integration tests, we point the integration runner at a specific version of the `newrelic.so` file we want to test, and a specific version of PHP.  
+When running integration tests, we point the integration runner at a specific version of the `newrelic.so` file we want to test, and a specific version of PHP.
 
-However, we **do not** point the integration runner at a `newrelic-daemon`.  Instead, the integration runner *acts as* the daemon.  Since the integration runner is written in Go, the integration runner can import daemon libraries and behave in a way that is similar to the daemon we supply to customers.  
+However, we **do not** point the integration runner at a `newrelic-daemon`.  Instead, the integration runner *acts as* the daemon.  Since the integration runner is written in Go, the integration runner can import daemon libraries and behave in a way that is similar to the daemon we supply to customers.
 
-In addition to pointing the integration runner to a `newrelic.so` and a `php` binary, we also point the integration runner to a folder containing `test_*.php` files.  These files are integration runner test cases.  
+In addition to pointing the integration runner to a `newrelic.so` and a `php` binary, we also point the integration runner to a folder containing `test_*.php` files.  These files are integration runner test cases.
 
 When the integration runner starts, it still performs a collector handshake to validate the application and grab collector-provided configuration variables.  The integration runner will look at each `test_*.php` test case and use the PHP binary to run the test case's code.  The integration runner will still accept requests from the `newrelic.so` PHP extension. However, the integration runner **does not** perform a harvest cycle, and will not sent information to the collector.
 
@@ -50,21 +50,19 @@ Here's a brief description of each flag -- if you're curious about specific impl
 
 `-agent` : The agent flag allows users specify which PHP extension the integration runner will test
 
-`-cgi` : The cgi flag allows users to specify which `php-cgi` binary the integration runner will use when running "web" tests.  
+`-cgi` : The cgi flag allows users to specify which `php-cgi` binary the integration runner will use when running "web" tests.
 
 `-collector` : The collector flag allows users to specify which New Relic collector service/URL to communicate/handshake with.
-
-`-insecure` : The insecure flag allows the integration runner to communicate with a collector server over `http` (vs. requiring an `https` connection)
-
-`-junit` : The junit flag is unused/depreciated
 
 `-loglevel` : The loglevel flag allows a user to specify a logging level for the PHP agent, normally set via the `newrelic.loglevel` PHP ini file.
 
 `-output-dir` : The output-dir flag allows a user to specify a custom folder for the PHP agent log file (`php_agent.log`) and the integration_runner/daemon log file (`integration-tests.log`).
 
+`-pattern` : A shell pattern describing the set of tests that should be run.  The default value runs all the tests. Similarly, `./bin/integration_runner -pattern test_instance*.php` executes any test starting with `test_instance`.
+
 `-php` : The php flag allows a user to specify a custom PHP binary for the integration runner to use when running CLI tests
 
-`-port` : The port flag allows a user to specify which port the integration_runner/daemon will run under.  This is analogous to the `newrelic.daemon.port` setting, normally set in the PHP ini file. 
+`-port` : The port flag allows a user to specify which port the integration_runner/daemon will run under.  This is analogous to the `newrelic.daemon.port` setting, normally set in the PHP ini file.
 
 `-retry` : The retry flag allows a user to specify how many times the integration runner will attempt to re-run each individual test.
 
@@ -76,7 +74,7 @@ Here's a brief description of each flag -- if you're curious about specific impl
 
 PHP Lifecycle
 --------------------------------------------------
-Another aspect of the integration runner that's important to understand is how it invoked PHP when running its tests cases. 
+Another aspect of the integration runner that's important to understand is how it invoked PHP when running its tests cases.
 
 Test cases include the ability to set PHP environment variables via the `/*ENVIORNMENT` directive.  If these variables include a `REQUEST_METHOD`
 
@@ -87,13 +85,13 @@ Test cases include the ability to set PHP environment variables via the `/*ENVIO
 
 then the integration runner will treat the test as a *Web* test.  If not, the integration runner will treat the test as a *CLI* test.
 
-For CLI tests, the `integration_runner` will invoke the PHP binary via the Go `os/exec` package. 
+For CLI tests, the `integration_runner` will invoke the PHP binary via the Go `os/exec` package.
 
-For Web tests, the integration runner will invoke the `php-cgi` binary that sits next to the configured `php` binary (or via an explicitly set `php-cgi` binary).  The integration runner will use the Go `net/httptest` package to act as a local web server, and use the Go `net/http/cgi` to spawn a CGI process with the `php-cgi` binary.  
+For Web tests, the integration runner will invoke the `php-cgi` binary that sits next to the configured `php` binary (or via an explicitly set `php-cgi` binary).  The integration runner will use the Go `net/httptest` package to act as a local web server, and use the Go `net/http/cgi` to spawn a CGI process with the `php-cgi` binary.
 
-Understanding this context is important, as PHP can behave differently when invoked via the `php` CLI command vs. when run with the `php-cgi` command.  
+Understanding this context is important, as PHP can behave differently when invoked via the `php` CLI command vs. when run with the `php-cgi` command.
 
-Also, the integration runner **does not** run the tests in a `mod_php` apache threaded environment, or in a FastCGI `php-fpm` environment.  The integration runner will not catch errors created by subtle differences in these environments.  
+Also, the integration runner **does not** run the tests in a `mod_php` apache threaded environment, or in a FastCGI `php-fpm` environment.  The integration runner will not catch errors created by subtle differences in these environments.
 
 Test Format
 --------------------------------------------------
@@ -121,16 +119,16 @@ For example, the `DESCRIPTION` directive might look like this
     Test describing the intention and caveats of the test case
     */
 
-**Important**: Individual directives may have specific formatting requirements, or their formatting may have semantic value within that specific directive.  Look at existing tests for tips/hints on how to format your directives.      
+**Important**: Individual directives may have specific formatting requirements, or their formatting may have semantic value within that specific directive.  Look at existing tests for tips/hints on how to format your directives.
 
-    
+
 Directives: Configure Environment
 --------------------------------------------------
-A test writer can use the following directives to configure the environment their tests run in. 
+A test writer can use the following directives to configure the environment their tests run in.
 
 `/*ENVIRONMENT`: The ENVIRONMENT directive allows a test writer to provide a set of key/value pairs, which the integration runner will then load as PHP environment variables. (via PHP's `$_SERVER` super global).  Also, if a `REQUEST_METHOD` key is set, the integration runner will consider the test a "web" test, and run the test via the `php-cgi` binary.
 
-`/*HEADERS`: The HEADERS directive only applies to "web" based tests (i.e. those run with the `php-cgi` binary).  This directive allows you to set additional HTTP headers that the integration runner will use when it makes its HTTP request to the go spawned web-server and CGI process that runs the test. 
+`/*HEADERS`: The HEADERS directive only applies to "web" based tests (i.e. those run with the `php-cgi` binary).  This directive allows you to set additional HTTP headers that the integration runner will use when it makes its HTTP request to the go spawned web-server and CGI process that runs the test.
 
 `/*INI`: The INI directive allows you to set PHP ini values, normally set via `php.ini` files, the `php -d` flag, or at runtime via the `ini_set` function.  For command line tests, these ini arguments are set via the `php -d` flag.  For web tests, these ini arguments are set via the `php-cgi -d` flag.
 
@@ -152,7 +150,7 @@ The directive/fixture format is not an exact match comparison -- some scrubbing/
     func (t *Test) comparePayload(expected json.RawMessage, pc newrelic.PayloadCreator, isMetrics bool) {
         /* ... */
     }
-    
+
 The integration runner calls `comparePayload` for [each payload type here](https://source.datanerd.us/php-agent/php_agent/blob/R7.5/src/newrelic/integration/test.go#L316)
 
     #File: src/newrelic/integration/test.go
@@ -210,10 +208,30 @@ If you're interested in more details, checkout [the `Compare` function](https://
 
 Directives: Misc
 --------------------------------------------------
-There's a few extra directive that don't fit nicely into any one category. 
+There's a few extra directive that don't fit nicely into any one category.
 
 `/*DESCRIPTION`: The DESCRIPTION directive is neither a configuration directive, or a test directive.  This is meant for humans to read and understand the context/scope/intention of a test case.
 
 `/*XFAIL`: The XFAIL directive allows a test writer to mark a test as e**X**pected to fail.  A XFAIL directive should contain descriptive test describing why the test writer expects the test to fail.
 
-**IMPORTANT**: The integration runner currently doesn't consider an xfail test that passes a "bad" test run.  i.e. If a test marked `XFAIL` actually passes, the test runner will still report an `xfail` result. 
+**IMPORTANT**: The integration runner currently doesn't consider an xfail test that passes a "bad" test run.  i.e. If a test marked `XFAIL` actually passes, the test runner will still report an `xfail` result.
+
+## TAP Test Assertions
+--------------------------------------------------
+The integration test suite also includes a simple implementation of the [Test Anything Protocol (TAP)](http://testanything.org/tap-specification.html).  Test writers can use the assertion functions defined in [`tests/include/tap.php`](https://source.datanerd.us/php-agent/php_agent/blob/12abccaf886dd025ebc484e16f8d5559b07019a5/tests/include/tap.php) to assist in writing their tests
+
+    <?php
+    /*DESCRIPTION
+    A simple example of the tap functions.
+    */
+    /*EXPECT
+    ok - Is 6 * 7 equal to 42?
+    */
+    // the tap library is located in the top level `tests/include` folder,
+    // which means searching upwards from the test file's folder via `..`
+    require_once(realpath (dirname ( __FILE__ )) . '/../../include/tap.php');
+
+    $theAnswer = 6 * 7;
+    tap_equal(42, $theAnswer, "Is 6 * 7 equal to 42?");
+
+**IMPORTANT**: The integration runner will not automatically detect output form the `tap_` functions.  It's up to the test writers to put the expected output in the `/*EXPECT` directive.

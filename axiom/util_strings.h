@@ -68,6 +68,14 @@ static inline int nr_strlen(const char* str) {
 }
 
 /*
+ * Null-safe check for an empty string, "".  Returns 1 if str is NULL or
+ * the first character of str is '\0'.  Returns 0 otherwise.
+ */
+static inline int nr_strempty(const char* str) {
+  return (NULL == str || '\0' == str[0]);
+}
+
+/*
  * Should never return anything > maxlen. Longest possible string is maxlen.
  */
 extern int nr_strnlen(const char* str, int maxlen) __attribute__((pure));

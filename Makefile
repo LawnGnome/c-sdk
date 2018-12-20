@@ -301,8 +301,8 @@ axiom-clean:
 #
 
 .PHONY: integration
-integration: Makefile daemon
-	for PHP in $${PHPS:-7.2 7.1 7.0 5.6 5.5 5.4 5.3}; do \
+integration: Makefile daemon lasp-test-all
+	for PHP in $${PHPS:-7.3 7.2 7.1 7.0 5.6 5.5 5.4 5.3}; do \
           echo; echo "# PHP=$${PHP}"; \
 	  env NRLAMP_PHP=$${PHP} bin/integration_runner $(INTEGRATION_ARGS) || exit 1; \
 	  echo "# PHP=$${PHP}"; \
@@ -338,6 +338,29 @@ package-clean:
 	rm -rf releases/debian releases/*.deb
 	rm -rf releases/redhat releases/*.rpm
 	rm -rf releases/newrelic-php5-*.tar.gz
+
+.PHONY: lasp-test
+lasp-test: daemon
+	if [ ! $(SUITE_LASP) ]; then echo "USAGE: make lasp-test SUITE_LASP=suite-most-secure"; exit 1; fi
+	if [ ! -d "tests/lasp/$(SUITE_LASP)" ]; then echo "No such suite in tests/lasp folder"; exit 1; fi
+	for PHP in $${PHPS:-7.3 7.2 7.1 7.0 5.6 5.5 5.4 5.3}; do \
+          echo; echo "# PHP=$${PHP}"; \
+          NRLAMP_PHP=$${PHP} bin/integration_runner $(INTEGRATION_ARGS) -loglevel debug \
+        -license @tests/lasp/$(SUITE_LASP)/nr-license.txt \
+        -security_token @tests/lasp/$(SUITE_LASP)/security-token.txt \
+        -supported_policies @tests/lasp/$(SUITE_LASP)/securityPolicyAgent.json tests/lasp/$(SUITE_LASP) || exit 1; \
+	  echo "# PHP=$${PHP}"; \
+	done
+
+
+
+.PHONY: lasp-test-all
+lasp-test-all:
+	$(MAKE) lasp-test SUITE_LASP=suite-most-secure
+	$(MAKE) lasp-test SUITE_LASP=suite-least-secure
+	$(MAKE) lasp-test SUITE_LASP=suite-random-1
+	$(MAKE) lasp-test SUITE_LASP=suite-random-2
+	$(MAKE) lasp-test SUITE_LASP=suite-random-3
 
 #
 # Extras

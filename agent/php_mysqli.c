@@ -529,7 +529,7 @@ static zval* nr_php_mysqli_query_find_or_create(
 char* nr_php_mysqli_default_host() {
   char* host = nr_php_zend_ini_string(NR_PSTR("mysqli.default_host"), 0);
 
-  if ((NULL == host) || (nr_strlen(host) <= 0)) {
+  if (nr_strempty(host)) {
     host = "localhost";
   }
 
@@ -545,7 +545,7 @@ void nr_php_mysqli_get_host_and_port_path_or_id(const char* host_param,
     return;
   }
 
-  if ((NULL == host_param) || (nr_strlen(host_param) <= 0)) {
+  if (nr_strempty(host_param)) {
     *host = nr_strdup(nr_php_mysqli_default_host());
   } else {
     *host = nr_strdup(host_param);
@@ -570,7 +570,7 @@ void nr_php_mysqli_get_host_and_port_path_or_id(const char* host_param,
    */
   if (0 == nr_stricmp(*host, "localhost")) {
     nr_free(*port_path_or_id);
-    if ((NULL == socket) || (nr_strlen(socket) <= 0)) {
+    if (nr_strempty(socket)) {
       *port_path_or_id = nr_strdup(nr_php_mysqli_default_socket());
     } else {
       *port_path_or_id = nr_strdup(socket);

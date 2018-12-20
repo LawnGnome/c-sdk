@@ -22,7 +22,6 @@ ok - re-use deleted hash key
 ok - duplicate hash key
 ok - set multiple hash keys
 ok - increment hash key by int
-ok - increment hash key by float
 ok - get multiple hash keys
 ok - delete hash
 */
@@ -97,27 +96,12 @@ function test_redis() {
   tap_assert($redis->hSetnx($hash, $key, $value), 're-use deleted hash key');
   tap_refute($redis->hSetnx($hash, $key, $value), 'duplicate hash key');
 
-  tap_assert($redis->hMset($hash, array('dval' => 1.0, 'ival' => 30)), 'set multiple hash keys');
+  tap_assert($redis->hMset($hash, array('dval' => 1.5, 'ival' => 30)), 'set multiple hash keys');
   tap_equal(32, $redis->hIncrBy($hash, 'ival', 2), 'increment hash key by int');
 
-  // Not all versions of Redis support HINCRBYFLOAT, so we have to adjust our
-  // expectations accordingly.
-  if (redis_supports($redis, 'HINCRBYFLOAT')) {
-    $want = 1.5;
-    $got = $redis->hIncrByFloat($hash, 'dval', 0.5);
-    tap_equal($want, $got, 'increment hash key by float');
-
-    $want = array('dval' => '1.5', 'ival' => '32');
-    $got = $redis->hMget($hash, array('dval', 'ival'));
-    tap_equal_unordered($want, $got, 'get multiple hash keys');
-  } else {
-    $got = $redis->hIncrByFloat($hash, 'dval', 0.5);
-    tap_refute($got, 'increment hash key by float');
-
-    $want = array('dval' => '1', 'ival' => '32');
-    $got = $redis->hMget($hash, array('dval', 'ival'));
-    tap_equal_unordered($want, $got, 'get multiple hash keys');
-  }
+  $want = array('dval' => '1.5', 'ival' => '32');
+  $got = $redis->hMget($hash, array('dval', 'ival'));
+  tap_equal_unordered($want, $got, 'get multiple hash keys');
 
   /* cleanup the key used by this test run */
   tap_equal(1, $redis->del($hash), 'delete hash');

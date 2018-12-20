@@ -300,8 +300,8 @@ static void test_synthetics_cross_agent_tests(void) {
     tlib_pass_if_not_null(testname, output_request_header);
     tlib_pass_if_not_null(testname, synthetics_encoding_key);
 
-    txn->guid
-        = nr_strdup(nro_get_hash_string(settings, "transactionGuid", NULL));
+    nr_txn_set_guid(txn,
+                    nro_get_hash_string(settings, "transactionGuid", NULL));
     txn->app_connect_reply = nro_new_hash();
     nro_set_hash_string(
         txn->app_connect_reply, "encoding_key",

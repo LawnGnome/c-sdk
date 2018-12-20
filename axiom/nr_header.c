@@ -125,6 +125,7 @@ nr_status_t nr_header_validate_decoded_id(const nrtxn_t* txn,
 char* nr_header_inbound_response_internal(nrtxn_t* txn, int content_length) {
   nrtime_t qtime;
   char buf[32 + NR_CROSS_PROCESS_ID_LENGTH_MAX];
+  const char* guid;
   nrobj_t* obj;
   char* json;
   double qtime_seconds;
@@ -147,7 +148,8 @@ char* nr_header_inbound_response_internal(nrtxn_t* txn, int content_length) {
   if (0 == cross_process_id) {
     return 0;
   }
-  if (0 == txn->guid) {
+  guid = nr_txn_get_guid(txn);
+  if (NULL == guid) {
     return 0;
   }
 
@@ -185,7 +187,7 @@ char* nr_header_inbound_response_internal(nrtxn_t* txn, int content_length) {
                        apptime_seconds);
   nro_set_array_int(obj, (int)NR_RESPONSE_HDR_FIELD_INDEX_CONTENT_LENGTH,
                     content_length);
-  nro_set_array_string(obj, (int)NR_RESPONSE_HDR_FIELD_INDEX_GUID, txn->guid);
+  nro_set_array_string(obj, (int)NR_RESPONSE_HDR_FIELD_INDEX_GUID, guid);
   nro_set_array_boolean(obj, (int)NR_RESPONSE_HDR_FIELD_INDEX_RECORD_TT,
                         0); /* record_tt currently always false */
 
@@ -234,6 +236,7 @@ void nr_header_outbound_request_decoded(nrtxn_t* txn,
                                         char** decoded_transaction_ptr) {
   nrobj_t* array;
   const char* cross_process_id;
+  const char* guid;
   char* path_hash;
   const char* trip_id;
 
@@ -254,7 +257,8 @@ void nr_header_outbound_request_decoded(nrtxn_t* txn,
   if (0 == cross_process_id) {
     return;
   }
-  if (0 == txn->guid) {
+  guid = nr_txn_get_guid(txn);
+  if (NULL == guid) {
     return;
   }
 
@@ -266,7 +270,7 @@ void nr_header_outbound_request_decoded(nrtxn_t* txn,
   path_hash = nr_txn_get_path_hash(txn);
 
   array = nro_new_array();
-  nro_set_array_string(array, 1, txn->guid);
+  nro_set_array_string(array, 1, guid);
   nro_set_array_boolean(array, 2, 0); /* record_tt currently always false */
   nro_set_array_string(array, 3, trip_id);
   nro_set_array_string(array, 4, path_hash);
@@ -280,17 +284,33 @@ void nr_header_outbound_request_decoded(nrtxn_t* txn,
 void nr_header_outbound_request(nrtxn_t* txn,
                                 char** x_newrelic_id_ptr,
                                 char** x_newrelic_transaction_ptr,
-                                char** x_newrelic_synthetics_ptr) {
+                                char** x_newrelic_synthetics_ptr,
+                                char** newrelic_ptr) {
   char* decoded_id = NULL;
   char* decoded_transaction = NULL;
 
-  nr_header_outbound_request_decoded(txn, &decoded_id, &decoded_transaction);
-
-  if (x_newrelic_id_ptr) {
-    *x_newrelic_id_ptr = nr_header_encode(txn, decoded_id);
+  if (0 == txn) {
+    return;
   }
-  if (x_newrelic_transaction_ptr) {
-    *x_newrelic_transaction_ptr = nr_header_encode(txn, decoded_transaction);
+
+  if (txn->options.distributed_tracing_enabled) {
+    if (newrelic_ptr) {
+      char* payload = nr_txn_create_distributed_trace_payload(txn);
+
+      *newrelic_ptr = nr_b64_encode(payload, nr_strlen(payload), 0);
+      txn->type |= NR_TXN_TYPE_DT_OUTBOUND;
+
+      nr_free(payload);
+    }
+  } else if (txn->options.cross_process_enabled) {
+    nr_header_outbound_request_decoded(txn, &decoded_id, &decoded_transaction);
+
+    if (x_newrelic_id_ptr) {
+      *x_newrelic_id_ptr = nr_header_encode(txn, decoded_id);
+    }
+    if (x_newrelic_transaction_ptr) {
+      *x_newrelic_transaction_ptr = nr_header_encode(txn, decoded_transaction);
+    }
   }
 
   /*

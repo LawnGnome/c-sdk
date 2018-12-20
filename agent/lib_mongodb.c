@@ -35,7 +35,7 @@ char* nr_mongodb_get_host(zval* server TSRMLS_DC) {
      * otherwise, we'll just copy it.
      */
     host = Z_STRVAL_P(host_zval);
-    if (nr_strlen(host) <= 0) {
+    if (nr_strempty(host)) {
       host = nr_strdup("unknown");
     } else if (nr_datastore_instance_is_localhost(host)) {
       host = nr_system_get_hostname();

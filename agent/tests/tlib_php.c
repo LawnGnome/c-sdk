@@ -100,7 +100,11 @@ static int tlib_php_engine_ub_write(const char* str, uint len TSRMLS_DC)
  * created or used: their use causes issues with dynamically loaded extensions
  * due to improper ordering of frees on request shutdown.
  */
-#ifdef PHP7
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+static zend_string* ZEND_FASTCALL tlib_php_new_interned_string(zend_string* str) {
+  return str;
+}
+#elif defined PHP7
 static zend_string* tlib_php_new_interned_string(zend_string* str) {
   return str;
 }
@@ -113,6 +117,14 @@ static const char* tlib_php_new_interned_string(const char* key,
   return key;
 }
 #endif
+
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+static zend_string* ZEND_FASTCALL tlib_php_init_interned_string(const char* str,
+                                                  size_t size,
+                                                  int permanent) {
+  return zend_string_init(str, size, permanent);
+}
+#endif /* PHP >= 7.3 */
 
 #if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO \
     && ZEND_MODULE_API_NO < ZEND_7_2_X_API_NO
@@ -257,7 +269,10 @@ nr_status_t tlib_php_engine_create(const char* extra_ini PTSRMLS_DC) {
    * function pointers beforehand means that hash table will never be
    * initialised.
    */
-#if ZEND_MODULE_API_NO >= ZEND_7_2_X_API_NO
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  zend_interned_strings_set_request_storage_handlers(
+      tlib_php_new_interned_string, tlib_php_init_interned_string);
+#elif ZEND_MODULE_API_NO >= ZEND_7_2_X_API_NO
   zend_interned_strings_set_request_storage_handler(
       tlib_php_new_interned_string);
 #endif /* PHP >= 7.2 */
@@ -269,11 +284,11 @@ nr_status_t tlib_php_engine_create(const char* extra_ini PTSRMLS_DC) {
     return NR_FAILURE;
   }
 
-    /*
-     * As noted above, we now replace the interned string callbacks on PHP
-     * 5.4-7.1, inclusive. The effect of these replacements is to disable
-     * interned strings.
-     */
+  /*
+   * As noted above, we now replace the interned string callbacks on PHP
+   * 5.4-7.1, inclusive. The effect of these replacements is to disable
+   * interned strings.
+   */
 #if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO \
     && ZEND_MODULE_API_NO < ZEND_7_2_X_API_NO
   zend_new_interned_string = tlib_php_new_interned_string;
@@ -405,10 +420,24 @@ zval* tlib_php_request_eval_expr(const char* code TSRMLS_DC) {
   return rv;
 }
 
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+static void tlib_php_error_silence_cb(int type NRUNUSED,
+                                      const char* error_filename NRUNUSED,
+                                      const uint32_t error_lineno NRUNUSED,
+                                      const char* format NRUNUSED,
+                                      va_list args NRUNUSED) {
+  /* Squash the error by doing absolutely nothing. */
+}
+#endif /* PHP >= 7.3 */
+
 int tlib_php_require_extension(const char* extension TSRMLS_DC) {
   char* file = NULL;
   int loaded = 0;
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  void (*prev_error_cb)(int, const char*, const uint32_t, const char*, va_list);
+#else
   zend_error_handling_t prev_error;
+#endif /* PHP >= 7.3 */
 
   if (nr_php_extension_loaded(extension)) {
     loaded = 1;
@@ -422,15 +451,24 @@ int tlib_php_require_extension(const char* extension TSRMLS_DC) {
    * warning that php_load_extension() will generate if the extension can't be
    * loaded.
    */
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  prev_error_cb = zend_error_cb;
+  zend_error_cb = tlib_php_error_silence_cb;
+#else
   prev_error = EG(error_handling);
   EG(error_handling) = EH_SUPPRESS;
+#endif /* PHP >= 7.3 */
 
   php_load_extension(file, MODULE_PERSISTENT, 1 TSRMLS_CC);
 
   /*
    * Restore normal error service.
    */
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  zend_error_cb = prev_error_cb;
+#else
   EG(error_handling) = prev_error;
+#endif /* PHP >= 7.3 */
 
   loaded = nr_php_extension_loaded(extension);
 

@@ -26,7 +26,11 @@ X-NewRelic-Synthetics=PwcbVVVRDQMHSEMQRUNFFBZDG0EQFBFPAVALVhVKRkBBSEsTQxNBEBZERR
 */
 
 /*EXPECT
-X-NewRelic-Synthetics=found cat endpoint reached
+X-NewRelic-Synthetics=found tracing endpoint reached
+*/
+
+/*EXPECT_RESPONSE_HEADERS
+X-NewRelic-App-Data=??
 */
 
 /*EXPECT_METRICS
@@ -35,22 +39,22 @@ X-NewRelic-Synthetics=found cat endpoint reached
   "?? start time",
   "?? stop time",
   [
-    [{"name":"Apdex"},                                  ["??", "??", "??", "??", "??",    0]],
-    [{"name":"Apdex/Uri__FILE__"},                      ["??", "??", "??", "??", "??",    0]],
-    [{"name":"External/all"},                           [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"External/allWeb"},                        [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"External/127.0.0.1/all"},                 [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"ExternalApp/127.0.0.1/432507#73695/all"}, [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"ExternalTransaction/127.0.0.1/432507#73695/WebTransaction/Custom/cat"},
-                                                        [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"ExternalTransaction/127.0.0.1/432507#73695/WebTransaction/Custom/cat",
-      "scope":"WebTransaction/Uri__FILE__"},            [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"HttpDispatcher"},                         [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"Supportability/framework/Drupal/forced"}, [   1,    0,    0,    0,    0,    0]],
-    [{"name":"WebTransaction"},                         [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"WebTransaction/Uri__FILE__"},             [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"WebTransactionTotalTime"},                [   1, "??", "??", "??", "??", "??"]],
-    [{"name":"WebTransactionTotalTime/Uri__FILE__"},    [   1, "??", "??", "??", "??", "??"]]
+    [{"name":"Apdex"},                                    ["??", "??", "??", "??", "??",    0]],
+    [{"name":"Apdex/Uri__FILE__"},                        ["??", "??", "??", "??", "??",    0]],
+    [{"name":"External/all"},                             [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"External/allWeb"},                          [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"External/127.0.0.1/all"},                   [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"ExternalApp/127.0.0.1/432507#4741547/all"}, [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"ExternalTransaction/127.0.0.1/432507#4741547/WebTransaction/Custom/tracing"},
+                                                          [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"ExternalTransaction/127.0.0.1/432507#4741547/WebTransaction/Custom/tracing",
+      "scope":"WebTransaction/Uri__FILE__"},              [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"HttpDispatcher"},                           [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/framework/Drupal/forced"},   [   1,    0,    0,    0,    0,    0]],
+    [{"name":"WebTransaction"},                           [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"WebTransaction/Uri__FILE__"},               [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"WebTransactionTotalTime"},                  [   1, "??", "??", "??", "??", "??"]],
+    [{"name":"WebTransactionTotalTime/Uri__FILE__"},      [   1, "??", "??", "??", "??", "??"]]
   ]
 ]
 */
@@ -59,6 +63,6 @@ require_once(realpath(dirname(__FILE__)) . '/drupal_6_bootstrap.inc');
 require_once(realpath(dirname(__FILE__)) . '/drupal_6_common.inc');
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
-$url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+$url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 $rv = drupal_http_request($url);
 echo $rv->data;

@@ -193,6 +193,9 @@ version_to_api () {
     7.2*)
       echo 20170718
       ;;
+    7.3*)
+      echo 20180731
+      ;;
     *)
       echo "Unknown PHP version: $1" 1>&2
       return 1
@@ -231,7 +234,7 @@ version_to_api () {
 #                     package version. For the subsequent release, remove the
 #                     version from $DEPRECATED_PHP_API_VERSIONS and add it to
 #                     $UNSUPPORTED_PHP_API_VERSIONS.
-PHP_API_VERSIONS="20090626 20100525 20121212 20131226 20151012 20160303 20170718"
+PHP_API_VERSIONS="20090626 20100525 20121212 20131226 20151012 20160303 20170718 20180731"
 DEPRECATED_PHP_API_VERSIONS=""
 UNSUPPORTED_PHP_API_VERSIONS="20050922 20060613"
 

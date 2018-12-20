@@ -208,9 +208,11 @@ void nr_guzzle_request_set_outbound_headers(zval* request TSRMLS_DC) {
   char* x_newrelic_id = NULL;
   char* x_newrelic_transaction = NULL;
   char* x_newrelic_synthetics = NULL;
+  char* newrelic = NULL;
 
   nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
-                             &x_newrelic_transaction, &x_newrelic_synthetics);
+                             &x_newrelic_transaction, &x_newrelic_synthetics,
+                             &newrelic);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
     nrl_verbosedebug(NRL_CAT,
@@ -225,10 +227,12 @@ void nr_guzzle_request_set_outbound_headers(zval* request TSRMLS_DC) {
                                request TSRMLS_CC);
   nr_guzzle_request_set_header(X_NEWRELIC_SYNTHETICS, x_newrelic_synthetics,
                                request TSRMLS_CC);
+  nr_guzzle_request_set_header(NEWRELIC, newrelic, request TSRMLS_CC);
 
   nr_free(x_newrelic_id);
   nr_free(x_newrelic_transaction);
   nr_free(x_newrelic_synthetics);
+  nr_free(newrelic);
 }
 
 char* nr_guzzle_response_get_header(const char* header,

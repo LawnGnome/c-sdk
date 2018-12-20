@@ -28,5 +28,8 @@ extern PHP_FUNCTION(newrelic_set_appname);
 extern PHP_FUNCTION(newrelic_set_user_attributes);
 extern PHP_FUNCTION(newrelic_record_custom_event);
 extern PHP_FUNCTION(newrelic_record_datastore_segment);
+extern PHP_FUNCTION(newrelic_accept_distributed_trace_payload);
+extern PHP_FUNCTION(newrelic_accept_distributed_trace_payload_httpsafe);
+extern PHP_FUNCTION(newrelic_create_distributed_trace_payload);
 
 #endif /* PHP_API_HDR */

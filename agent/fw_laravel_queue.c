@@ -1,4 +1,5 @@
 #include "php_agent.h"
+#include "php_api_distributed_trace.h"
 #include "php_call.h"
 #include "php_hash.h"
 #include "php_user_instrument.h"
@@ -238,21 +239,22 @@ typedef struct {
   const char* id;
   const char* synthetics;
   const char* transaction;
+  const char* dt_payload;
 } nr_laravel_queue_headers_t;
 
-static void nr_laravel_queue_iterate_headers(
+static nr_status_t nr_laravel_queue_iterate_headers(
     const char* key,
     const nrobj_t* val,
     nr_laravel_queue_headers_t* headers) {
   char* key_lc;
 
   if (NULL == headers) {
-    return;
+    return NR_SUCCESS;
   }
 
   key_lc = nr_string_to_lowercase(key);
   if (NULL == key_lc) {
-    return;
+    return NR_SUCCESS;
   }
 
   if (0 == nr_strcmp(key_lc, X_NEWRELIC_ID_MQ_LOWERCASE)) {
@@ -261,9 +263,12 @@ static void nr_laravel_queue_iterate_headers(
     headers->synthetics = nro_get_string(val, NULL);
   } else if (0 == nr_strcmp(key_lc, X_NEWRELIC_TRANSACTION_MQ_LOWERCASE)) {
     headers->transaction = nro_get_string(val, NULL);
+  } else if (0 == nr_strcmp(key_lc, X_NEWRELIC_DT_PAYLOAD_MQ_LOWERCASE)) {
+    headers->dt_payload = nro_get_string(val, NULL);
   }
 
   nr_free(key_lc);
+  return NR_SUCCESS;
 }
 
 /*
@@ -275,7 +280,7 @@ static void nr_laravel_queue_iterate_headers(
 static void nr_laravel_queue_set_cat_txn(zval* job TSRMLS_DC) {
   zval* json = NULL;
   nrobj_t* payload = NULL;
-  nr_laravel_queue_headers_t headers = {NULL, NULL, NULL};
+  nr_laravel_queue_headers_t headers = {NULL, NULL, NULL, NULL};
 
   /*
    * We're not interested in SyncJob instances, since they don't run in a
@@ -314,6 +319,13 @@ static void nr_laravel_queue_set_cat_txn(zval* job TSRMLS_DC) {
 
   if (headers.synthetics) {
     nr_header_set_synthetics_txn(NRPRG(txn), headers.synthetics);
+  }
+
+  if (headers.dt_payload) {
+    char* dt_payload = nr_strdup(headers.dt_payload);
+    nr_php_api_accept_distributed_trace_payload_httpsafe(NRPRG(txn), dt_payload,
+                                                         "Other");
+    nr_free(dt_payload);
   }
 
 end:
@@ -355,6 +367,7 @@ static void nr_laravel_queue_set_cat_txn_from_payload_array(
   const zval* id = NULL;
   const zval* synthetics = NULL;
   const zval* transaction = NULL;
+  const zval* dt_payload = NULL;
 
   /*
    * This is ugly, but actually very simple: we want to get the array values
@@ -367,6 +380,8 @@ static void nr_laravel_queue_set_cat_txn_from_payload_array(
       = nr_php_zend_hash_find(Z_ARRVAL_P(payload), X_NEWRELIC_SYNTHETICS_MQ);
   transaction
       = nr_php_zend_hash_find(Z_ARRVAL_P(payload), X_NEWRELIC_TRANSACTION_MQ);
+  dt_payload
+      = nr_php_zend_hash_find(Z_ARRVAL_P(payload), X_NEWRELIC_DT_PAYLOAD_MQ);
 
   if (!nr_php_is_zval_non_empty_string(id)
       || !nr_php_is_zval_non_empty_string(transaction)) {
@@ -377,6 +392,11 @@ static void nr_laravel_queue_set_cat_txn_from_payload_array(
 
   if (nr_php_is_zval_non_empty_string(synthetics)) {
     nr_header_set_synthetics_txn(NRPRG(txn), Z_STRVAL_P(synthetics));
+  }
+
+  if (nr_php_is_zval_non_empty_string(dt_payload)) {
+    nr_php_api_accept_distributed_trace_payload_httpsafe(
+        NRPRG(txn), Z_STRVAL_P(dt_payload), "Other");
   }
 }
 
@@ -568,6 +588,7 @@ NR_PHP_WRAPPER(nr_laravel_queue_queue_createpayload) {
   char* x_newrelic_id = NULL;
   char* x_newrelic_synthetics = NULL;
   char* x_newrelic_transaction = NULL;
+  char* newrelic = NULL;
 
   NR_UNUSED_SPECIALFN;
   (void)wraprec;
@@ -583,12 +604,14 @@ NR_PHP_WRAPPER(nr_laravel_queue_queue_createpayload) {
    * Get the "headers" that we need to attach to the payload.
    */
   nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
-                             &x_newrelic_transaction, &x_newrelic_synthetics);
+                             &x_newrelic_transaction, &x_newrelic_synthetics,
+                             &newrelic);
 
   /*
-   * The Synthetics header is optional, but the other two aren't.
+   * The Synthetics header is optional, but the CAT and DT headers aren't.
    */
-  if ((NULL == x_newrelic_id) || (NULL == x_newrelic_transaction)) {
+  if (((NULL == x_newrelic_id) || (NULL == x_newrelic_transaction)) /* CAT */
+      && (NULL == newrelic)) /* DT */ {
     goto end;
   }
 
@@ -607,18 +630,26 @@ NR_PHP_WRAPPER(nr_laravel_queue_queue_createpayload) {
   /*
    * As the payload is an object, we need to set properties on it.
    */
-  zend_update_property_string(Z_OBJCE_P(payload), payload,
-                              NR_PSTR(X_NEWRELIC_ID_MQ),
-                              x_newrelic_id TSRMLS_CC);
+  if (x_newrelic_id || x_newrelic_transaction) {
+    zend_update_property_string(Z_OBJCE_P(payload), payload,
+                                NR_PSTR(X_NEWRELIC_ID_MQ),
+                                x_newrelic_id TSRMLS_CC);
 
-  zend_update_property_string(Z_OBJCE_P(payload), payload,
-                              NR_PSTR(X_NEWRELIC_TRANSACTION_MQ),
-                              x_newrelic_transaction TSRMLS_CC);
+    zend_update_property_string(Z_OBJCE_P(payload), payload,
+                                NR_PSTR(X_NEWRELIC_TRANSACTION_MQ),
+                                x_newrelic_transaction TSRMLS_CC);
+  }
 
   if (x_newrelic_synthetics) {
     zend_update_property_string(Z_OBJCE_P(payload), payload,
                                 NR_PSTR(X_NEWRELIC_SYNTHETICS_MQ),
                                 x_newrelic_synthetics TSRMLS_CC);
+  }
+
+  if (newrelic) {
+    zend_update_property_string(Z_OBJCE_P(payload), payload,
+                                NR_PSTR(X_NEWRELIC_DT_PAYLOAD_MQ),
+                                newrelic TSRMLS_CC);
   }
 
   json = nr_php_json_encode(payload TSRMLS_CC);
@@ -645,6 +676,7 @@ end:
   nr_free(x_newrelic_id);
   nr_free(x_newrelic_synthetics);
   nr_free(x_newrelic_transaction);
+  nr_free(newrelic);
 }
 NR_PHP_WRAPPER_END
 

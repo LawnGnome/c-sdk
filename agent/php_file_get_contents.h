@@ -31,6 +31,7 @@ extern void nr_php_file_get_contents_add_headers(zval* context TSRMLS_DC);
 extern PHP_FUNCTION(newrelic_add_headers_to_context);
 extern PHP_FUNCTION(newrelic_remove_headers_from_context);
 
+extern zval* nr_php_file_get_contents_get_method(zval* context TSRMLS_DC);
 /*
  * Purpose : Calls file_get_contents with the parameters given as well as
  *           a new context.  The context will allow the instrumentation of

@@ -21,6 +21,7 @@ const (
 	MaxTxnEvents          = 10 * 1000
 	MaxCustomEvents       = 10 * 1000
 	MaxErrorEvents        = 100
+	MaxSpanEvents         = 1000
 	MaxErrors             = 20
 	MaxSlowSQLs           = 10
 	MaxRegularTraces      = 1
@@ -67,5 +68,5 @@ const (
 
 	// MinFlatbufferSize is the minimum size of a flatbuffers message (no agent
 	// run or message body). This should be updated when new fields are added.
-	MinFlatbufferSize = 20
+	MinFlatbufferSize = 12
 )

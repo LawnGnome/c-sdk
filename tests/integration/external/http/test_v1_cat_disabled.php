@@ -45,7 +45,7 @@ newrelic.cross_application_tracer.enabled = false
 
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
-$url = "http://" . make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+$url = "http://" . make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 
 $rq = new HttpRequest($url, HttpRequest::METH_GET);
 $rv = $rq->send();

@@ -15,7 +15,6 @@
 #   |-- newrelic-php5-*-linux.tar.gz
 #   |-- newrelic-php5-*-linux-musl.tar.gz
 #   |-- newrelic-php5-*-osx.tar.gz
-#   |-- newrelic-php5-*-solaris.tar.gz
 #
 # Expected Output (DEB Packages):
 #
@@ -83,7 +82,7 @@ fi
 printf \\n
 printf \\n
 
-release_handles='linux linux-musl osx solaris freebsd'
+release_handles='linux linux-musl osx freebsd'
 
 # TL;DR: We need to verify the build artifacts for the agent are from
 # the same upstream build and revision of the agent for safety.
@@ -99,13 +98,12 @@ release_handles='linux linux-musl osx solaris freebsd'
 # last successful build on a per-label rather than per-job basis. This
 # can lead to the following scenario.
 #
-#   1) Agent build succeeds for Linux and OSX
-#   2) Agent build fails for Solaris
+#   1) Agent build succeeds for Linux
+#   2) Agent build fails for OSX
 #   3) Tarballs job is started manually
 #   4) Jenkins copies the artifacts into our workspace
 #      a) Last successful Linux build is #100
-#      b) Last successful OSX build is also #100
-#      c) Last successful Solaris build is #99 (!!!!!)
+#      b) Last successful OSX build is also #99 (!!!!!)
 #
 # Each agent build records and archives the version number and commit SHA
 # in the appropriate releases/ subdirectory. These are VERSION and COMMIT
@@ -158,7 +156,6 @@ case "$JOB_NAME" in
   #   newrelic-php5-*-linux.tar.gz
   #   newrelic-php5-*-linux-musl.tar.gz
   #   newrelic-php5-*-osx.tar.gz
-  #   newrelic-php5-*-solaris.tar.gz
   #
   php-*-tarballs)
     # Don't warn about word splitting, that's precisely what we want.

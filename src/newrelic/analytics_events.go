@@ -9,19 +9,10 @@ import (
 	"newrelic/log"
 )
 
-// eventStamp allows for uniform random sampling of events.  When an event is
-// created it is given an EventStamp.  Whenever an event pool is full and
-// events need to be dropped, the events with the lowest stamps are dropped.
-type eventStamp float32
-
-func eventStampLess(a, b eventStamp) bool {
-	return a < b
-}
-
 // AnalyticsEvent represents an analytics event reported by an agent.
 type AnalyticsEvent struct {
-	stamp eventStamp
-	data  JSONString
+	priority SamplingPriority
+	data     JSONString
 }
 
 // analyticsEventHeap implements a min-heap of analytics events according
@@ -29,12 +20,39 @@ type AnalyticsEvent struct {
 type analyticsEventHeap []AnalyticsEvent
 
 // analyticsEvents represents a bounded collection of analytics events
-// reported by agents. Then the collection is full, reservoir sampling
-// with uniform distribution is used as the replacement strategy.
+// reported by agents. When the collection is full, priority sampling
+// is used as the replacement strategy.
 type analyticsEvents struct {
 	numSeen        int
-	events         *analyticsEventHeap // TODO(msl): Does this need to be a pointer?
+	events         *analyticsEventHeap
 	failedHarvests int
+}
+
+// Split splits the events into two.  NOTE! The two event pools are not valid
+// priority queues, and should only be used to create JSON, not for adding any
+// events.
+func (events *analyticsEvents) Split() (*analyticsEvents, *analyticsEvents) {
+	eventHeap := *events.events
+	eventHeap1 := make(analyticsEventHeap, len(eventHeap)/2)
+	eventHeap2 := make(analyticsEventHeap, len(eventHeap)-len(eventHeap1))
+
+	e1 := &analyticsEvents{
+		numSeen:        len(eventHeap1),
+		events:         &eventHeap1,
+		failedHarvests: events.failedHarvests,
+	}
+	e2 := &analyticsEvents{
+		numSeen:        len(eventHeap2),
+		events:         &eventHeap2,
+		failedHarvests: events.failedHarvests,
+	}
+
+	// Note that slicing is not used to ensure that length == capacity for
+	// e1.events and e2.events.
+	copy(*e1.events, eventHeap)
+	copy(*e2.events, eventHeap[len(eventHeap)/2:])
+
+	return e1, e2
 }
 
 // NumSeen returns the total number of analytics events observed.
@@ -48,19 +66,17 @@ func (events *analyticsEvents) NumSaved() float64 {
 }
 
 func (h analyticsEventHeap) Len() int           { return len(h) }
-func (h analyticsEventHeap) Less(i, j int) bool { return eventStampLess(h[i].stamp, h[j].stamp) }
+func (h analyticsEventHeap) Less(i, j int) bool { return h[i].priority.IsLowerPriority(h[j].priority) }
 func (h analyticsEventHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 // Push appends x to the heap. This method should not be called
 // directly because it does not maintain the min-heap property, and
 // it does not enforce the maximum capacity. Use AddEvent instead.
 func (h *analyticsEventHeap) Push(x interface{}) {
-	// TODO(msl): We could ensure the maximum capacity is never exceeded by
-	// re-slicing in place of append.
 	*h = append(*h, x.(AnalyticsEvent))
 }
 
-// Pop removes and returns the analytics event with the least priority.
+// Pop removes and returns the analytics event with the lowest priority.
 func (h *analyticsEventHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
@@ -79,7 +95,7 @@ func newAnalyticsEvents(max int) *analyticsEvents {
 	}
 }
 
-// AddEvent observes the occurence of an analytics event. If the
+// AddEvent observes the occurrence of an analytics event. If the
 // reservoir is full, sampling occurs. Note, when sampling occurs, it
 // is possible the event may be discarded instead of added.
 func (events *analyticsEvents) AddEvent(e AnalyticsEvent) {
@@ -95,7 +111,7 @@ func (events *analyticsEvents) AddEvent(e AnalyticsEvent) {
 		return
 	}
 
-	if eventStampLess(e.stamp, (*events.events)[0].stamp) {
+	if e.priority.IsLowerPriority((*events.events)[0].priority) {
 		return
 	}
 

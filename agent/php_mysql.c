@@ -12,7 +12,7 @@
 char* nr_php_mysql_default_port() {
   char* port = nr_php_zend_ini_string(NR_PSTR("mysql.default_port"), 0);
 
-  if ((NULL == port) || (nr_strlen(port) <= 0)) {
+  if (nr_strempty(port)) {
     port = nr_system_get_service_port("mysql", "tcp");
     if (NULL != port) {
       return port;
@@ -27,7 +27,7 @@ char* nr_php_mysql_default_port() {
 char* nr_php_mysql_default_host() {
   char* host = nr_php_zend_ini_string(NR_PSTR("mysql.default_host"), 0);
 
-  if ((NULL == host) || (nr_strlen(host) <= 0)) {
+  if (nr_strempty(host)) {
     host = "localhost";
   }
 
@@ -55,7 +55,7 @@ void nr_php_mysql_get_host_and_port_path_or_id(const char* host_and_port,
    * If we weren't given a host_and_port, use the default host.
    * https://github.com/php/php-src/blob/PHP-5.6/ext/mysql/php_mysql.c#L791-L792
    */
-  if ((NULL == host_and_port) || (nr_strlen(host_and_port) <= 0)) {
+  if (nr_strempty(host_and_port)) {
     host = nr_php_mysql_default_host();
   } else {
     host = nr_strdup(host_and_port);
@@ -69,14 +69,14 @@ void nr_php_mysql_get_host_and_port_path_or_id(const char* host_and_port,
    */
   colon = nr_strchr(host, ':');
   if (NULL != colon) {
-    if (nr_strlen(colon + 1) > 0) {
+    if (!nr_strempty(colon + 1)) {
       port_path_or_id = nr_strdup(colon + 1);
     } else {
       port_path_or_id = nr_php_mysql_default_port();
     }
 
     *colon = '\0';
-    if (nr_strlen(host) <= 0) {
+    if (nr_strempty(host)) {
       nr_free(host);
       host = nr_php_mysql_default_host();
     }

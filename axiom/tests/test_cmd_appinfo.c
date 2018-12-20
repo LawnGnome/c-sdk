@@ -70,6 +70,8 @@ static void test_create_query(void) {
   info.version = nr_strdup("my_version");
   info.appname = nr_strdup("my_appname");
   info.redirect_collector = nr_strdup("my_redirect_collector");
+  info.security_policies_token = nr_strdup("my_security_policy_token");
+  info.supported_security_policies = nro_create_from_json("{\"foo\":false}");
 
   query = nr_appinfo_create_query("12345", &info);
 
@@ -115,9 +117,14 @@ static void test_create_query(void) {
   nr_flatbuffers_destroy(&query);
 }
 
-static nr_flatbuffer_t* create_app_reply(const char* agent_run_id,
-                                         int8_t status,
-                                         const char* connect_json) {
+/* Create a faux reply from the Daemon by populating the flatbuffer object.
+ * This is the two field version for unit testing against the legacy daemon
+ * that existed prior to LASP implementation. nr_cmd_appinfo_process_reply
+ * will handle the flatbuffer data.
+ */
+static nr_flatbuffer_t* create_app_reply_two_fields(const char* agent_run_id,
+                                                    int8_t status,
+                                                    const char* connect_json) {
   nr_flatbuffer_t* fb;
   uint32_t body;
   uint32_t agent_run_id_offset;
@@ -131,10 +138,130 @@ static nr_flatbuffer_t* create_app_reply(const char* agent_run_id,
     connect_json_offset = nr_flatbuffers_prepend_string(fb, connect_json);
   }
 
+  // This is set to a constant of `2` instead of the constant
+  // APP_REPLY_NUM_FIELDS because this function is testing legacy functionality,
+  // when there were only two fields of data in the flatbuffer.
+  nr_flatbuffers_object_begin(fb, 2);
+  nr_flatbuffers_object_prepend_i8(fb, APP_REPLY_FIELD_STATUS, status, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, APP_REPLY_FIELD_CONNECT_REPLY,
+                                        connect_json_offset, 0);
+  body = nr_flatbuffers_object_end(fb);
+
+  if (agent_run_id && *agent_run_id) {
+    agent_run_id_offset = nr_flatbuffers_prepend_string(fb, agent_run_id);
+  }
+
+  nr_flatbuffers_object_begin(fb, MESSAGE_NUM_FIELDS);
+  nr_flatbuffers_object_prepend_uoffset(fb, MESSAGE_FIELD_DATA, body, 0);
+  nr_flatbuffers_object_prepend_u8(fb, MESSAGE_FIELD_DATA_TYPE,
+                                   MESSAGE_BODY_APP_REPLY, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, MESSAGE_FIELD_AGENT_RUN_ID,
+                                        agent_run_id_offset, 0);
+  nr_flatbuffers_finish(fb, nr_flatbuffers_object_end(fb));
+
+  return fb;
+}
+
+/* Create a faux reply from the Daemon by populating the flatbuffer object.
+ * This is the three field version for unit testing against the daemon version
+ * updated to supported LASP. nr_cmd_appinfo_process_reply will handle the
+ * flatbuffer data.
+ */
+static nr_flatbuffer_t* create_app_reply_three_fields(
+    const char* agent_run_id,
+    int8_t status,
+    const char* connect_json,
+    const char* security_policies) {
+  nr_flatbuffer_t* fb;
+  uint32_t body;
+  uint32_t agent_run_id_offset;
+  uint32_t connect_json_offset;
+  uint32_t security_policies_offset;
+
+  agent_run_id_offset = 0;
+  connect_json_offset = 0;
+  security_policies_offset = 0;
+  fb = nr_flatbuffers_create(0);
+
+  if (security_policies && *security_policies) {
+    security_policies_offset
+        = nr_flatbuffers_prepend_string(fb, security_policies);
+  }
+
+  if (connect_json && *connect_json) {
+    connect_json_offset = nr_flatbuffers_prepend_string(fb, connect_json);
+  }
+
+  // This is set to a constant of `3` instead of the constant
+  // APP_REPLY_NUM_FIELDS because this function is testing legacy functionality,
+  // when there were only two fields of data in the flatbuffer.
+  nr_flatbuffers_object_begin(fb, 3);
+  nr_flatbuffers_object_prepend_i8(fb, APP_REPLY_FIELD_STATUS, status, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, APP_REPLY_FIELD_CONNECT_REPLY,
+                                        connect_json_offset, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, APP_REPLY_FIELD_SECURITY_POLICIES,
+                                        security_policies_offset, 0);
+  body = nr_flatbuffers_object_end(fb);
+
+  if (agent_run_id && *agent_run_id) {
+    agent_run_id_offset = nr_flatbuffers_prepend_string(fb, agent_run_id);
+  }
+
+  nr_flatbuffers_object_begin(fb, MESSAGE_NUM_FIELDS);
+  nr_flatbuffers_object_prepend_uoffset(fb, MESSAGE_FIELD_DATA, body, 0);
+  nr_flatbuffers_object_prepend_u8(fb, MESSAGE_FIELD_DATA_TYPE,
+                                   MESSAGE_BODY_APP_REPLY, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, MESSAGE_FIELD_AGENT_RUN_ID,
+                                        agent_run_id_offset, 0);
+  nr_flatbuffers_finish(fb, nr_flatbuffers_object_end(fb));
+
+  return fb;
+}
+
+/* Create a faux reply from the Daemon by populating the flatbuffer object.
+ * This is the six field version for unit testing the case where the daemon
+ * supports Distributed Tracing. nr_cmd_appinfo_process_reply will handle the
+ * flatbuffer data. */
+static nr_flatbuffer_t* create_app_reply_six_fields(
+    const char* agent_run_id,
+    int8_t status,
+    const char* connect_json,
+    const char* security_policies,
+    nrtime_t connect_timestamp,
+    uint16_t harvest_frequency,
+    uint16_t sampling_target) {
+  nr_flatbuffer_t* fb;
+  uint32_t body;
+  uint32_t agent_run_id_offset;
+  uint32_t connect_json_offset;
+  uint32_t security_policies_offset;
+
+  agent_run_id_offset = 0;
+  connect_json_offset = 0;
+  security_policies_offset = 0;
+  fb = nr_flatbuffers_create(0);
+
+  if (security_policies && *security_policies) {
+    security_policies_offset
+        = nr_flatbuffers_prepend_string(fb, security_policies);
+  }
+
+  if (connect_json && *connect_json) {
+    connect_json_offset = nr_flatbuffers_prepend_string(fb, connect_json);
+  }
+
   nr_flatbuffers_object_begin(fb, APP_REPLY_NUM_FIELDS);
   nr_flatbuffers_object_prepend_i8(fb, APP_REPLY_FIELD_STATUS, status, 0);
   nr_flatbuffers_object_prepend_uoffset(fb, APP_REPLY_FIELD_CONNECT_REPLY,
                                         connect_json_offset, 0);
+  nr_flatbuffers_object_prepend_uoffset(fb, APP_REPLY_FIELD_SECURITY_POLICIES,
+                                        security_policies_offset, 0);
+  nr_flatbuffers_object_prepend_u64(fb, APP_REPLY_FIELD_CONNECT_TIMESTAMP,
+                                    connect_timestamp, 0);
+  nr_flatbuffers_object_prepend_u16(fb, APP_REPLY_FIELD_HARVEST_FREQUENCY,
+                                    harvest_frequency, 0);
+  nr_flatbuffers_object_prepend_u16(fb, APP_REPLY_FIELD_SAMPLING_TARGET,
+                                    sampling_target, 0);
   body = nr_flatbuffers_object_end(fb);
 
   if (agent_run_id && *agent_run_id) {
@@ -172,11 +299,23 @@ static void test_process_null_app(void) {
   nr_memset(&app, 0, sizeof(app));
   app.state = NR_APP_UNKNOWN;
 
-  reply = create_app_reply(NULL, APP_STATUS_UNKNOWN, NULL);
+  reply = create_app_reply_two_fields(NULL, APP_STATUS_UNKNOWN, NULL);
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), NULL);
   tlib_pass_if_status_failure(__func__, st);
+  nr_flatbuffers_destroy(&reply);
 
+  reply = create_app_reply_three_fields(NULL, APP_STATUS_UNKNOWN, NULL, NULL);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), NULL);
+  tlib_pass_if_status_failure(__func__, st);
+  nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_six_fields(NULL, APP_STATUS_UNKNOWN, NULL, NULL, 1,
+                                      2, 1);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), NULL);
+  tlib_pass_if_status_failure(__func__, st);
   nr_flatbuffers_destroy(&reply);
 }
 
@@ -235,12 +374,26 @@ static void test_process_unknown_app(void) {
   nr_memset(&app, 0, sizeof(app));
   app.state = NR_APP_OK;
 
-  reply = create_app_reply(NULL, APP_STATUS_UNKNOWN, NULL);
+  reply = create_app_reply_two_fields(NULL, APP_STATUS_UNKNOWN, NULL);
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), &app);
   tlib_pass_if_status_success(__func__, st);
   tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_UNKNOWN);
+  nr_flatbuffers_destroy(&reply);
 
+  reply = create_app_reply_three_fields(NULL, APP_STATUS_UNKNOWN, NULL, NULL);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_UNKNOWN);
+  nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_six_fields(NULL, APP_STATUS_UNKNOWN, NULL, NULL, 1,
+                                      2, 1);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_UNKNOWN);
   nr_flatbuffers_destroy(&reply);
 }
 
@@ -252,12 +405,27 @@ static void test_process_invalid_app(void) {
   nr_memset(&app, 0, sizeof(app));
   app.state = NR_APP_UNKNOWN;
 
-  reply = create_app_reply(NULL, APP_STATUS_INVALID_LICENSE, NULL);
+  reply = create_app_reply_two_fields(NULL, APP_STATUS_INVALID_LICENSE, NULL);
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), &app);
   tlib_pass_if_status_success(__func__, st);
   tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_INVALID);
+  nr_flatbuffers_destroy(&reply);
 
+  reply = create_app_reply_three_fields(NULL, APP_STATUS_INVALID_LICENSE, NULL,
+                                        NULL);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_INVALID);
+  nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_six_fields(NULL, APP_STATUS_INVALID_LICENSE, NULL,
+                                      NULL, 1, 2, 3);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_INVALID);
   nr_flatbuffers_destroy(&reply);
 }
 
@@ -269,12 +437,27 @@ static void test_process_disconnected_app(void) {
   nr_memset(&app, 0, sizeof(app));
   app.state = NR_APP_OK;
 
-  reply = create_app_reply(NULL, APP_STATUS_DISCONNECTED, NULL);
+  reply = create_app_reply_two_fields(NULL, APP_STATUS_DISCONNECTED, NULL);
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), &app);
   tlib_pass_if_status_success(__func__, st);
   tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_INVALID);
+  nr_flatbuffers_destroy(&reply);
 
+  reply = create_app_reply_three_fields(NULL, APP_STATUS_DISCONNECTED, NULL,
+                                        NULL);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_INVALID);
+  nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_six_fields(NULL, APP_STATUS_DISCONNECTED, NULL, NULL,
+                                      1, 2, 3);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_INVALID);
   nr_flatbuffers_destroy(&reply);
 }
 
@@ -286,12 +469,33 @@ static void test_process_still_valid_app(void) {
   nr_memset(&app, 0, sizeof(app));
   app.state = NR_APP_UNKNOWN;
 
-  reply = create_app_reply(NULL, APP_STATUS_STILL_VALID, NULL);
+  reply = create_app_reply_two_fields(NULL, APP_STATUS_STILL_VALID, NULL);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
+  nr_flatbuffers_destroy(&reply);
+
+  reply
+      = create_app_reply_three_fields(NULL, APP_STATUS_STILL_VALID, NULL, NULL);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
+  nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_six_fields(NULL, APP_STATUS_STILL_VALID, NULL, NULL,
+                                      1, 2, 3);
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), &app);
   tlib_pass_if_status_success(__func__, st);
   tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
 
+  // These fields should be ignored for an APP_STATUS_STILL_VALID reply
+  tlib_pass_if_uint64_t_equal(__func__, 0, app.harvest.connect_timestamp);
+  tlib_pass_if_uint64_t_equal(__func__, 0, app.harvest.frequency);
+  tlib_pass_if_uint64_t_equal(__func__, 0,
+                              app.harvest.target_transactions_per_cycle);
   nr_flatbuffers_destroy(&reply);
 }
 
@@ -299,17 +503,45 @@ static void test_process_connected_app_missing_json(void) {
   nrapp_t app;
   nr_status_t st;
   nr_flatbuffer_t* reply;
+  const char* security_policies;
 
   nr_memset(&app, 0, sizeof(app));
   app.state = NR_APP_UNKNOWN;
 
-  reply = create_app_reply("346595271037263", APP_STATUS_CONNECTED, NULL);
+  security_policies
+      = "{"
+        "\"security_policies\": {"
+        "\"record_sql\":"
+        "{ \"enabled\": true, \"required\": false },"
+        "\"custom_parameters\":"
+        "{ \"enabled\": false, \"required\": false }"
+        "}}";
+
+  reply = create_app_reply_two_fields("346595271037263", APP_STATUS_CONNECTED,
+                                      NULL);
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), &app);
   tlib_pass_if_status_failure(__func__, st);
   tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_UNKNOWN);
-
   nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_three_fields("346595271037263", APP_STATUS_CONNECTED,
+                                        NULL, security_policies);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_failure(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_UNKNOWN);
+  nr_flatbuffers_destroy(&reply);
+
+  reply = create_app_reply_six_fields("346595271037263", APP_STATUS_CONNECTED,
+                                      NULL, security_policies, 1, 2, 3);
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_failure(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_UNKNOWN);
+  nr_flatbuffers_destroy(&reply);
+
+  nro_delete(app.security_policies);
 }
 
 static void test_process_connected_app(void) {
@@ -338,8 +570,8 @@ static void test_process_connected_app(void) {
         "Bar\",\"terms\":[\"a\",\"b\"]}]"
         "}";
 
-  reply
-      = create_app_reply("346595271037263", APP_STATUS_CONNECTED, connect_json);
+  reply = create_app_reply_two_fields("346595271037263", APP_STATUS_CONNECTED,
+                                      connect_json);
 
   st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
                                     nr_flatbuffers_len(reply), &app);
@@ -374,6 +606,246 @@ static void test_process_connected_app(void) {
   nr_flatbuffers_destroy(&reply);
 }
 
+static void test_process_lasp_connected_app(void) {
+  nrapp_t app;
+  nr_status_t st;
+  nr_flatbuffer_t* reply;
+  const char* connect_json;
+  const char* security_policies;
+
+  nr_memset(&app, 0, sizeof(app));
+  app.state = NR_APP_UNKNOWN;
+
+  connect_json
+      = "{"
+        "\"agent_run_id\":\"346595271037263\","
+        "\"url_rules\":"
+        "[{\"each_segment\":false,\"terminate_chain\":true,\"replace_all\":"
+        "false,"
+        "\"match_expression\":\"^a$\",\"ignore\":false,\"eval_order\":0,"
+        "\"replacement\":\"b\"}],"
+        "\"transaction_name_rules\":"
+        "[{\"each_segment\":false,\"terminate_chain\":true,\"replace_all\":"
+        "false,"
+        "\"match_expression\":\"^a$\",\"ignore\":false,\"eval_order\":0,"
+        "\"replacement\":\"b\"}],"
+        "\"transaction_segment_terms\":[{\"prefix\":\"Foo/"
+        "Bar\",\"terms\":[\"a\",\"b\"]}]"
+        "}";
+
+  security_policies
+      = "{"
+        "\"record_sql\": true,"
+        "\"custom_parameters\": false"
+        "}";
+
+  reply = create_app_reply_three_fields("346595271037263", APP_STATUS_CONNECTED,
+                                        connect_json, security_policies);
+
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
+  tlib_pass_if_str_equal(__func__, app.agent_run_id, "346595271037263");
+  tlib_pass_if_not_null(__func__, app.connect_reply);
+  tlib_pass_if_not_null(__func__, app.security_policies);
+  tlib_pass_if_not_null(__func__, app.url_rules);
+  tlib_pass_if_not_null(__func__, app.txn_rules);
+  tlib_pass_if_not_null(__func__, app.segment_terms);
+
+  /* Test the contents of security_policies to ensure the data was captured
+   * correctly
+   */
+  tlib_pass_if_int_equal(
+      __func__, nro_get_hash_boolean(app.security_policies, "record_sql", NULL),
+      1);
+  tlib_pass_if_int_equal(
+      __func__,
+      nro_get_hash_boolean(app.security_policies, "custom_parameters", NULL),
+      0);
+
+  /*
+   * Perform same test again to make sure that populated fields are freed
+   * before assignment.
+   */
+  app.state = NR_APP_UNKNOWN;
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
+  tlib_pass_if_str_equal(__func__, app.agent_run_id, "346595271037263");
+  tlib_pass_if_not_null(__func__, app.connect_reply);
+  tlib_pass_if_not_null(__func__, app.security_policies);
+  tlib_pass_if_not_null(__func__, app.url_rules);
+  tlib_pass_if_not_null(__func__, app.txn_rules);
+  tlib_pass_if_not_null(__func__, app.segment_terms);
+
+  nr_free(app.agent_run_id);
+  nro_delete(app.connect_reply);
+  nro_delete(app.security_policies);
+  nr_rules_destroy(&app.url_rules);
+  nr_rules_destroy(&app.txn_rules);
+  nr_segment_terms_destroy(&app.segment_terms);
+  nr_flatbuffers_destroy(&reply);
+}
+
+static void test_process_harvest_timing_connected_app(void) {
+  nrapp_t app;
+  nr_status_t st;
+  nr_flatbuffer_t* reply;
+  const char* connect_json;
+  const char* security_policies;
+
+  nr_memset(&app, 0, sizeof(app));
+  app.state = NR_APP_UNKNOWN;
+
+  connect_json
+      = "{"
+        "\"agent_run_id\":\"346595271037263\","
+        "\"url_rules\":"
+        "[{\"each_segment\":false,\"terminate_chain\":true,\"replace_all\":"
+        "false,"
+        "\"match_expression\":\"^a$\",\"ignore\":false,\"eval_order\":0,"
+        "\"replacement\":\"b\"}],"
+        "\"transaction_name_rules\":"
+        "[{\"each_segment\":false,\"terminate_chain\":true,\"replace_all\":"
+        "false,"
+        "\"match_expression\":\"^a$\",\"ignore\":false,\"eval_order\":0,"
+        "\"replacement\":\"b\"}],"
+        "\"transaction_segment_terms\":[{\"prefix\":\"Foo/"
+        "Bar\",\"terms\":[\"a\",\"b\"]}]"
+        "}";
+
+  security_policies
+      = "{"
+        "\"record_sql\": true,"
+        "\"custom_parameters\": false"
+        "}";
+
+  reply = create_app_reply_six_fields("346595271037263", APP_STATUS_CONNECTED,
+                                      connect_json, security_policies, 1, 2, 3);
+
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
+  tlib_pass_if_str_equal(__func__, app.agent_run_id, "346595271037263");
+  tlib_pass_if_not_null(__func__, app.connect_reply);
+  tlib_pass_if_not_null(__func__, app.security_policies);
+  tlib_pass_if_not_null(__func__, app.url_rules);
+  tlib_pass_if_not_null(__func__, app.txn_rules);
+  tlib_pass_if_not_null(__func__, app.segment_terms);
+
+  /* Test the contents of security_policies to ensure the data was captured
+   * correctly
+   */
+  tlib_pass_if_int_equal(
+      __func__, nro_get_hash_boolean(app.security_policies, "record_sql", NULL),
+      1);
+  tlib_pass_if_int_equal(
+      __func__,
+      nro_get_hash_boolean(app.security_policies, "custom_parameters", NULL),
+      0);
+
+  /* Test the harvest timing fields. */
+  tlib_pass_if_uint64_t_equal(__func__, 1 * NR_TIME_DIVISOR,
+                              app.harvest.connect_timestamp);
+  tlib_pass_if_uint64_t_equal(__func__, 2 * NR_TIME_DIVISOR,
+                              app.harvest.frequency);
+  tlib_pass_if_uint64_t_equal(__func__, 3,
+                              app.harvest.target_transactions_per_cycle);
+
+  /*
+   * Perform same test again to make sure that populated fields are freed
+   * before assignment.
+   */
+  app.state = NR_APP_UNKNOWN;
+  st = nr_cmd_appinfo_process_reply(nr_flatbuffers_data(reply),
+                                    nr_flatbuffers_len(reply), &app);
+  tlib_pass_if_status_success(__func__, st);
+  tlib_pass_if_int_equal(__func__, (int)app.state, (int)NR_APP_OK);
+  tlib_pass_if_str_equal(__func__, app.agent_run_id, "346595271037263");
+  tlib_pass_if_not_null(__func__, app.connect_reply);
+  tlib_pass_if_not_null(__func__, app.security_policies);
+  tlib_pass_if_not_null(__func__, app.url_rules);
+  tlib_pass_if_not_null(__func__, app.txn_rules);
+  tlib_pass_if_not_null(__func__, app.segment_terms);
+
+  nr_free(app.agent_run_id);
+  nro_delete(app.connect_reply);
+  nro_delete(app.security_policies);
+  nr_rules_destroy(&app.url_rules);
+  nr_rules_destroy(&app.txn_rules);
+  nr_segment_terms_destroy(&app.segment_terms);
+  nr_flatbuffers_destroy(&reply);
+}
+
+static nr_flatbuffer_t* create_app_reply_timing_flatbuffer(uint64_t timestamp,
+                                                           uint16_t frequency) {
+  nr_flatbuffer_t* fb = nr_flatbuffers_create(0);
+  uint32_t reply;
+
+  if (timestamp || frequency) {
+    nr_flatbuffers_object_begin(fb, APP_NUM_FIELDS);
+    nr_flatbuffers_object_prepend_u64(fb, APP_REPLY_FIELD_CONNECT_TIMESTAMP,
+                                      timestamp, 0);
+    nr_flatbuffers_object_prepend_u16(fb, APP_REPLY_FIELD_HARVEST_FREQUENCY,
+                                      frequency, 0);
+  } else {
+    nr_flatbuffers_object_begin(fb, 3);
+  }
+
+  reply = nr_flatbuffers_object_end(fb);
+  nr_flatbuffers_finish(fb, reply);
+
+  return fb;
+}
+
+static void test_process_harvest_timing(void) {
+  nrapp_t app = {.state = APP_STATUS_UNKNOWN};
+  nr_flatbuffer_t* fb;
+  nr_flatbuffers_table_t table;
+
+  /*
+   * Test : Both timestamp and frequency set.
+   */
+  fb = create_app_reply_timing_flatbuffer(1234, 56);
+  nr_flatbuffers_table_init_root(&table, nr_flatbuffers_data(fb),
+                                 nr_flatbuffers_len(fb));
+  nr_cmd_appinfo_process_harvest_timing(&table, &app);
+  tlib_pass_if_uint64_t_equal("set timestamp", 1234 * NR_TIME_DIVISOR,
+                              app.harvest.connect_timestamp);
+  tlib_pass_if_uint64_t_equal("set frequency", 56 * NR_TIME_DIVISOR,
+                              app.harvest.frequency);
+  nr_flatbuffers_destroy(&fb);
+
+  /*
+   * Test : Only frequency set.
+   */
+  fb = create_app_reply_timing_flatbuffer(0, 56);
+  nr_flatbuffers_table_init_root(&table, nr_flatbuffers_data(fb),
+                                 nr_flatbuffers_len(fb));
+  nr_cmd_appinfo_process_harvest_timing(&table, &app);
+  tlib_fail_if_uint64_t_equal("unset timestamp", 0,
+                              app.harvest.connect_timestamp);
+  tlib_pass_if_uint64_t_equal("set frequency", 56 * NR_TIME_DIVISOR,
+                              app.harvest.frequency);
+  nr_flatbuffers_destroy(&fb);
+
+  /*
+   * Test : Neither field set.
+   */
+  fb = create_app_reply_timing_flatbuffer(0, 0);
+  nr_flatbuffers_table_init_root(&table, nr_flatbuffers_data(fb),
+                                 nr_flatbuffers_len(fb));
+  nr_cmd_appinfo_process_harvest_timing(&table, &app);
+  tlib_fail_if_uint64_t_equal("unset timestamp", 0,
+                              app.harvest.connect_timestamp);
+  tlib_pass_if_uint64_t_equal("unset frequency", 60 * NR_TIME_DIVISOR,
+                              app.harvest.frequency);
+  nr_flatbuffers_destroy(&fb);
+}
+
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 4, .state_size = 0};
 
 void test_main(void* vp NRUNUSED) {
@@ -390,4 +862,8 @@ void test_main(void* vp NRUNUSED) {
   test_process_connected_app();
   test_process_missing_body();
   test_process_wrong_body_type();
+  test_process_lasp_connected_app();
+  test_process_harvest_timing_connected_app();
+
+  test_process_harvest_timing();
 }

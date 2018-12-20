@@ -1,3 +1,4 @@
+#include "cmd_txndata_transmit.c"
 #include "nr_axiom.h"
 #include "nr_agent.h"
 #include "nr_analytics_events.h"
@@ -26,6 +27,7 @@
 #include "util_sql.h"
 #include "util_strings.h"
 #include "util_syscalls.h"
+#include "nr_span_event.h"
 
 #include "tlib_main.h"
 
@@ -46,6 +48,532 @@ nr_status_t nr_agent_unlock_daemon_mutex(void) {
 nrapp_t* nr_app_verify_id(nrapplist_t* applist NRUNUSED,
                           const char* agent_run_id NRUNUSED) {
   return 0;
+}
+
+static void test_encode_span_events(void) {
+  nrtxn_t txn;
+  nr_flatbuffers_table_t tbl;
+  nr_flatbuffer_t* fb;
+  nr_aoffset_t events;
+  uint32_t count;
+  int data_type;
+  int did_pass;
+  nrtxntime_t start;
+  nrtxntime_t stop;
+  nrobj_t* data;
+  const nrobj_t* evt;
+  nrobj_t* hash;
+  nrobj_t* hash_event_2;
+  nrobj_t* hash_event_3;
+  nrobj_t* hash_event_4;
+  nrobj_t* hash_event_5;
+  nr_txnnode_attributes_t* datastore_attributes_1
+      = nr_txnnode_attributes_create();
+  nr_txnnode_attributes_t* datastore_attributes_2
+      = nr_txnnode_attributes_create();
+  nr_txnnode_attributes_t* datastore_attributes_3
+      = nr_txnnode_attributes_create();
+  nr_txnnode_attributes_t* external_attributes_4
+      = nr_txnnode_attributes_create();
+
+  hash = nro_create_from_json(
+      "{\"host\":\"localhost\",\"port_path_or_id\":\"3306\","
+      "\"sql\":\"SELECT * FROM "
+      "ORDERS;\",\"database_name\":\"ORDERS\"}");
+  hash_event_2 = nro_create_from_json(
+      "{\"host\":\"somewhere\",\"port_path_or_"
+      "id\":\"8801\","
+      "\"database_name\":\"CUSTOMERS\"}");
+  hash_event_3 = nro_create_from_json(
+      "{\"port_path_or_id\":\"3301\","
+      "\"sql\":\"SELECT * FROM "
+      "CUSTOMERS;\",\"database_name\":\"somename\"}");
+  hash_event_4 = nro_create_from_json(
+      "{\"library\":\"curl\",\"uri\":\"myservice.com\"}");
+  hash_event_5 = nro_create_from_json(
+      "{\"library\":\"Guzzle 4\",\"procedure\":\"POST\"}");
+
+  /*
+   * Initialize transaction
+   */
+  nr_memset(&txn, 0, sizeof(txn));
+  txn.last_added = 0;
+  txn.nodes_used = 0;
+  txn.options.tt_enabled = 1;
+  txn.options.distributed_tracing_enabled = 1;
+  txn.options.span_events_enabled = 1;
+  txn.status.recording = 1;
+  txn.trace_strings = nr_string_pool_create();
+  txn.name = nr_strdup("name");
+  txn.root.name = nr_string_add(txn.trace_strings, txn.name);
+  txn.distributed_trace = nr_distributed_trace_create();
+  nr_distributed_trace_set_priority(txn.distributed_trace, 1.2);
+  nr_distributed_trace_set_sampled(txn.distributed_trace, true);
+  nr_distributed_trace_set_trace_id(txn.distributed_trace, "tid");
+  nr_distributed_trace_set_txn_id(txn.distributed_trace, "txnid");
+
+  /*
+   * Create trace nodes.
+   */
+  start.stamp = start.when = 1000;
+  stop.stamp = stop.when = 10000;
+  txn.root.start_time = start;
+  txn.root.stop_time = stop;
+  nr_txn_save_trace_node(&txn, &start, &stop, "A", NULL, NULL, NULL);
+
+  start.stamp = start.when = 2000;
+  stop.stamp = stop.when = 8000;
+  nr_txn_save_trace_node(&txn, &start, &stop, "B", NULL, NULL, NULL);
+
+  start.stamp = start.when = 3000;
+  stop.stamp = stop.when = 7000;
+  datastore_attributes_1->datastore.component = nr_strdup("MySql");
+  datastore_attributes_1->type = NR_DATASTORE;
+  nr_txn_save_trace_node(&txn, &start, &stop, "C", NULL, hash,
+                         datastore_attributes_1);
+
+  start.stamp = start.when = 4000;
+  stop.stamp = stop.when = 5000;
+  datastore_attributes_2->datastore.component = nr_strdup("Mongo");
+  datastore_attributes_2->type = NR_DATASTORE;
+  nr_txn_save_trace_node(&txn, &start, &stop, "D", NULL, hash_event_2,
+                         datastore_attributes_2);
+
+  start.stamp = start.when = 5000;
+  stop.stamp = stop.when = 10000;
+  datastore_attributes_3->type = NR_DATASTORE;
+  nr_txn_save_trace_node(&txn, &start, &stop, "E", NULL, hash_event_3,
+                         datastore_attributes_3);
+
+  start.stamp = start.when = 6000;
+  stop.stamp = stop.when = 11000;
+  external_attributes_4->type = NR_EXTERNAL;
+  nr_txn_save_trace_node(&txn, &start, &stop, "F", NULL, hash_event_4,
+                         external_attributes_4);
+
+  start.stamp = start.when = 7000;
+  stop.stamp = stop.when = 11000;
+  nr_txn_save_trace_node(&txn, &start, &stop, "G", NULL, hash_event_5,
+                         external_attributes_4);
+
+  /*
+   * Read flatbuffer data
+   */
+  fb = nr_txndata_encode(&txn);
+  nr_flatbuffers_table_init_root(&tbl, nr_flatbuffers_data(fb),
+                                 nr_flatbuffers_len(fb));
+
+  data_type = nr_flatbuffers_table_read_i8(&tbl, MESSAGE_FIELD_DATA_TYPE,
+                                           MESSAGE_BODY_NONE);
+  did_pass = tlib_pass_if_true(__func__, MESSAGE_BODY_TXN == data_type,
+                               "data_type=%d", data_type);
+  if (0 != did_pass) {
+    goto done;
+  }
+
+  did_pass = tlib_pass_if_true(
+      __func__,
+      0 != nr_flatbuffers_table_read_union(&tbl, &tbl, MESSAGE_FIELD_DATA),
+      "transaction data missing");
+  if (0 != did_pass) {
+    goto done;
+  }
+
+  count = nr_flatbuffers_table_read_vector_len(&tbl,
+                                               TRANSACTION_FIELD_SPAN_EVENTS);
+  if (0 != tlib_pass_if_true(__func__, 8 == count, "count=%d", count)) {
+    goto done;
+  }
+
+  events
+      = nr_flatbuffers_table_read_vector(&tbl, TRANSACTION_FIELD_SPAN_EVENTS);
+
+  /*
+   * root span event
+   */
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "generic");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL),
+                         "name");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 1);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.009);
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "nr.entryPoint", NULL),
+                    NULL);
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+
+  nro_delete(data);
+
+  /*
+   * span event A
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "generic");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "A");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 1);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.009);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+
+  nro_delete(data);
+
+  /*
+   * span event B
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "generic");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "B");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 2);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.006);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+
+  nro_delete(data);
+
+  /*
+   * span event C
+   * A span event representing a datastore call to localhost.
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "datastore");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "C");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 3);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.004);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "span.kind", NULL),
+                         "client");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "component", NULL),
+                         "MySql");
+
+  /*
+   * The evt variable needs to be advanced here because the agent attributes
+   * (third hash) is not empty in the datastore JSON e.g. {intrinsics},{user
+   * attributes},{agent attributes}.
+   */
+  evt = nro_get_array_hash(data, 3, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "peer.hostname", NULL), "localhost");
+  tlib_pass_if_str_equal(__func__,
+                         nro_get_hash_string(evt, "peer.address", NULL),
+                         "localhost:3306");
+  tlib_pass_if_str_equal(__func__,
+                         nro_get_hash_string(evt, "db.statement", NULL),
+                         "SELECT * FROM ORDERS;");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "db.instance", NULL), "ORDERS");
+
+  nro_delete(data);
+
+  /*
+   * span event D
+   * A span event representing a datastore call to somewhere.
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "datastore");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "D");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 4);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.001);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "span.kind", NULL),
+                         "client");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "component", NULL),
+                         "Mongo");
+
+  /*
+   * The evt variable needs to be advanced here because the agent attributes
+   * (third hash) is not empty in the datastore JSON e.g. {intrinsics},{user
+   * attributes},{agent attributes}.
+   */
+  evt = nro_get_array_hash(data, 3, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "peer.hostname", NULL), "somewhere");
+  tlib_pass_if_str_equal(__func__,
+                         nro_get_hash_string(evt, "peer.address", NULL),
+                         "somewhere:8801");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "db.instance", NULL), "CUSTOMERS");
+
+  nro_delete(data);
+
+  /*
+   * span event E
+   * A span event representing a datastore call to an unknown host. Make sure
+   * that things don't blow up if there is no host or component.
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "datastore");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "E");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 5);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.005);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "span.kind", NULL),
+                         "client");
+
+  /*
+   * The evt variable needs to be advanced here because the third hash in the
+   * datastore JSON is not empty e.g. {first hash},{second hash},{third hash}.
+   */
+  evt = nro_get_array_hash(data, 3, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "peer.address", NULL), "unknown:3301");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "db.instance", NULL), "somename");
+
+  nro_delete(data);
+
+  /*
+   * span event F
+   *
+   * This represents an external span event, without a method to make sure the
+   * JSON is still valid.
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "http");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "F");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 6);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.005);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "span.kind", NULL),
+                         "client");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "component", NULL),
+                         "curl");
+
+  /*
+   * The evt variable needs to be advanced here because the third hash in the
+   * datastore JSON is not empty e.g. {first hash},{second hash},{third hash}.
+   */
+  evt = nro_get_array_hash(data, 3, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_str_equal(__func__,
+                         nro_get_hash_string(evt, "http.method", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "http.url", NULL),
+                         "myservice.com");
+
+  nro_delete(data);
+
+  /*
+   * span event G
+   *
+   * This tests that an external span event without a url will still produce
+   * valid JSON.
+   */
+  events.offset += sizeof(uint32_t);
+  nr_flatbuffers_table_init(
+      &tbl, tbl.data, tbl.length,
+      nr_flatbuffers_read_indirect(tbl.data, events).offset);
+
+  data = nro_create_from_json(
+      (const char*)nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA));
+  tlib_pass_if_not_null(__func__, data);
+
+  evt = nro_get_array_hash(data, 1, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "guid", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "type", NULL),
+                         "Span");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "category", NULL),
+                         "http");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "traceId", NULL),
+                         "tid");
+  tlib_pass_if_str_equal(
+      __func__, nro_get_hash_string(evt, "transactionId", NULL), "txnid");
+  tlib_pass_if_true(__func__, nro_get_hash_boolean(evt, "sampled", NULL), NULL);
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "name", NULL), "G");
+  tlib_pass_if_int_equal(__func__, nro_get_hash_int(evt, "timestamp", NULL), 7);
+  tlib_pass_if_double_equal(__func__,
+                            nro_get_hash_double(evt, "duration", NULL), 0.004);
+  tlib_pass_if_not_null(__func__, nro_get_hash_string(evt, "parentId", NULL));
+  tlib_pass_if_null(__func__, nro_get_hash_string(evt, "nr.entryPoint", NULL));
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "span.kind", NULL),
+                         "client");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "component", NULL),
+                         "Guzzle 4");
+
+  /*
+   * The evt variable needs to be advanced here because the third hash in the
+   * datastore JSON is not empty e.g. {first hash},{second hash},{third hash}.
+   */
+  evt = nro_get_array_hash(data, 3, NULL);
+  tlib_pass_if_not_null(__func__, evt);
+
+  tlib_pass_if_str_equal(__func__,
+                         nro_get_hash_string(evt, "http.method", NULL), "POST");
+  tlib_pass_if_str_equal(__func__, nro_get_hash_string(evt, "http.url", NULL),
+                         NULL);
+
+  nro_delete(data);
+
+done:
+  nr_txnnode_attributes_destroy(datastore_attributes_1);
+  nr_txnnode_attributes_destroy(datastore_attributes_2);
+  nr_txnnode_attributes_destroy(datastore_attributes_3);
+  nr_txnnode_attributes_destroy(external_attributes_4);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_txn_destroy_fields(&txn);
+  nr_flatbuffers_destroy(&fb);
+  nro_delete(hash);
+  nro_delete(hash_event_2);
+  nro_delete(hash_event_3);
+  nro_delete(hash_event_4);
+  nro_delete(hash_event_5);
 }
 
 static void test_encode_errors(void) {
@@ -475,7 +1003,7 @@ static void test_encode_error_events(void) {
                               857281 * NR_TIME_DIVISOR_MS);
   txn.options.error_events_enabled = 1;
   txn.name = nr_strdup("my_txn_name");
-  txn.guid = nr_strdup("abcd");
+  nr_txn_set_guid(&txn, "abcd");
   txn.root.start_time.when = 415 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 543 * NR_TIME_DIVISOR_MS;
 
@@ -625,7 +1153,7 @@ static void test_encode_trace(void) {
   txn.status.has_inbound_record_tt = 0;
   txn.status.has_outbound_record_tt = 0;
   txn.type = 0;
-  txn.guid = nr_strdup("0123456789abcdef");
+  nr_txn_set_guid(&txn, "0123456789abcdef");
   txn.name = nr_strdup("txnname");
   txn.request_uri = nr_strdup("url");
 
@@ -736,7 +1264,7 @@ static void test_encode_txn_event(void) {
   txn.status.ignore_apdex = 0;
   txn.options.analytics_events_enabled = 1;
   txn.options.apdex_t = 10;
-  txn.guid = nr_strdup("abcd");
+  nr_txn_set_guid(&txn, "abcd");
   txn.name = nr_strdup("my_txn_name");
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
@@ -744,6 +1272,7 @@ static void test_encode_txn_event(void) {
   txn.synthetics = NULL;
   txn.type = 0;
 
+  nrm_add(txn.unscoped_metrics, "Datastore/all", 1 * NR_TIME_DIVISOR);
   nrm_add(txn.unscoped_metrics, "Datastore/all", 1 * NR_TIME_DIVISOR);
   nrm_add(txn.unscoped_metrics, "External/all", 2 * NR_TIME_DIVISOR);
   nrm_add(txn.unscoped_metrics, "WebFrontend/QueueTime", 3 * NR_TIME_DIVISOR);
@@ -799,7 +1328,9 @@ static void test_encode_txn_event(void) {
               "\"duration\":0.98700,\"totalTime\":0.98700,\"nr.apdexPerfZone\":"
               "\"F\","
               "\"queueDuration\":3.00000,\"externalDuration\":2.00000,"
-              "\"databaseDuration\":1.00000},"
+              "\"databaseDuration\":2.00000,"
+              "\"databaseCallCount\":2,"
+              "\"error\":false},"
               "{\"user_long\":1},{\"agent_long\":2}]"),
       nr_flatbuffers_table_read_bytes(&tbl, EVENT_FIELD_DATA),
       nr_flatbuffers_table_read_vector_len(&tbl, EVENT_FIELD_DATA), __FILE__,
@@ -915,6 +1446,7 @@ void test_main(void* p NRUNUSED) {
   test_encode_slowsqls();
   test_encode_trace();
   test_encode_txn_event();
+  test_encode_span_events();
 
   test_bad_daemon_fd();
   test_null_txn();

@@ -47,11 +47,10 @@ nr_status_t nrt_mutex_init_f(nrthread_mutex_t* mutex,
   }
 
   (void)pthread_mutexattr_init(&ourattr);
-#if defined(NRTHREAD_MUTEX_ERRORCHECK)
-  (void)pthread_mutexattr_settype(&ourattr, NRTHREAD_MUTEX_ERRORCHECK);
-#elif defined(PTHREAD_MUTEX_ERRORCHECK_NP) || defined(_BITS_PTHREADTYPES_H)
+#if defined(PTHREAD_MUTEX_ERRORCHECK_NP) || defined(_BITS_PTHREADTYPES_H)
   (void)pthread_mutexattr_settype(&ourattr, PTHREAD_MUTEX_ERRORCHECK_NP);
-#elif defined(PTHREAD_MUTEX_ERRORCHECK)
+#elif defined(PTHREAD_MUTEX_ERRORCHECK) \
+    || defined(HAVE_PTHREAD_MUTEX_ERRORCHECK)
   (void)pthread_mutexattr_settype(&ourattr, PTHREAD_MUTEX_ERRORCHECK);
 #endif
 

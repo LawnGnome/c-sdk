@@ -97,7 +97,9 @@ extension = "newrelic.so"
 newrelic.loglevel = "verbosedebug"
 EOF
 
-PHPS='7.2 7.1 7.0 5.6 5.5 5.4 5.3'
+# if PHPS is defined in the environment use,
+# its value otherwise test everything
+PHPS=${PHPS:-7.3 7.2 7.1 7.0 5.6 5.5 5.4 5.3}
 
 #
 # Build and test each version of PHP with thread safety (ZTS) disabled.

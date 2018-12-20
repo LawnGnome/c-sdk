@@ -4,7 +4,7 @@
 The agent should put the Synthetics metadata into the transaction trace
 and the transaction event when a valid synthetics header is received.
 Additionally, ensure a transaction trace is recorded regardless of the
-trace threshold.
+trace threshold. This has to happen when both CAT and DT are disabled.
 */
 
 /*
@@ -19,6 +19,7 @@ trace threshold.
  */
 
 /*INI
+newrelic.cross_application_tracer.enabled = 0
 newrelic.transaction_tracer.threshold = '1h'
 newrelic.special.expensive_node_min = 0
 */
@@ -46,7 +47,8 @@ X-NewRelic-Synthetics=PwcbVVVRDQMHSEMQRUNFFBZDG0EQFBFPAVALVhVKRkBBSEsTQxNBEBZERR
         "nr.apdexPerfZone": "??",
         "nr.syntheticsResourceId": "rrrrrrr-rrrr-1234-rrrr-rrrrrrrrrrrr",
         "nr.syntheticsJobId": "jjjjjjj-jjjj-1234-jjjj-jjjjjjjjjjjj",
-        "nr.syntheticsMonitorId": "mmmmmmm-mmmm-1234-mmmm-mmmmmmmmmmmm"
+        "nr.syntheticsMonitorId": "mmmmmmm-mmmm-1234-mmmm-mmmmmmmmmmmm",
+        "error": false
       },
       "?? user attributes",
       "?? agent attributes"

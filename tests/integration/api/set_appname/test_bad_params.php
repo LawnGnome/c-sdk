@@ -4,7 +4,8 @@
 Test that newrelic_set_appname returns false when given bad parameters.
 */
 
-/*EXPECT
+/*EXPECT_REGEX
+.*Warning:.*newrelic_set_appname\(\) expects at least 1 parameter, 0 given.*
 ok - newrelic_set_appname no params
 ok - newrelic_set_appname bad appname
 ok - newrelic_set_appname bad license
@@ -18,6 +19,9 @@ ok - newrelic_set_appname too many params
   "?? timeframe start",
   "?? timeframe stop",
   [
+    [{"name":"Errors/all"},                             [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Errors/allOther"},                        [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Errors/OtherTransaction/php__FILE__"},    [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransaction/all"},                   [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransaction/php__FILE__"},           [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransactionTotalTime"},              [1, "??", "??", "??", "??", "??"]],

@@ -20,7 +20,7 @@ extern PHP_RSHUTDOWN_FUNCTION(newrelic);
 extern PHP_MINFO_FUNCTION(newrelic);
 extern int nr_php_post_deactivate(void);
 
-extern nr_status_t nr_php_late_initialization(TSRMLS_D);
+extern void nr_php_late_initialization(void);
 extern nrobj_t* nr_php_app_settings(void);
 
 extern zend_module_entry newrelic_module_entry;
@@ -196,7 +196,13 @@ typedef struct _nrinifw_t {
 /*
  * Various function pointer types used for instrumentation and hook functions.
  */
+
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
 typedef void (*nrphpfn_t)(INTERNAL_FUNCTION_PARAMETERS);
+#else
+typedef void(ZEND_FASTCALL* nrphpfn_t)(INTERNAL_FUNCTION_PARAMETERS);
+#endif /* PHP < 7.3 */
+
 typedef void (*nrphperrfn_t)(int type,
                              const char* filenm,
                              uint lineno,
@@ -422,6 +428,10 @@ nr_hashmap_t* pdo_link_options; /* PDO link option storage */
 nr_hashmap_t* predis_commands;
 nr_async_context_t* predis_ctx;
 
+nr_hashmap_t* curl_headers;
+
+nr_hashmap_t* curl_method; /* Curl Method set, key is the curl handle */
+
 nrtxn_t* txn; /* The all-important transaction pointer */
 
 nrtime_t start_sample;          /* Time of starting rusage query */
@@ -466,6 +476,14 @@ zend_llist exception_filters;
  * sapi_globals_struct differs from compile time. See PHP-581.
  */
 sapi_headers_struct* sapi_headers;
+
+nrinistr_t security_policies_token; /* newrelic.security_policies_token */
+nrinibool_t
+    allow_raw_exception_messages; /* newrelic.allow_raw_exception_messages */
+nrinibool_t custom_parameters_enabled; /* newrelic.custom_parameters_enabled */
+nrinibool_t
+    distributed_tracing_enabled; /* newrelic.distributed_tracing_enabled */
+nrinibool_t span_events_enabled; /* newrelic.span_events_enabled */
 ZEND_END_MODULE_GLOBALS(newrelic)
 
 /*

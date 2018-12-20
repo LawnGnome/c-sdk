@@ -31,6 +31,8 @@ AXIOM_CFLAGS += -Wextra
 AXIOM_CFLAGS += -Wbad-function-cast
 AXIOM_CFLAGS += -Wcast-qual
 AXIOM_CFLAGS += -Wdeclaration-after-statement
+AXIOM_CFLAGS += -Wformat
+AXIOM_CFLAGS += -Wformat-security
 AXIOM_CFLAGS += -Wimplicit-function-declaration
 AXIOM_CFLAGS += -Wmissing-declarations
 AXIOM_CFLAGS += -Wmissing-prototypes
@@ -76,6 +78,7 @@ OBJS := \
 	nr_agent.o \
 	nr_analytics_events.o \
 	nr_app.o \
+	nr_app_harvest.o \
 	nr_async_context.o \
 	nr_attributes.o \
 	nr_banner.o \
@@ -84,16 +87,22 @@ OBJS := \
 	nr_daemon_spawn.o \
 	nr_datastore.o \
 	nr_datastore_instance.o \
+	nr_distributed_trace.o \
 	nr_errors.o \
 	nr_explain.o \
 	nr_file_naming.o \
+	nr_guid.o \
 	nr_header.o \
 	nr_mysqli_metadata.o \
 	nr_postgres.o \
 	nr_rules.o \
 	nr_rum.o \
+	nr_segment.o \
+	nr_segment_private.o \
 	nr_segment_terms.o \
+	nr_segment_traces.o \
 	nr_slowsqls.o \
+	nr_span_event.o \
 	nr_synthetics.o \
 	nr_traces.o \
 	nr_txn.o \
@@ -112,6 +121,7 @@ OBJS := \
 	util_md5.o \
 	util_memory.o \
 	util_metrics.o \
+	util_minmax_heap.o \
 	util_network.o \
 	util_number_converter.o \
 	util_obfuscate.o \
@@ -120,9 +130,11 @@ OBJS := \
 	util_regex.o \
 	util_reply.o \
 	util_serialize.o \
+	util_set.o \
 	util_signals.o \
 	util_sleep.o \
 	util_sql.o \
+	util_stack.o \
 	util_string_pool.o \
 	util_strings.o \
 	util_strings_bsd.o \

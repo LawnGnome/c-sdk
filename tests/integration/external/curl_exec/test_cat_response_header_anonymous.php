@@ -13,8 +13,12 @@ if (!extension_loaded("curl")) {
 */
 
 /*EXPECT
-cat endpoint reached
-ok - cat successful
+tracing endpoint reached
+ok - tracing successful
+*/
+
+/*EXPECT_RESPONSE_HEADERS
+X-NewRelic-App-Data=??
 */
 
 /*EXPECT_TRACED_ERRORS
@@ -45,11 +49,11 @@ null
 require_once(realpath(dirname(__FILE__)) . '/../../../include/tap.php');
 require_once(realpath(dirname(__FILE__)) . '/../../../include/config.php');
 
-$url = make_cat_url(realpath(dirname(__FILE__)) . '/../../../include/cat_endpoint.php');
+$url = make_tracing_url(realpath(dirname(__FILE__)) . '/../../../include/tracing_endpoint.php');
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($curl_resource, $header_data)
 {
     return strlen($header_data);
 });
-tap_not_equal(false, curl_exec($ch), "cat successful");
+tap_not_equal(false, curl_exec($ch), "tracing successful");
 curl_close($ch);

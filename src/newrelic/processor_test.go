@@ -1,6 +1,7 @@
 package newrelic
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -80,17 +81,21 @@ func NewMockedProcessor(numberOfHarvestPayload int) *MockedProcessor {
 	}
 }
 
-func (m *MockedProcessor) DoAppInfo(t *testing.T, id *AgentRunID, expectState AppState) {
-	reply := m.p.IncomingAppInfo(id, &sampleAppInfo)
+func (m *MockedProcessor) DoAppInfoCustom(t *testing.T, id *AgentRunID, expectState AppState, info *AppInfo) {
+	reply := m.p.IncomingAppInfo(id, info)
 	<-m.p.trackProgress // receive app info
 	if reply.State != expectState {
 		t.Fatal(reply, expectState)
 	}
 }
 
+func (m *MockedProcessor) DoAppInfo(t *testing.T, id *AgentRunID, expectState AppState) {
+	m.DoAppInfoCustom(t, id, expectState, &sampleAppInfo)
+}
+
 func (m *MockedProcessor) DoConnect(t *testing.T, id *AgentRunID) {
 	<-m.clientParams // preconnect
-	m.clientReturn <- ClientReturn{[]byte(`"specific_collector.com"`), nil}
+	m.clientReturn <- ClientReturn{[]byte(`{"redirect_host":"specific_collector.com"}`), nil}
 	<-m.clientParams // connect
 	m.clientReturn <- ClientReturn{[]byte(`{"agent_run_id":"` + id.String() + `","zip":"zap"}`), nil}
 	<-m.p.trackProgress // receive connect reply
@@ -107,20 +112,27 @@ func (fn AggregaterIntoFn) AggregateInto(h *Harvest) { fn(h) }
 
 var (
 	txnEventSample1 = AggregaterIntoFn(func(h *Harvest) {
-		h.TxnEvents.AddTxnEvent([]byte(`[{"x":1},{},{}]`))
+		h.TxnEvents.AddTxnEvent([]byte(`[{"x":1},{},{}]`), SamplingPriority(0.8))
 	})
 	txnEventSample2 = AggregaterIntoFn(func(h *Harvest) {
-		h.TxnEvents.AddTxnEvent([]byte(`[{"x":2},{},{}]`))
+		h.TxnEvents.AddTxnEvent([]byte(`[{"x":2},{},{}]`), SamplingPriority(0.8))
 	})
 	txnTraceSample = AggregaterIntoFn(func(h *Harvest) {
 		h.TxnTraces.AddTxnTrace(sampleTrace)
 	})
 	txnCustomEventSample = AggregaterIntoFn(func(h *Harvest) {
-		h.CustomEvents.AddEventFromData(sampleCustomEvent)
+		h.CustomEvents.AddEventFromData(sampleCustomEvent, SamplingPriority(0.8))
 	})
 	txnErrorEventSample = AggregaterIntoFn(func(h *Harvest) {
-		h.ErrorEvents.AddEventFromData(sampleErrorEvent)
+		h.ErrorEvents.AddEventFromData(sampleErrorEvent, SamplingPriority(0.8))
 	})
+	txnEventSample1Times = func(times int) AggregaterIntoFn {
+		return AggregaterIntoFn(func(h *Harvest) {
+			for i := 0; i < times; i++ {
+				h.TxnEvents.AddTxnEvent([]byte(`[{"x":1},{},{}]`), SamplingPriority(0.8))
+			}
+		})
+	}
 )
 
 func TestProcessorHarvestDefaultData(t *testing.T) {
@@ -199,6 +211,117 @@ func TestProcessorHarvestErrorEvents(t *testing.T) {
 	<-m.p.trackProgress // receive harvest notice
 	if string(cp.data) != `["one",{"reservoir_size":100,"events_seen":1},[forgotten birthday]]` {
 		t.Fatal(string(cp.data))
+	}
+
+	m.p.quit()
+}
+
+func TestProcessorHarvestSplitTxnEvents(t *testing.T) {
+	getEventsSeen := func(data []byte) float64 {
+		var dataDec []interface{}
+
+		err := json.Unmarshal(data, &dataDec)
+		if nil != err {
+			t.Fatal("Invalid JSON:", string(data))
+		}
+
+		metadata := dataDec[1].(map[string]interface{})
+		return metadata["events_seen"].(float64)
+	}
+
+	// Distributed tracing deactivated.
+	// --------------------------------
+	// The event payload should never be split.
+
+	m := NewMockedProcessor(1)
+
+	appInfo := sampleAppInfo
+	appInfo.Settings = map[string]interface{}{"newrelic.distributed_tracing_enabled": false}
+
+	m.DoAppInfoCustom(t, nil, AppStateUnknown, &appInfo)
+	m.DoConnect(t, &idOne)
+	m.DoAppInfoCustom(t, nil, AppStateConnected, &appInfo)
+
+	// 9000 events, no split.
+	m.TxnData(t, idOne, txnEventSample1Times(9000))
+	m.processorHarvestChan <- ProcessorHarvest{
+		AppHarvest: m.p.harvests[idOne],
+		ID:         idOne,
+		Type:       HarvestTxnEvents,
+	}
+	cp1 := <-m.clientParams
+	<-m.p.trackProgress
+	cp1Events := getEventsSeen(cp1.data)
+	if cp1Events != 9000 {
+		t.Fatal("Expected 9000 events")
+	}
+
+	m.p.quit()
+
+	// Distributed tracing activated.
+	// ------------------------------
+	// The event payload should be split for more than 4999 events.
+
+	m = NewMockedProcessor(2)
+
+	appInfo = sampleAppInfo
+	appInfo.Settings = map[string]interface{}{"newrelic.distributed_tracing_enabled": true}
+
+	m.DoAppInfoCustom(t, nil, AppStateUnknown, &appInfo)
+	m.DoConnect(t, &idOne)
+	m.DoAppInfoCustom(t, nil, AppStateConnected, &appInfo)
+
+	// Less than 5000 events, no split.
+	m.TxnData(t, idOne, txnEventSample1Times(4999))
+	m.processorHarvestChan <- ProcessorHarvest{
+		AppHarvest: m.p.harvests[idOne],
+		ID:         idOne,
+		Type:       HarvestTxnEvents,
+	}
+	cp1 = <-m.clientParams
+	<-m.p.trackProgress
+	cp1Events = getEventsSeen(cp1.data)
+	if cp1Events != 4999 {
+		t.Fatal("Expected 4999 events")
+	}
+
+	// 5000 events. Split into two payloads of 2500 each.
+	m.TxnData(t, idOne, txnEventSample1Times(5000))
+	m.processorHarvestChan <- ProcessorHarvest{
+		AppHarvest: m.p.harvests[idOne],
+		ID:         idOne,
+		Type:       HarvestTxnEvents,
+	}
+	cp1 = <-m.clientParams
+	cp2 := <-m.clientParams
+	<-m.p.trackProgress
+	cp1Events = getEventsSeen(cp1.data)
+	cp2Events := getEventsSeen(cp2.data)
+	if cp1Events != 2500 {
+		t.Fatal("Payload with 2500 events expected, got ", cp1Events)
+	}
+	if cp2Events != 2500 {
+		t.Fatal("Payload with 2500 events expected, got ", cp2Events)
+	}
+
+	// 8001 events. Split into two payloads of 4000 and 4001.
+	// We do not know which payload arrives first.
+	m.TxnData(t, idOne, txnEventSample1Times(8001))
+	m.processorHarvestChan <- ProcessorHarvest{
+		AppHarvest: m.p.harvests[idOne],
+		ID:         idOne,
+		Type:       HarvestTxnEvents,
+	}
+	cp1 = <-m.clientParams
+	cp2 = <-m.clientParams
+	<-m.p.trackProgress
+	cp1Events = getEventsSeen(cp1.data)
+	cp2Events = getEventsSeen(cp2.data)
+	if cp1Events != 4000 && cp2Events != 4000 {
+		t.Fatal("Payloads with 4000 events expected, got ", cp1Events, " and ", cp2Events)
+	}
+	if (cp1Events + cp2Events) != 8001 {
+		t.Fatal("Payload sum of 8001 events expected, got ", cp1Events, " and ", cp2Events)
 	}
 
 	m.p.quit()
@@ -284,7 +407,7 @@ func TestDisconnectAtConnect(t *testing.T) {
 	m.DoAppInfo(t, nil, AppStateUnknown)
 
 	<-m.clientParams // preconnect
-	m.clientReturn <- ClientReturn{[]byte(`"specific_collector.com"`), nil}
+	m.clientReturn <- ClientReturn{[]byte(`{"redirect_host":"specific_collector.com"}`), nil}
 	<-m.clientParams // connect
 	m.clientReturn <- ClientReturn{nil, collector.SampleDisonnectException}
 	<-m.p.trackProgress // receive connect reply
@@ -362,7 +485,7 @@ func TestMalformedConnectReply(t *testing.T) {
 	m.DoAppInfo(t, nil, AppStateUnknown)
 
 	<-m.clientParams // preconnect
-	m.clientReturn <- ClientReturn{[]byte(`"specific_collector.com"`), nil}
+	m.clientReturn <- ClientReturn{[]byte(`{"redirect_host":"specific_collector.com"}`), nil}
 	<-m.clientParams // connect
 	m.clientReturn <- ClientReturn{[]byte(`{`), nil}
 	<-m.p.trackProgress // receive connect reply
@@ -512,7 +635,7 @@ var (
 		Appname:           "PHP Application",
 		AgentLanguage:     "php",
 		AgentVersion:      "0.0.1",
-		Settings:          nil,
+		Settings:          map[string]interface{}{},
 		Environment:       nil,
 		Labels:            nil,
 		RedirectCollector: "staging-collector.newrelic.com",
@@ -520,7 +643,7 @@ var (
 	}
 	connectClient = collector.ClientFn(func(cmd collector.Cmd) ([]byte, error) {
 		if cmd.Name == collector.CommandPreconnect {
-			return []byte(`"specific_collector.com"`), nil
+			return []byte(`{"redirect_host":"specific_collector.com"}`), nil
 		}
 		return []byte(`{"agent_run_id":"12345","zip":"zap"}`), nil
 	})
@@ -539,14 +662,14 @@ func TestAppInfoInvalid(t *testing.T) {
 
 	// trigger app creation and connect
 	reply := p.IncomingAppInfo(&id, &sampleAppInfo)
-	if reply.State != AppStateUnknown || reply.ConnectReply != nil || reply.RunIDValid {
+	if reply.State != AppStateUnknown || reply.ConnectReply != nil || reply.RunIDValid || reply.ConnectTimestamp != 0 || reply.HarvestFrequency != 0 || reply.SamplingTarget != 0 {
 		t.Fatal(reply)
 	}
 	<-p.trackProgress // receive app info
 	<-p.trackProgress // receive connect reply
 
 	reply = p.IncomingAppInfo(&id, &sampleAppInfo)
-	if reply.State != AppStateInvalidLicense || reply.ConnectReply != nil || reply.RunIDValid {
+	if reply.State != AppStateInvalidLicense || reply.ConnectReply != nil || reply.RunIDValid || reply.ConnectTimestamp != 0 || reply.HarvestFrequency != 0 || reply.SamplingTarget != 0 {
 		t.Fatal(reply)
 	}
 	p.quit()
@@ -561,14 +684,14 @@ func TestAppInfoDisconnected(t *testing.T) {
 
 	// trigger app creation and connect
 	reply := p.IncomingAppInfo(&id, &sampleAppInfo)
-	if reply.State != AppStateUnknown || reply.ConnectReply != nil || reply.RunIDValid {
+	if reply.State != AppStateUnknown || reply.ConnectReply != nil || reply.RunIDValid || reply.ConnectTimestamp != 0 || reply.HarvestFrequency != 0 || reply.SamplingTarget != 0 {
 		t.Fatal(reply)
 	}
 	<-p.trackProgress // receive app info
 	<-p.trackProgress // receive connect reply
 
 	reply = p.IncomingAppInfo(&id, &sampleAppInfo)
-	if reply.State != AppStateDisconnected || reply.ConnectReply != nil || reply.RunIDValid {
+	if reply.State != AppStateDisconnected || reply.ConnectReply != nil || reply.RunIDValid || reply.ConnectTimestamp != 0 || reply.HarvestFrequency != 0 || reply.SamplingTarget != 0 {
 		t.Fatal(reply)
 	}
 	p.quit()
@@ -583,7 +706,7 @@ func TestAppInfoConnected(t *testing.T) {
 
 	// trigger app creation and connect
 	reply := p.IncomingAppInfo(&id, &sampleAppInfo)
-	if reply.State != AppStateUnknown || reply.ConnectReply != nil || reply.RunIDValid {
+	if reply.State != AppStateUnknown || reply.ConnectReply != nil || reply.RunIDValid || reply.ConnectTimestamp != 0 || reply.HarvestFrequency != 0 || reply.SamplingTarget != 0 {
 		t.Fatal(reply)
 	}
 	<-p.trackProgress // receive app info
@@ -593,7 +716,10 @@ func TestAppInfoConnected(t *testing.T) {
 	reply = p.IncomingAppInfo(nil, &sampleAppInfo)
 	if reply.State != AppStateConnected ||
 		string(reply.ConnectReply) != `{"agent_run_id":"12345","zip":"zap"}` ||
-		reply.RunIDValid {
+		reply.RunIDValid ||
+		reply.ConnectTimestamp == 0 ||
+		reply.HarvestFrequency != 60 ||
+		reply.SamplingTarget != 10 {
 		t.Fatal(reply)
 	}
 	// with agent run id
