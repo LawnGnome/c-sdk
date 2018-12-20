@@ -5,7 +5,6 @@ FILES
 *.o
 junk
 make.log
-.*.swp
 Makefile_*.deps
 *.T
 releases
@@ -28,13 +27,14 @@ tests/test_*
 !tests/test_*.c
 
 #
-# Byproducts from building and running the test_app
-#
-test_app
-c-agent.log
-
-#
 # Byproducts from make all
 #
 libnewrelic.a
 libnewrelic.o
+
+#
+# Byproducts from a life of vim
+#
+gotags
+tags
+*.sw?

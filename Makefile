@@ -174,15 +174,8 @@ tests-clean:
 
 .PHONY: clean
 clean: axiom-clean daemon-clean src-clean tests-clean
-	rm -f *.o test_app stress_app libnewrelic.a libnewrelic.so
+	rm -f *.o libnewrelic.a libnewrelic.so
 
 # Implicit rule for top level test programs.
 %.o: %.c
 	$(CC) $(C_AGENT_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(C_AGENT_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -c $< -o $@
-
-# this can't be run when the .so is present or else it will use it
-test_app: test_app.o libnewrelic.a
-	$(CC) -rdynamic -o $@ -I$(C_AGENT_ROOT)/include $^ $(PCRE_CFLAGS) -L/usr/local/lib/ -lpcre  -pthread
-
-test_app_dynamic: test_app.o libnewrelic.so
-	$(CC) -o $@ $< -L. -lnewrelic
