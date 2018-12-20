@@ -92,6 +92,33 @@ class CustomSegment : public Segment {
   newrelic_segment_t* segment;
 };
 
+class DatastoreSegment : public Segment {
+ public:
+  DatastoreSegment(Transaction& txn) : Segment(txn) {
+    const newrelic_datastore_segment_params_t params = {
+        .product = (char*)NEWRELIC_DATASTORE_MYSQL,
+        .collection = (char*)"table",
+        .operation = (char*)"select",
+        .host = (char*)"localhost",
+        .port_path_or_id = (char*)"3306",
+        .database_name = (char*)"db",
+        .query = (char*)"SELECT * FROM table WHERE foo = 'bar'",
+    };
+
+    segment = newrelic_start_datastore_segment(txn.txn, &params);
+    if (nullptr == segment) {
+      throw NewRelicError(boost::str(
+          boost::format("unable to start datastore segment on transaction %p")
+          % txn.txn));
+    }
+  }
+
+  ~DatastoreSegment() { newrelic_end_datastore_segment(txn, &segment); }
+
+ private:
+  newrelic_datastore_segment_t* segment;
+};
+
 extern Segment randomSegment(Transaction& txn);
 
 #endif /* THREADS_NEWRELIC_HDR */
