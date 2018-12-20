@@ -54,7 +54,7 @@ static void add_async_hash_json_to_buffer(nrbuf_t* buf,
   nr_buffer_add(buf, "}", 1);
 }
 
-void nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
+bool nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
                                               void* userdata) {
   uint64_t zerobased_start_ms;
   uint64_t zerobased_stop_ms;
@@ -67,7 +67,7 @@ void nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
 
   if (segment->start_time >= segment->stop_time) {
     ((nr_segment_userdata_t*)userdata)->success = -1;
-    return;
+    return false;
   }
 
   zerobased_start_ms = (segment->start_time - txn->segment_root->start_time)
@@ -134,6 +134,8 @@ void nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
   // And now for all its children.
   nr_buffer_add(buf, ",", 1);
   nr_buffer_add(buf, "[", 1);
+
+  return true;
 }
 
 int nr_segment_traces_json_print_segments(nrbuf_t* buf,
@@ -220,10 +222,6 @@ char* nr_segment_traces_create_data(const nrtxn_t* txn,
                                              segment_names);
 
   if (rv < 0) {
-    /*
-     * If there was an error during the printing of JSON, then set the duration
-     * of this TT to zero so it will be replaced.
-     */
     nr_string_pool_destroy(&segment_names);
     nr_buffer_destroy(&buf);
     return 0;
@@ -266,20 +264,26 @@ char* nr_segment_traces_create_data(const nrtxn_t* txn,
   return data;
 }
 
-nr_minmax_heap_t* nr_segment_traces_heap_create(ssize_t bound) {
-  return nr_minmax_heap_create(bound, (nr_minmax_heap_cmp_t)nr_segment_compare,
-                               NULL, NULL, NULL);
+static int segment_compare_wrapper(const void* a,
+                                   const void* b,
+                                   void* userdata NRUNUSED) {
+  return nr_segment_compare((const nr_segment_t*)a, (const nr_segment_t*)b);
 }
 
-void nr_segment_traces_stoh_iterator_callback(nr_segment_t* segment,
+nr_minmax_heap_t* nr_segment_traces_heap_create(ssize_t bound) {
+  return nr_minmax_heap_create(bound, segment_compare_wrapper, NULL, NULL,
+                               NULL);
+}
+
+bool nr_segment_traces_stoh_iterator_callback(nr_segment_t* segment,
                                               void* userdata) {
   if (nrunlikely(NULL == segment || NULL == userdata)) {
-    return;
+    return false;
   } else {
     nr_minmax_heap_t* heap = (nr_minmax_heap_t*)userdata;
     nr_minmax_heap_insert(heap, segment);
 
-    return;
+    return true;
   }
 }
 
