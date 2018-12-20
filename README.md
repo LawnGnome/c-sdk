@@ -33,10 +33,12 @@ make daemon
 ./php_agent/bin/daemon -f --logfile stdout --loglevel debug
 ```
 
-Compile and run the test app, (the `test_app` requires a running daemon to work properly -- see above)
+Compile and run the test app, (the `test_app` requires the agent to be built
+and a running daemon to work properly -- see above)
 
 ```
-make test_app
+cd tests/adhoc/test_app
+make
 ./test_app
 ```
 
