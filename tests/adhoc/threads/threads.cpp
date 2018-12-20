@@ -6,13 +6,14 @@
 
 #include <boost/format.hpp>
 
+#include "random.h"
 #include "threads.h"
 
 static void segmentThread(Transaction& txn,
                           std::string id,
                           unsigned int segments,
                           unsigned int maxTime) {
-  std::default_random_engine generator;
+  auto generator(defaultGenerator());
   std::uniform_int_distribution<unsigned int> distribution(1, maxTime);
 
   for (unsigned int i = 0; i < segments; i++) {
