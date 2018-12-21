@@ -1,0 +1,6 @@
+[submodule "axiom/tests/cross_agent_tests"]
+	path = axiom/tests/cross_agent_tests
+	url = git@source.datanerd.us:agents/cross_agent_tests.git
+[submodule "tests/include/newrelic-integration"]
+	path = tests/include/newrelic-integration
+	url = git@source.datanerd.us:php-agent/newrelic-integration.git
