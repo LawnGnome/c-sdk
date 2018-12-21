@@ -80,10 +80,10 @@ int main (void) {
 ```
 
 Compile and link your application against the static library, `libnewrelic.a`. There
-are two considerations to make during the linking step. First, because `libnewrelic.a`
-is offered as a static library, because it is already linked with the `libpcre`
-and `libpthread` libraries, you must also link against these two libraries to avoid
-symbol collisions in the linking step.
+are two considerations to make during the linking step. First, because
+`libnewrelic.a` is offered as a static library, because it is already linked
+with the `libpcre`, `libpthread`, and `lm` libraries, you must also link
+against these three libraries to avoid symbol collisions in the linking step.
 
 Second, to take full advantage of error traces at New Relic's Error Analytics
 dashboard, link your application using GNU's `-rdynamic` linker flag.
@@ -94,7 +94,7 @@ With these two considerations in mind, one may compile and link a simple applica
 like so:
 
 ```sh
-gcc -o test_app test_app.c -L. -lnewrelic -lpcre -pthread -rdynamic
+gcc -o test_app test_app.c -L. -lnewrelic -lpcre -lm -pthread -rdynamic
 ```
 
 Start the daemon:

@@ -38,6 +38,9 @@ int txn_group_setup(void** state) {
   txn->scoped_metrics = nrm_table_create(5);
   txn->unscoped_metrics = nrm_table_create(5);
 
+  txn->trace_strings = nr_string_pool_create();
+  nr_stack_init(&txn->parent_stack, NR_STACK_DEFAULT_CAPACITY);
+
   *state = txn;
   return 0;  // tells cmocka setup completed, 0==OK
 }
@@ -55,6 +58,11 @@ int app_group_teardown(void** state) {
 int txn_group_teardown(void** state) {
   newrelic_txn_t* txn = 0;
   txn = (newrelic_txn_t*)*state;
+
+  nr_stack_destroy_fields(&txn->parent_stack);
+  nr_string_pool_destroy(&txn->trace_strings);
+  nrm_table_destroy(&txn->scoped_metrics);
+  nrm_table_destroy(&txn->unscoped_metrics);
 
   nr_free(txn);
   return 0;  // tells cmocka teardown completed, 0==OK

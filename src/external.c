@@ -6,20 +6,40 @@
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
+#include "util_url.h"
+
+static char* newrelic_create_external_segment_metrics(
+    nrtxn_t* txn,
+    const nr_segment_t* segment,
+    nrtime_t duration) {
+  const char* domain;
+  int domainlen = 0;
+  char* metric_name;
+  const char* uri = segment->typed_attributes.external.uri;
+
+  /* Rollup metric */
+  nrm_force_add(txn->unscoped_metrics, "External/all", duration);
+
+  domain = nr_url_extract_domain(uri, nr_strlen(uri), &domainlen);
+  if ((0 == domain) || (domainlen <= 0)) {
+    domain = "<unknown>";
+    domainlen = nr_strlen(domain);
+  }
+
+  metric_name = nr_formatf("External/%.*s/all", domainlen, domain);
+
+  /* Scoped metric */
+  nrm_add(txn->scoped_metrics, metric_name, duration);
+
+  return metric_name;
+}
 
 void newrelic_destroy_external_segment(
     newrelic_external_segment_t** segment_ptr) {
-  newrelic_external_segment_t* segment;
-
   if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
     return;
   }
 
-  segment = *segment_ptr;
-
-  nr_free(segment->params.library);
-  nr_free(segment->params.procedure);
-  nr_free(segment->params.url);
   nr_realfree((void**)segment_ptr);
 }
 
@@ -56,21 +76,23 @@ newrelic_external_segment_t* newrelic_start_external_segment(
   /* We zero-allocate to ensure that the nr_node_external_params_t embedded
    * within the newrelic_external_segment_t struct is correctly initialised. */
   segment = nr_zalloc(sizeof(newrelic_external_segment_t));
-
-  /* Set the fields that we care about. */
-  nr_txn_set_time(transaction, &segment->params.start);
+  segment->segment = nr_segment_start(transaction, NULL, NULL);
   segment->txn = transaction;
-  segment->params.library = params->library ? nr_strdup(params->library) : NULL;
-  segment->params.procedure
-      = params->procedure ? nr_strdup(params->procedure) : NULL;
-  segment->params.url = nr_strdup(params->uri);
-  segment->params.urllen = nr_strlen(segment->params.url);
+
+  nr_segment_set_external(segment->segment, &((nr_segment_external_t){
+                                                .transaction_guid = NULL,
+                                                .uri = params->uri,
+                                                .library = params->library,
+                                                .procedure = params->procedure,
+                                            }));
 
   return segment;
 }
 
 bool newrelic_end_external_segment(newrelic_txn_t* transaction,
                                    newrelic_external_segment_t** segment_ptr) {
+  nrtime_t duration;
+  char* name;
   bool status = false;
   newrelic_external_segment_t* segment = NULL;
 
@@ -100,9 +122,24 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
     goto end;
   }
 
+  /* Sanity check that the external segment is really an external segment. */
+  if (NR_SEGMENT_EXTERNAL != segment->segment->type) {
+    nrl_error(NRL_INSTRUMENT,
+              "unexpected external segment type: expected %d; got %d",
+              (int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
+    goto end;
+  }
+
   /* Stop the transaction and save the node. */
-  nr_txn_set_time(transaction, &segment->params.stop);
-  nr_txn_end_node_external(transaction, &segment->params);
+  nr_segment_end(segment->segment);
+  duration = nr_time_duration(segment->segment->start_time,
+                              segment->segment->stop_time);
+
+  /* Create metrics. */
+  name = newrelic_create_external_segment_metrics(segment->txn,
+                                                  segment->segment, duration);
+  nr_segment_set_name(segment->segment, name);
+  nr_free(name);
 
   status = true;
 

@@ -130,7 +130,7 @@ vendor:
 .PHONY: axiom
 axiom: php_agent/axiom/libaxiom.a
 
-php_agent/axiom/libaxiom.a: export CFLAGS := $(C_AGENT_CFLAGS)
+php_agent/axiom/libaxiom.a: export CFLAGS := $(C_AGENT_CFLAGS) -DNR_CAGENT
 php_agent/axiom/libaxiom.a: php_agent/Makefile
 	$(MAKE) -C php_agent/axiom
 

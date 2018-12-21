@@ -21,32 +21,42 @@ bool newrelic_validate_segment_param(const char* in, const char* name) {
 newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
                                            const char* name,
                                            const char* category) {
-  newrelic_segment_t* segment;
+  char* metric_name = NULL;
+  newrelic_segment_t* segment = NULL;
+  nr_segment_t* txn_segment = NULL;
 
   if (NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "unable to start segment with NULL transaction");
     return NULL;
   }
 
-  segment = nr_zalloc(sizeof(newrelic_segment_t));
-  segment->transaction = transaction;
+  /* Create the axiom segment. */
+  txn_segment = nr_segment_start(transaction, NULL, NULL);
+  if (NULL == txn_segment) {
+    return NULL;
+  }
 
   if (!name || !newrelic_validate_segment_param(name, "segment name")) {
     name = "Unnamed Segment";
   }
-  segment->name = nr_strdup(name);
 
   if (!category
       || !newrelic_validate_segment_param(category, "segment category")) {
     category = "Custom";
   }
-  segment->category = nr_strdup(category);
+
+  metric_name = nr_formatf("%s/%s", category, name);
+  nr_segment_set_name(txn_segment, metric_name);
+  nr_free(metric_name);
+
+  /* Now create the wrapper type. */
+  segment = nr_malloc(sizeof(newrelic_segment_t));
+  segment->segment = txn_segment;
+  segment->transaction = transaction;
 
   /* Set up the fields so that we can correctly track child segment duration. */
   segment->kids_duration_save = transaction->cur_kids_duration;
   transaction->cur_kids_duration = &segment->kids_duration;
-
-  nr_txn_set_time(transaction, &segment->start);
 
   return segment;
 }
@@ -55,10 +65,8 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr) {
   nrtime_t duration;
   nrtime_t exclusive;
-  char* metric_name = NULL;
   newrelic_segment_t* segment;
   bool status = false;
-  nrtxntime_t stop;
 
   if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
     nrl_error(NRL_INSTRUMENT, "unable to end a NULL segment");
@@ -76,33 +84,31 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
    * problematic, since times are transaction-specific.
    * */
   if (transaction != segment->transaction) {
-    nrl_error(NRL_INSTRUMENT, "cannot end a segment on a different transaction to the one it was created on");
+    nrl_error(NRL_INSTRUMENT,
+              "cannot end a segment on a different transaction to the one it "
+              "was created on");
     goto end;
   }
 
-  nr_txn_set_time(transaction, &stop);
-  duration = nr_time_duration(segment->start.when, stop.when);
+  /* Stop the segment. */
+  nr_segment_end(segment->segment);
 
   /* Calculate exclusive time and restore the previous child duration field. */
+  duration = nr_time_duration(segment->segment->start_time,
+                              segment->segment->stop_time);
   exclusive = duration - segment->kids_duration;
   transaction->cur_kids_duration = segment->kids_duration_save;
   nr_txn_adjust_exclusive_time(transaction, duration);
 
   /* Add a custom metric. */
-  metric_name = nr_formatf("%s/%s", segment->category, segment->name);
-  nrm_add_ex(transaction->scoped_metrics, metric_name, duration, exclusive);
-
-  /* Add a trace node. */
-  nr_txn_save_trace_node(transaction, &segment->start, &stop, metric_name,
-                         NULL, NULL);
+  nrm_add_ex(transaction->scoped_metrics,
+             nr_string_get(transaction->trace_strings, segment->segment->name),
+             duration, exclusive);
 
   status = true;
 
 end:
-  nr_free(metric_name);
-  nr_free(segment->name);
-  nr_free(segment->category);
-  nr_realfree((void**) segment_ptr);
+  nr_realfree((void**)segment_ptr);
 
   return status;
 }

@@ -20,7 +20,7 @@ EXAMPLES := \
 all: $(EXAMPLES)
 
 ex_%.out: ex_%.o common.o ../libnewrelic.a
-	$(CC) -o $@ $< common.o -rdynamic -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_LIBS) -pthread
+	$(CC) -o $@ $< common.o -rdynamic -L$(LIBNEWRELIC_A_LOCATION) -lnewrelic $(PCRE_LIBS) -pthread -lm
 
 %.o: %.c
 	$(CC) -c $< -o $@ -I$(LIBNEWRELIC_H_LOCATION) $(PCRE_CFLAGS)

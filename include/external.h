@@ -15,8 +15,8 @@ struct _newrelic_external_segment_t {
   /*! The transaction the external segment was created on. */
   nrtxn_t* txn;
 
-  /*! The external node parameters. */
-  nr_node_external_params_t params;
+  /*! The internal segment. */
+  nr_segment_t* segment;
 };
 
 /*!

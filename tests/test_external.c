@@ -10,37 +10,6 @@
 
 #include "test.h"
 
-static newrelic_external_segment_t* duplicate_external_segment(
-    const newrelic_external_segment_t* in) {
-  newrelic_external_segment_t* out
-      = nr_zalloc(sizeof(newrelic_external_segment_t));
-
-  out->txn = in->txn;
-  out->params.start = in->params.start;
-  out->params.stop = in->params.stop;
-  out->params.library
-      = in->params.library ? nr_strdup(in->params.library) : NULL;
-  out->params.procedure
-      = in->params.procedure ? nr_strdup(in->params.procedure) : NULL;
-  out->params.url = in->params.url ? nr_strdup(in->params.url) : NULL;
-
-  return out;
-}
-
-/* Declare prototypes for mocks. */
-void __wrap_nr_txn_end_node_external(nrtxn_t* txn,
-                                     const nr_node_external_params_t* params);
-
-/*
- * Purpose: Mock to validate that appropriate values are passed into
- * nr_txn_end_node_external().
- */
-void __wrap_nr_txn_end_node_external(nrtxn_t* txn,
-                                     const nr_node_external_params_t* params) {
-  check_expected(txn);
-  check_expected(params);
-}
-
 /*
  * Purpose: Test that newrelic_start_external_segment() handles invalid inputs
  * correctly.
@@ -86,14 +55,16 @@ static void test_start_external_segment_valid(void** state) {
   /* Test without library or procedure. */
   segment = newrelic_start_external_segment(txn, &params);
   assert_non_null(segment);
+  assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
   assert_ptr_equal(txn, segment->txn);
-  assert_int_not_equal(0, segment->params.start.when);
 
   /* Ensure the uri was actually copied. */
-  assert_string_equal(params.uri, segment->params.url);
-  assert_ptr_not_equal(params.uri, segment->params.url);
-  assert_null(segment->params.library);
-  assert_null(segment->params.procedure);
+  assert_string_equal(params.uri,
+                      segment->segment->typed_attributes.external.uri);
+  assert_ptr_not_equal(params.uri,
+                       segment->segment->typed_attributes.external.uri);
+  assert_null(segment->segment->typed_attributes.external.library);
+  assert_null(segment->segment->typed_attributes.external.procedure);
 
   newrelic_destroy_external_segment(&segment);
 
@@ -102,14 +73,20 @@ static void test_start_external_segment_valid(void** state) {
   params.procedure = "GET";
   segment = newrelic_start_external_segment(txn, &params);
   assert_non_null(segment);
+  assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
   assert_ptr_equal(txn, segment->txn);
-  assert_int_not_equal(0, segment->params.start.when);
-  assert_string_equal(params.uri, segment->params.url);
-  assert_ptr_not_equal(params.uri, segment->params.url);
-  assert_string_equal(params.library, segment->params.library);
-  assert_ptr_not_equal(params.library, segment->params.library);
-  assert_string_equal(params.procedure, segment->params.procedure);
-  assert_ptr_not_equal(params.procedure, segment->params.procedure);
+  assert_string_equal(params.uri,
+                      segment->segment->typed_attributes.external.uri);
+  assert_ptr_not_equal(params.uri,
+                       segment->segment->typed_attributes.external.uri);
+  assert_string_equal(params.library,
+                      segment->segment->typed_attributes.external.library);
+  assert_ptr_not_equal(params.library,
+                       segment->segment->typed_attributes.external.library);
+  assert_string_equal(params.procedure,
+                      segment->segment->typed_attributes.external.procedure);
+  assert_ptr_not_equal(params.procedure,
+                       segment->segment->typed_attributes.external.procedure);
 
   newrelic_destroy_external_segment(&segment);
 }
@@ -120,30 +97,26 @@ static void test_start_external_segment_valid(void** state) {
  */
 static void test_end_external_segment_invalid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_external_segment_t segment = {
-      .txn = txn,
-      .params =
-          {
-              .start = {.stamp = 1, .when = 1},
-              .url = "https://httpbin.org/",
-          },
+  newrelic_external_segment_params_t params = {
+      .uri = "https://newrelic.com/",
   };
-  newrelic_external_segment_t* segment_ptr
-      = duplicate_external_segment(&segment);
+  newrelic_external_segment_t* segment;
 
   assert_false(newrelic_end_external_segment(NULL, NULL));
   assert_false(newrelic_end_external_segment(txn, NULL));
 
-  /* This should destroy the given segment, even though the transaction is
+  /* This should destroy the given segment, even though the segment type is
    * invalid. */
-  assert_false(newrelic_end_external_segment(NULL, &segment_ptr));
-  assert_null(segment_ptr);
+  segment = newrelic_start_external_segment(txn, &params);
+  segment->segment->type = NR_SEGMENT_DATASTORE;
+  assert_false(newrelic_end_external_segment(NULL, &segment));
+  assert_null(segment);
 
   /* A different transaction should result in failure, but should still destroy
    * the segment. */
-  segment_ptr = duplicate_external_segment(&segment);
-  assert_false(newrelic_end_external_segment(txn + 1, &segment_ptr));
-  assert_null(segment_ptr);
+  segment = newrelic_start_external_segment(txn, &params);
+  assert_false(newrelic_end_external_segment(txn + 1, &segment));
+  assert_null(segment);
 }
 
 /*
@@ -152,24 +125,21 @@ static void test_end_external_segment_invalid(void** state) {
  */
 static void test_end_external_segment_valid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_external_segment_t segment = {
-      .txn = txn,
-      .params =
-          {
-              .start = {.stamp = 1, .when = 1},
-              .url = "https://httpbin.org/",
-          },
+  newrelic_external_segment_params_t params = {
+      .uri = "https://newrelic.com/",
   };
-  newrelic_external_segment_t* segment_ptr
-      = duplicate_external_segment(&segment);
+  newrelic_external_segment_t* segment
+      = newrelic_start_external_segment(txn, &params);
+  nr_segment_t* axiom_segment = segment->segment;
 
-  expect_value(__wrap_nr_txn_end_node_external, txn, txn);
-  expect_value(__wrap_nr_txn_end_node_external, params, &segment_ptr->params);
-  assert_true(newrelic_end_external_segment(txn, &segment_ptr));
+  assert_true(newrelic_end_external_segment(txn, &segment));
+
+  assert_string_equal("External/newrelic.com/all",
+                      nr_string_get(txn->trace_strings, axiom_segment->name));
 
   /* Ensure that segment_ptr was freed by checking that it's NULL here (and by
    * checking that the test doesn't leak). */
-  assert_null(segment_ptr);
+  assert_null(segment);
 }
 
 /*

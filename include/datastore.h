@@ -14,8 +14,11 @@ struct _newrelic_datastore_segment_t {
   /*! The transaction the datastore segment was created on. */
   nrtxn_t* txn;
 
-  /*! The datastore node parameters. */
-  nr_node_datastore_params_t params;
+  /*! The internal segment. */
+  nr_segment_t* segment;
+
+  char* collection;
+  char* operation;
 };
 
 /*!
