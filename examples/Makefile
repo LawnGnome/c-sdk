@@ -16,6 +16,7 @@ EXAMPLES := \
 	ex_datastore.out \
 	ex_external.out \
 	ex_notice_error.out \
+	ex_segment.out
 
 all: $(EXAMPLES)
 

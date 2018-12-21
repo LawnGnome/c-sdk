@@ -13,6 +13,8 @@ int main(void) {
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
   newrelic_segment_t* seg = 0;
+  newrelic_segment_t* seg_a = 0;
+  newrelic_segment_t* seg_c = 0;
 
   char* app_name = get_app_name();
   if (NULL == app_name)
@@ -35,20 +37,27 @@ int main(void) {
   free(config);
 
   /* Start a web transaction */
-  txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
+  txn = newrelic_start_web_transaction(app, "ExampleManualTransaction");
 
   /* Fake custom segments */
   seg = newrelic_start_segment(txn, NULL, NULL);
-  sleep(2);
+  sleep(1);
   newrelic_end_segment(txn, &seg);
 
-  seg = newrelic_start_segment(txn, "A", "Secret");
-  sleep(2);
-  newrelic_end_segment(txn, &seg);
+  seg_a = newrelic_start_segment(txn, "A", "Secret");
+  sleep(1);
 
   seg = newrelic_start_segment(txn, "B", "Secret");
-  sleep(2);
+  sleep(1);
+
+  seg_c = newrelic_start_segment(txn, "C", "Secret");
+  newrelic_set_segment_parent(seg_c, seg_a);
+  sleep(1);
+  newrelic_end_segment(txn, &seg_c);
+
   newrelic_end_segment(txn, &seg);
+
+  newrelic_end_segment(txn, &seg_a);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
