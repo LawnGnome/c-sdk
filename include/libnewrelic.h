@@ -404,6 +404,8 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
  * @param [in] app The address of the pointer to the allocated application.
  *
  * @return false if app is NULL or points to NULL; true otherwise.
+ *
+ * @warning This function must only be called once for a given application.
  */
 bool newrelic_destroy_app(newrelic_app_t** app);
 
@@ -449,6 +451,8 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
  *
  * @return false if transaction is NULL or points to NULL; false if data cannot
  * be sent to newrelic; true otherwise.
+ *
+ * @warning This function must only be called once for a given transaction.
  */
 bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr);
 
