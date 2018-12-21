@@ -77,6 +77,10 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   opt->ss_threshold = 500 * NR_TIME_DIVISOR_MS;
   opt->cross_process_enabled = false;
   opt->tt_is_apdex_f = true;
+  opt->allow_raw_exception_messages = true;
+  opt->custom_parameters_enabled = true;
+  opt->distributed_tracing_enabled = false;
+  opt->span_events_enabled = false;
 
   return opt;
 }
