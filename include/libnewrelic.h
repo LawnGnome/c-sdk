@@ -64,6 +64,9 @@ typedef struct _newrelic_datastore_segment_t newrelic_datastore_segment_t;
  */
 typedef struct _newrelic_txn_t newrelic_txn_t;
 
+/*!
+ * @brief A time, measured in microseconds.
+ */
 typedef uint64_t newrelic_time_us_t;
 
 /*!
@@ -530,6 +533,9 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            const char* errmsg,
                            const char* errclass);
 
+/*!
+ * @brief A segment within a transaction.
+ */
 typedef struct _newrelic_segment_t newrelic_segment_t;
 
 /*!
@@ -591,9 +597,37 @@ newrelic_segment_t* newrelic_start_external_segment(
     newrelic_txn_t* transaction,
     const newrelic_external_segment_params_t* params);
 
+/*!
+ * @brief Set the parent for the given segment.
+ *
+ * This function changes the parent for the given segment to another segment.
+ * Both segments must exist on the same transaction.
+ *
+ * @param [in] segment The segment to reparent.
+ * @param [in] parent  The new parent segment.
+ * @return True if the segment was successfully reparented; false otherwise.
+ */
 bool newrelic_set_segment_parent(newrelic_segment_t* segment,
                                  newrelic_segment_t* parent);
 
+/*!
+ * @brief Override the timing for the given segment.
+ *
+ * Segments are normally timed automatically based on when they were started
+ * and ended. Calling this function disables the automatic timing, and uses the
+ * times given instead.
+ *
+ * Note that this may cause unusual looking transaction traces, as this
+ * function does not change the parent segment. It is likely that users of this
+ * function will also want to use newrelic_set_segment_parent() to manually
+ * parent their segments.
+ *
+ * @param [in] segment    The segment to manually time.
+ * @param [in] start_time The start time for the segment, in microseconds since
+ *                        the start of the transaction.
+ * @param [in] duration   The duration of the segment in microseconds.
+ * @return True if the segment timing was changed; false otherwise.
+ */
 bool newrelic_set_segment_timing(newrelic_segment_t* segment,
                                  newrelic_time_us_t start_time,
                                  newrelic_time_us_t duration);
