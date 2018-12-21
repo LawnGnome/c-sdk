@@ -10,8 +10,14 @@
 #include "nr_txn.h"
 #include "util_threads.h"
 
+/*!
+ * @brief The internal transaction type.
+ */
 typedef struct _newrelic_txn_t {
+  /*! The axiom transaction. */
   nrtxn_t* txn;
+
+  /*! The transaction lock. */
   nrthread_mutex_t lock;
 } newrelic_txn_t;
 
