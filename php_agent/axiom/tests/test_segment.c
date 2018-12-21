@@ -19,14 +19,18 @@ typedef struct _nr_test_list_t {
   nr_segment_t* elements[NR_TEST_LIST_CAPACITY];
 } nr_test_list_t;
 
-static void test_iterator_callback(nr_segment_t* segment, void* userdata) {
+static bool test_iterator_callback(nr_segment_t* segment, void* userdata) {
+  nr_test_list_t* list;
+
   if (nrunlikely(NULL == segment || NULL == userdata)) {
-    return;
-  } else {
-    nr_test_list_t* list = (nr_test_list_t*)userdata;
-    list->elements[list->used] = segment;
-    list->used = list->used + 1;
+    return false;
   }
+
+  list = (nr_test_list_t*)userdata;
+  list->elements[list->used] = segment;
+  list->used = list->used + 1;
+
+  return true;
 }
 
 static void test_segment_start(void) {
@@ -602,8 +606,8 @@ static void test_segment_iterate(void) {
   nr_segment_iterate(&grandmother, (nr_segment_iter_t)test_iterator_callback,
                      &list);
 
-  tlib_pass_if_uint64_t_equal("The subsequent list has eight elements", 8, list.used);
-
+  tlib_pass_if_uint64_t_equal("The subsequent list has eight elements", 8,
+                              list.used);
 
   for (i = 0; i < list.used; i++) {
     tlib_pass_if_int_equal("A tree must be traversed pre-order",
@@ -661,8 +665,8 @@ static void test_segment_iterate_cycle_one(void) {
   nr_segment_iterate(&grandmother, (nr_segment_iter_t)test_iterator_callback,
                      &list);
 
-  tlib_pass_if_uint64_t_equal("The subsequent list has three elements", 3, list.used);
-
+  tlib_pass_if_uint64_t_equal("The subsequent list has three elements", 3,
+                              list.used);
 
   for (i = 0; i < list.used; i++) {
     tlib_pass_if_int_equal("A tree must be traversed pre-order",
@@ -718,8 +722,8 @@ static void test_segment_iterate_cycle_two(void) {
   nr_segment_iterate(&grandmother, (nr_segment_iter_t)test_iterator_callback,
                      &list_1);
 
-  tlib_pass_if_uint64_t_equal("The subsequent list has four elements", 4, list_1.used);
-
+  tlib_pass_if_uint64_t_equal("The subsequent list has four elements", 4,
+                              list_1.used);
 
   for (i = 0; i < list_1.used; i++) {
     tlib_pass_if_int_equal("A tree must be traversed pre-order",
@@ -732,7 +736,8 @@ static void test_segment_iterate_cycle_two(void) {
   nr_segment_iterate(&grandmother, (nr_segment_iter_t)test_iterator_callback,
                      &list_2);
 
-  tlib_pass_if_uint64_t_equal("The subsequent list has four elements", 4, list_2.used);
+  tlib_pass_if_uint64_t_equal("The subsequent list has four elements", 4,
+                              list_2.used);
 
   for (i = 0; i < list_2.used; i++) {
     tlib_pass_if_int_equal("A tree must be traversed pre-order",
@@ -790,7 +795,8 @@ static void test_segment_iterate_with_amputation(void) {
   nr_segment_iterate(&grandmother, (nr_segment_iter_t)test_iterator_callback,
                      &list);
 
-  tlib_pass_if_uint64_t_equal("The subsequent list has four elements", 4, list.used);
+  tlib_pass_if_uint64_t_equal("The subsequent list has four elements", 4,
+                              list.used);
 
   for (i = 0; i < list.used; i++) {
     tlib_pass_if_int_equal("A tree must be traversed pre-order",
