@@ -122,6 +122,39 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   return segment;
 }
 
+bool newrelic_set_segment_parent(newrelic_segment_t* segment,
+                                 newrelic_segment_t* parent) {
+  if (NULL == segment) {
+    nrl_error(NRL_INSTRUMENT, "unable to set the parent on a NULL segment");
+    return false;
+  }
+
+  if (NULL == parent) {
+    nrl_error(NRL_INSTRUMENT,
+              "unable to set the parent of a segment to be a NULL segment");
+    return false;
+  }
+
+  if (segment == parent) {
+    nrl_error(NRL_INSTRUMENT,
+              "unable to set the parent of a segment to be itself");
+    return false;
+  }
+
+  return nr_segment_set_parent(segment->segment, parent->segment);
+}
+
+bool newrelic_set_segment_timing(newrelic_segment_t* segment,
+                                 newrelic_time_us_t start_time,
+                                 newrelic_time_us_t duration) {
+  if (NULL == segment) {
+    nrl_error(NRL_INSTRUMENT, "unable to set timing on a NULL segment");
+    return false;
+  }
+
+  return nr_segment_set_timing(segment->segment, start_time, duration);
+}
+
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr) {
   newrelic_segment_t* segment;

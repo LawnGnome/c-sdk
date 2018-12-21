@@ -64,6 +64,8 @@ typedef struct _newrelic_datastore_segment_t newrelic_datastore_segment_t;
  */
 typedef struct _newrelic_txn_t newrelic_txn_t;
 
+typedef uint64_t newrelic_time_us_t;
+
 /*!
  * @brief Log levels.  An enumeration of the possible log levels for an agent
  * configuration, or newrelic_config_t.
@@ -121,13 +123,13 @@ typedef struct _newrelic_transaction_tracer_config_t {
    *  transaction time before a trace may be generated, in microseconds.
    *  Default: 0.
    */
-  uint64_t duration_us;
+  newrelic_time_us_t duration_us;
 
   /*! Sets the threshold above which the New Relic agent will record a
    *  stack trace for a transaction trace, in microseconds.
    *  Default: 500000, or 0.5 seconds.
    */
-  uint64_t stack_trace_threshold_us;
+  newrelic_time_us_t stack_trace_threshold_us;
 
   struct {
     /*! Controls whether slow datastore queries are recorded.  If set to true
@@ -161,7 +163,7 @@ typedef struct _newrelic_transaction_tracer_config_t {
      *  datastore_reporting.enabled field is set to true.
      *  Default: 500000, or 0.5 seconds.
      */
-    uint64_t threshold_us;
+    newrelic_time_us_t threshold_us;
   } datastore_reporting;
 
 } newrelic_transaction_tracer_config_t;
@@ -591,6 +593,13 @@ newrelic_segment_t* newrelic_start_datastore_segment(
 newrelic_segment_t* newrelic_start_external_segment(
     newrelic_txn_t* transaction,
     const newrelic_external_segment_params_t* params);
+
+bool newrelic_set_segment_parent(newrelic_segment_t* segment,
+                                 newrelic_segment_t* parent);
+
+bool newrelic_set_segment_timing(newrelic_segment_t* segment,
+                                 newrelic_time_us_t start_time,
+                                 newrelic_time_us_t duration);
 
 /*!
  * @brief Record the completion of a segment in a transaction.
