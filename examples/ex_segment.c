@@ -44,6 +44,14 @@ int main(void) {
   sleep(1);
   newrelic_end_segment(txn, &seg);
 
+  /* Set up a nested structure of segments, and reparent one of them.
+   *
+   * A is the parent of B, which by default is the parent of C. However, we
+   * will reparent C to be the direct child of A.
+   *
+   * Note that this means that seg_a must outlive (at least) the call to
+   * newrelic_set_segment_parent() for seg_c.
+   */
   seg_a = newrelic_start_segment(txn, "A", "Secret");
   sleep(1);
 
