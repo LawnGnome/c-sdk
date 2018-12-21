@@ -602,7 +602,7 @@ newrelic_segment_t* newrelic_start_external_segment(
  * @brief Set the parent for the given segment.
  *
  * This function changes the parent for the given segment to another segment.
- * Both segments must exist on the same transaction.
+ * Both segments must exist on the same transaction, and must not have ended.
  *
  * @param [in] segment The segment to reparent.
  * @param [in] parent  The new parent segment.
