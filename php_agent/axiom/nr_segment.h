@@ -266,4 +266,12 @@ extern void nr_segment_iterate(nr_segment_t* root,
                                nr_segment_iter_t callback,
                                void* userdata);
 
+/*
+ * Purpose : Free a tree of segments.
+ *
+ * Params  : 1. A pointer to the root.
+ *
+ */
+void nr_segment_destroy(nr_segment_t* root);
+
 #endif /* NR_SEGMENT_HDR */

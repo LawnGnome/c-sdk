@@ -5,6 +5,7 @@
 
 #include "nr_segment_private.h"
 #include "nr_segment.h"
+#include "test_node_helpers.h"
 #include "util_memory.h"
 
 #include "tlib_main.h"
@@ -31,6 +32,49 @@ static bool test_iterator_callback(nr_segment_t* segment, void* userdata) {
   list->used = list->used + 1;
 
   return true;
+}
+
+static void test_segment_new_txn_with_segment_root(void) {
+  nrtxn_t* txn = new_txn(0);
+
+  /*
+   * Test : Normal operation.  When a new transaction is started, affirm
+   * that it has all the necessary initialization for maintaining
+   * a tree of segments.
+   */
+  tlib_pass_if_not_null("A new transaction must have a segment root",
+                        txn->segment_root);
+
+  tlib_pass_if_not_null(
+      "A new transaction's segment root must have room for children",
+      txn->segment_root->children.children);
+
+  tlib_pass_if_int_equal("A new transaction must have a segment count of 1",
+                         txn->segment_count, 1);
+
+  tlib_pass_if_ptr_equal(
+      "A new transaction's current parent must be initialized to its segment "
+      "root",
+      txn->segment_root, nr_txn_get_current_segment(txn));
+
+  tlib_pass_if_true(
+      "A new transaction's segment root must have its start time initialized",
+      0 != txn->segment_root->start_time, "Expected true");
+
+  /* Force the call to nr_txn_end() to be successful */
+  txn->status.path_is_frozen = 1;
+  nr_txn_end(txn);
+
+  tlib_pass_if_true(
+      "An ended transaction's segment root must have its stop time initialized",
+      0 != txn->segment_root->stop_time, "Expected true");
+
+  tlib_pass_if_int_equal(
+      "An ended transaction's segment root must have the same name as the root "
+      "node",
+      txn->segment_root->name, txn->root.name);
+
+  nr_txn_destroy(&txn);
 }
 
 static void test_segment_start(void) {
@@ -423,6 +467,26 @@ static void test_set_non_null_parent(void) {
   nr_segment_destroy_fields(&segment);
 }
 
+static void test_set_parent_different_txn(void) {
+  nrtxn_t txn_one, txn_two;
+  nr_segment_t thing_one = {.type = NR_SEGMENT_CUSTOM, .txn = &txn_one};
+  nr_segment_t thing_two = {.type = NR_SEGMENT_CUSTOM, .txn = &txn_two};
+
+  tlib_pass_if_bool_equal(
+      "A segment cannot be parented to a segment on a different transaction",
+      false, nr_segment_set_parent(&thing_one, &thing_two));
+  tlib_pass_if_bool_equal(
+      "A segment cannot be parented to a segment on a different transaction",
+      false, nr_segment_set_parent(&thing_two, &thing_one));
+
+  tlib_pass_if_ptr_equal(
+      "A failed nr_segment_set_parent() call must not change the parent",
+      &txn_one, thing_one.txn);
+  tlib_pass_if_ptr_equal(
+      "A failed nr_segment_set_parent() call must not change the parent",
+      &txn_two, thing_two.txn);
+}
+
 static void test_set_timing(void) {
   nr_segment_t segment = {.start_time = 1234, .stop_time = 5678};
 
@@ -811,9 +875,144 @@ static void test_segment_iterate_with_amputation(void) {
   nr_segment_children_destroy_fields(&grown_child_1.children);
 }
 
+static void test_segment_destroy(void) {
+  nr_segment_t* bachelor_1 = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* bachelor_2 = nr_zalloc(sizeof(nr_segment_t));
+
+  /* Bachelor 1 has no room for children; Bachelor 2 does.  Each
+   * bachelor needs be regarded as a leaf node.
+   */
+  nr_segment_children_init(&bachelor_2->children);
+
+  /*
+   * Test : Bad parameters.
+   */
+  nr_segment_destroy(NULL);
+
+  /*
+   * Test : Normal operation.  Free a tree of one segment that has
+   * no room for children.  i.e., segment.children->children is
+   * NULL.
+   */
+  nr_segment_destroy(bachelor_1);
+
+  /*
+   * Test : Normal operation.  Free a tree of one segment that has
+   * room for children but no children.  i.e., segment.children->children is
+   * is not NULL.
+   */
+  nr_segment_destroy(bachelor_2);
+
+  /* The valgrind check will affirm nothing is faulted or leaked. */
+}
+
+static void test_segment_destroy_tree(void) {
+  int i;
+  char* test_string = "0123456789";
+  nr_test_list_t list = {.capacity = NR_TEST_LIST_CAPACITY, .used = 0};
+
+  /* Declare eight segments; give them .name values in pre-order */
+  nr_segment_t* grandmother = nr_zalloc(sizeof(nr_segment_t));
+
+  nr_segment_t* grown_child_1 = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* grown_child_2 = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* grown_child_3 = nr_zalloc(sizeof(nr_segment_t));
+
+  nr_segment_t* child_1 = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* child_2 = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* child_3 = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* child_4 = nr_zalloc(sizeof(nr_segment_t));
+
+  grown_child_1->name = 1;
+  grown_child_2->name = 3;
+  grown_child_3->name = 7;
+
+  child_1->name = 2;
+  child_2->name = 4;
+  child_3->name = 5;
+  child_4->name = 6;
+
+  /*
+   * Test : Normal operation.  Mock up a dynamically-allocated
+   * tree and affirm that using nr_segment_destroy results in
+   * 0 leaks.
+   */
+
+  /* Build a mock tree of segments */
+  nr_segment_children_init(&grandmother->children);
+  nr_segment_add_child(grandmother, grown_child_1);
+  nr_segment_add_child(grandmother, grown_child_2);
+  nr_segment_add_child(grandmother, grown_child_3);
+
+  nr_segment_children_init(&grown_child_1->children);
+  nr_segment_add_child(grown_child_1, child_1);
+
+  nr_segment_children_init(&grown_child_2->children);
+  nr_segment_add_child(grown_child_2, child_2);
+  nr_segment_add_child(grown_child_2, child_3);
+  nr_segment_add_child(grown_child_2, child_4);
+
+  /* Make a couple of nodes external and datastore, so we know those
+   * attributes are getting destroyed
+   */
+  child_1->type = NR_SEGMENT_EXTERNAL;
+  child_1->typed_attributes.external.transaction_guid = nr_strdup(test_string);
+  child_1->typed_attributes.external.uri = nr_strdup(test_string);
+  child_1->typed_attributes.external.library = nr_strdup(test_string);
+  child_1->typed_attributes.external.procedure = nr_strdup(test_string);
+
+  // clang-format off
+  grown_child_2->type = NR_SEGMENT_DATASTORE;
+  grown_child_2->typed_attributes.datastore.component = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.sql = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.sql_obfuscated = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.input_query_json = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.backtrace_json = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.explain_plan_json = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.instance.host = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.instance.port_path_or_id
+      = nr_strdup(test_string);
+  grown_child_2->typed_attributes.datastore.instance.database_name = nr_strdup(test_string);
+  // clang-format on
+
+  /*
+   * The mock tree looks like this:
+   *
+   *               --------(0)grandmother---------
+   *                /             |              \
+   *    (1)grown_child_1   (3)grown_child_2    (7)grown_child_3
+   *       /                /      |      \
+   * (2)child_1    (4)child_2  (5)child_3  (6)child_4
+   *
+   *
+   * In pre-order, that's: 0 1 2 3 4 5 6 7
+   */
+
+  nr_segment_iterate(grandmother, (nr_segment_iter_t)test_iterator_callback,
+                     &list);
+
+  tlib_pass_if_uint64_t_equal("The subsequent list has eight elements", 8,
+                              list.used);
+
+  /* Valgrind will check against memory leaks, but it's nice to affirm that
+   * every node in the tree was visited exactly once. */
+  for (i = 0; i < list.used; i++) {
+    tlib_pass_if_int_equal("A tree must be traversed pre-order",
+                           list.elements[i]->name, i);
+    tlib_pass_if_uint64_t_equal("A traversed tree must supply grey nodes",
+                                list.elements[i]->color, NR_SEGMENT_GREY);
+  }
+
+  /* Affirm that we can free an entire, dynamically-allocated tree
+   * of segments.  The valgrind check will affirm nothing is faulted or
+   * leaked. */
+  nr_segment_destroy(grandmother);
+}
+
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = 0};
 
 void test_main(void* p NRUNUSED) {
+  test_segment_new_txn_with_segment_root();
   test_segment_start();
   test_segment_start_async();
   test_set_name();
@@ -821,6 +1020,7 @@ void test_main(void* p NRUNUSED) {
   test_set_parent_to_same();
   test_set_null_parent();
   test_set_non_null_parent();
+  test_set_parent_different_txn();
   test_set_timing();
   test_end_segment();
   test_segment_iterate_bachelor();
@@ -829,4 +1029,6 @@ void test_main(void* p NRUNUSED) {
   test_segment_iterate_cycle_one();
   test_segment_iterate_cycle_two();
   test_segment_iterate_with_amputation();
+  test_segment_destroy();
+  test_segment_destroy_tree();
 }
