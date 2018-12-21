@@ -51,9 +51,6 @@ extern "C" {
  */
 typedef struct _nr_app_and_info_t newrelic_app_t;
 
-/*! @brief The internal type used to represent a datastore segment. */
-typedef struct _newrelic_datastore_segment_t newrelic_datastore_segment_t;
-
 /*!
  * @brief Transaction. A transaction is started using
  * newrelic_start_web_transaction() or
