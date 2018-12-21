@@ -49,10 +49,9 @@ int main(void) {
    * instrumentation scenario the start() and stop() calls for the datastore
    * segment would be before and after code performing an SELECT operation,
    * for example. */
-  newrelic_datastore_segment_t* segment
-      = newrelic_start_datastore_segment(txn, &params);
+  newrelic_segment_t* segment = newrelic_start_datastore_segment(txn, &params);
   sleep(2);
-  newrelic_end_datastore_segment(txn, &segment);
+  newrelic_end_segment(txn, &segment);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);

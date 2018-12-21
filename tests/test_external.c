@@ -51,13 +51,13 @@ static void test_start_external_segment_valid(void** state) {
   newrelic_external_segment_params_t params = {
       .uri = "https://newrelic.com/",
   };
-  newrelic_external_segment_t* segment;
+  newrelic_segment_t* segment;
 
   /* Test without library or procedure. */
   segment = newrelic_start_external_segment(txn, &params);
   assert_non_null(segment);
   assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
-  assert_ptr_equal(txn->txn, segment->txn);
+  assert_ptr_equal(txn->txn, segment->transaction);
 
   /* Ensure the uri was actually copied. */
   assert_string_equal(params.uri,
@@ -67,7 +67,7 @@ static void test_start_external_segment_valid(void** state) {
   assert_null(segment->segment->typed_attributes.external.library);
   assert_null(segment->segment->typed_attributes.external.procedure);
 
-  newrelic_destroy_external_segment(&segment);
+  newrelic_segment_destroy(&segment);
 
   /* Now test with library and procedure. */
   params.library = "curl";
@@ -75,7 +75,7 @@ static void test_start_external_segment_valid(void** state) {
   segment = newrelic_start_external_segment(txn, &params);
   assert_non_null(segment);
   assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
-  assert_ptr_equal(txn->txn, segment->txn);
+  assert_ptr_equal(txn->txn, segment->transaction);
   assert_string_equal(params.uri,
                       segment->segment->typed_attributes.external.uri);
   assert_ptr_not_equal(params.uri,
@@ -89,11 +89,11 @@ static void test_start_external_segment_valid(void** state) {
   assert_ptr_not_equal(params.procedure,
                        segment->segment->typed_attributes.external.procedure);
 
-  newrelic_destroy_external_segment(&segment);
+  newrelic_segment_destroy(&segment);
 }
 
 /*
- * Purpose: Test that newrelic_end_external_segment() handles invalid inputs
+ * Purpose: Test that newrelic_end_segment() handles invalid inputs
  * correctly.
  */
 static void test_end_external_segment_invalid(void** state) {
@@ -101,27 +101,27 @@ static void test_end_external_segment_invalid(void** state) {
   newrelic_external_segment_params_t params = {
       .uri = "https://newrelic.com/",
   };
-  newrelic_external_segment_t* segment;
+  newrelic_segment_t* segment;
 
-  assert_false(newrelic_end_external_segment(NULL, NULL));
-  assert_false(newrelic_end_external_segment(txn, NULL));
+  assert_false(newrelic_end_segment(NULL, NULL));
+  assert_false(newrelic_end_segment(txn, NULL));
 
   /* This should destroy the given segment, even though the segment type is
    * invalid. */
   segment = newrelic_start_external_segment(txn, &params);
   segment->segment->type = NR_SEGMENT_DATASTORE;
-  assert_false(newrelic_end_external_segment(NULL, &segment));
+  assert_false(newrelic_end_segment(NULL, &segment));
   assert_null(segment);
 
   /* A different transaction should result in failure, but should still destroy
    * the segment. */
   segment = newrelic_start_external_segment(txn, &params);
-  assert_false(newrelic_end_external_segment(txn + 1, &segment));
+  assert_false(newrelic_end_segment(txn + 1, &segment));
   assert_null(segment);
 }
 
 /*
- * Purpose: Test that newrelic_end_external_segment() handles valid inputs
+ * Purpose: Test that newrelic_end_segment() handles valid inputs
  * correctly.
  */
 static void test_end_external_segment_valid(void** state) {
@@ -129,11 +129,10 @@ static void test_end_external_segment_valid(void** state) {
   newrelic_external_segment_params_t params = {
       .uri = "https://newrelic.com/",
   };
-  newrelic_external_segment_t* segment
-      = newrelic_start_external_segment(txn, &params);
+  newrelic_segment_t* segment = newrelic_start_external_segment(txn, &params);
   nr_segment_t* axiom_segment = segment->segment;
 
-  assert_true(newrelic_end_external_segment(txn, &segment));
+  assert_true(newrelic_end_segment(txn, &segment));
 
   assert_string_equal(
       "External/newrelic.com/all",

@@ -4,11 +4,25 @@
 
 ### New Features ###
 
+- Segments may now be reparented manually using the new
+  `newrelic_set_segment_parent()` function.
+
+- Segments now support manual timing via the new
+  `newrelic_set_segment_timing()` function.
+
 ### Bug Fixes ###
 
 ### End of Life Notices ###
 
 ### Upgrade Notices ###
+
+- The segment API has been mildly refactored: all segment types are now
+  represented as `newrelic_segment_t`, and the `newrelic_datastore_segment_t`
+  and `newrelic_external_segment_t` types have been removed.
+
+  Similarly, all segments are now ended with `newrelic_end_segment()`, and
+  therefore the `newrelic_end_datastore_segment()` and
+  `newrelic_end_external_segment()` functions have been removed.
 
 ## 0.0.6 ##
 
