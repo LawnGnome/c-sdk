@@ -148,6 +148,10 @@ bool nr_segment_set_parent(nr_segment_t* segment, nr_segment_t* parent) {
     return false;
   }
 
+  if (NULL != parent && segment->txn != parent->txn) {
+    return false;
+  }
+
   if (segment->parent == parent) {
     return true;
   }
@@ -210,6 +214,20 @@ static nr_segment_color_t nr_segment_toggle_color(nr_segment_color_t color) {
   } else {
     return NR_SEGMENT_WHITE;
   }
+}
+
+/*
+ * Purpose : The callback necessary to iterate over a
+ * tree of segments and free them and all their children.
+ */
+static bool nr_segment_destroy_children_callback(nr_segment_t* segment,
+                                                 void* userdata NRUNUSED) {
+  // If this segment has room for children, but no children,
+  // then let's free the room for children.
+  if (segment->children.used == 0 && segment->children.children != NULL) {
+    nr_segment_children_destroy_fields(&segment->children);
+  }
+  return true;
 }
 
 /*
@@ -286,6 +304,37 @@ static void nr_segment_iterate_helper(nr_segment_t* root,
           }
         }
       }
+      if (callback == (nr_segment_iter_t)nr_segment_destroy_children_callback) {
+        /* We've reached this point because the recursion has reached the bottom
+         * and now we are unrolling.  We free segments from the bottom-up.
+         * If we free segments from the top down, we lose track of the child
+         * pointers. */
+
+        /* Save a pointer to the parent; it's inaccessible once the segment is freed. */
+        nr_segment_t* parent = root->parent;
+
+        /* Save a pointer to the sibling; it's inaccessible once the segment is freed.
+         * Initialize the pointer to not NULL.  If nr_segment_children_get_next()
+         * returns NULL, then there are no siblings */
+        nr_segment_t* sibling = (nr_segment_t*)0xC0FFEE;
+        if (NULL != parent) {
+          sibling
+              = nr_segment_children_get_next(&(root->parent->children), root);
+        }
+
+        /* Free the segment */
+        nr_segment_destroy_typed_attributes(root->type,
+                                            &root->typed_attributes);
+        nr_free(root);
+
+        /* If there are no more children in this family, if this is
+         * the last child to be freed, then free the memory used
+         * to manage the children.  Like turning a kid's bedroom
+         * into a craft room when she leaves for college. */
+        if (NULL == sibling) {
+          nr_segment_children_destroy_fields(&parent->children);
+        }
+      }
       return;
     }
   }
@@ -311,4 +360,13 @@ void nr_segment_iterate(nr_segment_t* root,
   nr_segment_iterate_helper(root, root->color,
                             nr_segment_toggle_color(root->color), callback,
                             userdata);
+}
+
+void nr_segment_destroy(nr_segment_t* root) {
+  if (NULL == root) {
+    return;
+  }
+
+  nr_segment_iterate(
+      root, (nr_segment_iter_t)nr_segment_destroy_children_callback, NULL);
 }
