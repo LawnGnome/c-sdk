@@ -90,7 +90,7 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
     goto end;
   }
 
-  /* Stop the segment, thereby setting the stop time. */
+  /* Stop the segment. */
   nr_segment_end(segment->segment);
 
   /* Calculate exclusive time and restore the previous child duration field. */
