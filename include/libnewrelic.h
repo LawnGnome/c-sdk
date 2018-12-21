@@ -322,9 +322,6 @@ typedef struct _newrelic_datastore_segment_params_t {
 
 } newrelic_datastore_segment_params_t;
 
-/*! @brief The internal type used to represent an external segment. */
-typedef struct _newrelic_external_segment_t newrelic_external_segment_t;
-
 /*! @brief Parameters used when creating an external segment. */
 typedef struct _newrelic_external_segment_params_t {
   /*!
