@@ -8,6 +8,7 @@
 
 #include "libnewrelic.h"
 #include "segment.h"
+#include "transaction.h"
 #include "test.h"
 
 static void test_segment_set_parent(void** state) {
@@ -35,15 +36,16 @@ static void test_segment_set_timing(void** state) {
 
   assert_false(newrelic_set_segment_timing(NULL, 1, 2));
 
+  txn->txn->root.start_time.when = 42;
   assert_true(newrelic_set_segment_timing(segment, 1, 2));
-  assert_int_equal(1, txn_seg->start_time);
-  assert_int_equal(3, txn_seg->stop_time);
+  assert_int_equal(43, txn_seg->start_time);
+  assert_int_equal(45, txn_seg->stop_time);
 
   newrelic_end_segment(txn, &segment);
 
   /* Ending a segment with explicit times should keep the explicit times. */
-  assert_int_equal(1, txn_seg->start_time);
-  assert_int_equal(3, txn_seg->stop_time);
+  assert_int_equal(43, txn_seg->start_time);
+  assert_int_equal(45, txn_seg->stop_time);
 }
 
 static void test_segment_validate_success(void** state NRUNUSED) {
