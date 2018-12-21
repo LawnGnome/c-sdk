@@ -37,7 +37,7 @@ int main(void) {
   free(config);
 
   /* Start a web transaction */
-  txn = newrelic_start_web_transaction(app, "ExampleManualTransaction");
+  txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
   /* Fake custom segments */
   seg = newrelic_start_segment(txn, NULL, NULL);
