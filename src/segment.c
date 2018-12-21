@@ -94,11 +94,6 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
     category = "Custom";
   }
 
-  /* Now create the wrapper type. */
-  segment = nr_malloc(sizeof(newrelic_segment_t));
-  segment->kids_duration = 0;
-  segment->transaction = transaction->txn;
-
   /* Set up the fields so that we can correctly track child segment duration. */
   nrt_mutex_lock(&transaction->lock);
   {
