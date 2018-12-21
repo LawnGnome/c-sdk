@@ -51,6 +51,7 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
 
   /* Now create the wrapper type. */
   segment = nr_malloc(sizeof(newrelic_segment_t));
+  segment->kids_duration = 0;
   segment->segment = txn_segment;
   segment->transaction = transaction;
 
