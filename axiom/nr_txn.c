@@ -10,6 +10,8 @@
 #include "nr_commands.h"
 #include "nr_custom_events.h"
 #include "nr_guid.h"
+#include "nr_segment.h"
+#include "nr_segment_private.h"
 #include "nr_slowsqls.h"
 #include "nr_synthetics.h"
 #include "nr_distributed_trace.h"
@@ -410,6 +412,15 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
    * Allocate the stack to manage segment parenting
    */
   nr_stack_init(&nt->parent_stack, NR_STACK_DEFAULT_CAPACITY);
+
+  /*
+   * Install the root segment
+   */
+  nt->segment_root = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_children_init(&nt->segment_root->children);
+  nt->segment_root->start_time = nr_get_time();
+  nr_txn_set_current_segment(nt, nt->segment_root);
+  nt->segment_count = 1;
 
   /*
    * And finally set in the status member those values that can be changed
@@ -1262,6 +1273,7 @@ void nr_txn_destroy_fields(nrtxn_t* txn) {
   nr_slowsqls_destroy(&txn->slowsqls);
   nr_error_destroy(&txn->error);
   nr_distributed_trace_destroy(&txn->distributed_trace);
+  nr_segment_destroy(txn->segment_root);
   nr_stack_destroy_fields(&txn->parent_stack);
   nrm_table_destroy(&txn->unscoped_metrics);
   nrm_table_destroy(&txn->scoped_metrics);
@@ -1381,6 +1393,21 @@ void nr_txn_end(nrtxn_t* txn) {
   nr_txn_set_time(txn, &txn->root.stop_time);
 
   duration = nr_txn_duration(txn);
+
+  /* Similarly, for the segment root node, set its name and stop time,
+   * needed for creating the transaction trace json. */
+  txn->segment_root->name = txn->root.name;
+  txn->segment_root->stop_time = nr_get_time();
+
+#ifdef NR_CAGENT
+  /* The number of nodes_used is one of the characteristics
+   * used to determine whether a transaction is trace-worthy.
+   * In the C agent, the segment_count is used to keep track
+   * of the number of segments.  In such a case, at the end
+   * of the transaction, update the nodes_used to correctly
+   * reflect this characteristic */
+  txn->nodes_used = txn->segment_count;
+#endif
 
   /*
    * Create the transaction, rollup, and queue metrics. Done in a separate
