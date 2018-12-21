@@ -11,7 +11,7 @@ all: threads
 
 .PHONY: clean drd helgrind
 clean:
-	rm -r *.o threads
+	rm -f *.o threads
 
 drd: threads drd-suppressions
 	valgrind --tool=drd --suppressions=drd-suppressions ./threads -l $(NEW_RELIC_LICENSE_KEY) -h $(or $(NEW_RELIC_HOST),collector.newrelic.com)

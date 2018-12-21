@@ -320,6 +320,42 @@ typedef struct _newrelic_datastore_segment_params_t {
 
 } newrelic_datastore_segment_params_t;
 
+/*! @brief The internal type used to represent an external segment. */
+typedef struct _newrelic_external_segment_t newrelic_external_segment_t;
+
+/*! @brief Parameters used when creating an external segment. */
+typedef struct _newrelic_external_segment_params_t {
+  /*!
+   * The URI that was loaded. This field is required to be a null-terminated
+   * string containing a valid URI, and cannot be NULL.
+   */
+  char* uri;
+
+  /*!
+   * The procedure used to load the external resource.
+   *
+   * In HTTP contexts, this will usually be the request method (eg `GET`,
+   * `POST`, et al). For non-HTTP requests, or protocols that encode more
+   * specific semantics on top of HTTP like SOAP, you may wish to use a
+   * different value that more precisely encodes how the resource was
+   * requested.
+   *
+   * If provided, this field is required to be a null-terminated string that
+   * does not include any slash characters. It is also valid to provide NULL,
+   * in which case no procedure will be attached to the external segment.
+   */
+  char* procedure;
+
+  /*!
+   * The library used to load the external resource.
+   *
+   * If provided, this field is required to be a null-terminated string that
+   * does not include any slash characters. It is also valid to provide NULL,
+   * in which case no library will be attached to the external segment.
+   */
+  char* library;
+} newrelic_external_segment_params_t;
+
 /*!
  * @brief Create a populated agent configuration.
  *
@@ -518,31 +554,11 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
                                            const char* category);
 
 /*!
- * @brief Record the completion of a custom segment in a transaction.
- *
- * Given an active transaction, this function records the segment's metrics
- * on the transaction.
- *
- * @param [in] transaction An active transaction.
- * @param [in,out] segment The address of a valid custom segment.
- * Before the function returns, any segment_ptr memory is freed;
- * segment_ptr is set to NULL to avoid any potential double free errors.
- *
- * @return true if the parameters represented an active transaction
- * and custom segment to record as complete; false otherwise.
- * If an error occurred, a log message will be written to the
- * agent log at LOG_ERROR level.
- */
-bool newrelic_end_segment(newrelic_txn_t* transaction,
-                          newrelic_segment_t** segment_ptr);
-
-/*!
  * @brief Record the start of a datastore segment in a transaction.
  *
- * Given an active transaction and valid parameters, this function
- * creates a datastore segment to be recorded as part of the transaction.
- * A subsequent call to newrelic_end_datastore_segment() records the
- * ends of the segment.
+ * Given an active transaction and valid parameters, this function creates a
+ * datastore segment to be recorded as part of the transaction. A subsequent
+ * call to newrelic_end_segment() records the end of the segment.
  *
  * @param [in] transaction An active transaction.
  * @param [in] params Valid parameters describing a datastore segment.
@@ -550,66 +566,9 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
  * @return A pointer to a valid datastore segment; NULL otherwise.
  *
  */
-newrelic_datastore_segment_t* newrelic_start_datastore_segment(
+newrelic_segment_t* newrelic_start_datastore_segment(
     newrelic_txn_t* transaction,
     const newrelic_datastore_segment_params_t* params);
-
-/*!
- * @brief Record the completion of a datastore segment in a transaction.
- *
- * Given an active transaction, this function records the segment's data
- * on the transaction, including the original information supplied
- * in the newrelic_datastore_segment_params, the segment metrics, and
- * the segment's stacktrace.
- *
- * @param [in] transaction An active transaction.
- * @param [in,out] segment The address of a valid datastore segment.
- * Before the function returns, any segment_ptr memory is freed;
- * segment_ptr is set to NULL to avoid any potential double free errors.
- *
- * @return true if the parameters represented an active transaction
- * and datastore segment to record as complete; false otherwise.
- * If an error occurred, a log message will be written to the
- * agent log at LOG_ERROR level.
- */
-bool newrelic_end_datastore_segment(newrelic_txn_t* transaction,
-                                    newrelic_datastore_segment_t** segment_ptr);
-
-/*! @brief The internal type used to represent an external segment. */
-typedef struct _newrelic_external_segment_t newrelic_external_segment_t;
-
-/*! @brief Parameters used when creating an external segment. */
-typedef struct _newrelic_external_segment_params_t {
-  /*!
-   * The URI that was loaded. This field is required to be a null-terminated
-   * string containing a valid URI, and cannot be NULL.
-   */
-  char* uri;
-
-  /*!
-   * The procedure used to load the external resource.
-   *
-   * In HTTP contexts, this will usually be the request method (eg `GET`,
-   * `POST`, et al). For non-HTTP requests, or protocols that encode more
-   * specific semantics on top of HTTP like SOAP, you may wish to use a
-   * different value that more precisely encodes how the resource was
-   * requested.
-   *
-   * If provided, this field is required to be a null-terminated string that
-   * does not include any slash characters. It is also valid to provide NULL,
-   * in which case no procedure will be attached to the external segment.
-   */
-  char* procedure;
-
-  /*!
-   * The library used to load the external resource.
-   *
-   * If provided, this field is required to be a null-terminated string that
-   * does not include any slash characters. It is also valid to provide NULL,
-   * in which case no library will be attached to the external segment.
-   */
-  char* library;
-} newrelic_external_segment_params_t;
 
 /*!
  * @brief Start recording an external segment within a transaction.
@@ -624,34 +583,33 @@ typedef struct _newrelic_external_segment_params_t {
  *                         pointers provided are kept after this function
  *                         returns.
  * @return A pointer to an external segment, which may then be provided to
- *         newrelic_end_external_segment() when the external request is
- *         complete. If an error occurs when creating the external segment,
- *         NULL is returned, and a log message will be written to the agent log
- *         at LOG_ERROR level.
+ *         newrelic_end_segment() when the external request is complete. If an
+ *         error occurs when creating the external segment, NULL is returned,
+ *         and a log message will be written to the agent log at LOG_ERROR
+ *         level.
  */
-newrelic_external_segment_t* newrelic_start_external_segment(
+newrelic_segment_t* newrelic_start_external_segment(
     newrelic_txn_t* transaction,
     const newrelic_external_segment_params_t* params);
 
 /*!
- * @brief Stop recording an external segment within a transaction.
+ * @brief Record the completion of a segment in a transaction.
  *
- * Given an active transaction and an external segment created by
- * newrelic_start_external_segment(), this function stops the external segment
- * and saves it.
+ * Given an active transaction, this function records the segment's metrics
+ * on the transaction.
  *
- * @param [in]     transaction An active transaction.
- * @param [in,out] segment_ptr A pointer to the segment pointer returned by
- *                             newrelic_start_external_segment(). The segment
- *                             pointer will be set to NULL before this function
- *                             returns to avoid any potential double free
- *                             errors.
- * @return True if the segment was saved successfully, or false if an error
- *         occurred. If an error occurred, a log message will be written to the
- *         agent log at LOG_ERROR level.
+ * @param [in] transaction An active transaction.
+ * @param [in,out] segment The address of a valid segment.
+ * Before the function returns, any segment_ptr memory is freed;
+ * segment_ptr is set to NULL to avoid any potential double free errors.
+ *
+ * @return true if the parameters represented an active transaction
+ * and custom segment to record as complete; false otherwise.
+ * If an error occurred, a log message will be written to the
+ * agent log at LOG_ERROR level.
  */
-bool newrelic_end_external_segment(newrelic_txn_t* transaction,
-                                   newrelic_external_segment_t** segment_ptr);
+bool newrelic_end_segment(newrelic_txn_t* transaction,
+                          newrelic_segment_t** segment_ptr);
 
 #ifdef __cplusplus
 }

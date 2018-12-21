@@ -1,10 +1,66 @@
 #include "libnewrelic.h"
+#include "datastore.h"
+#include "external.h"
 #include "segment.h"
 #include "transaction.h"
 
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
+
+#include <stdio.h>
+
+static nrthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+newrelic_segment_t* newrelic_segment_create(nrtxn_t* txn) {
+  newrelic_segment_t* segment;
+  nr_segment_t* txn_seg;
+
+  txn_seg = nr_segment_start(txn, NULL, NULL);
+  if (NULL == txn_seg) {
+    return NULL;
+  }
+
+  nrt_mutex_lock(&mutex);
+  segment = nr_zalloc(sizeof(newrelic_segment_t));
+  nrt_mutex_unlock(&mutex);
+
+  segment->transaction = txn;
+  segment->segment = txn_seg;
+  segment->kids_duration_save = txn->cur_kids_duration;
+  txn->cur_kids_duration = &segment->kids_duration;
+
+  return segment;
+}
+
+void newrelic_segment_destroy(newrelic_segment_t** segment_ptr) {
+  newrelic_segment_t* segment;
+
+  if (nrunlikely(NULL == segment_ptr || NULL == *segment_ptr)) {
+    return;
+  }
+
+  segment = *segment_ptr;
+  /* Destroy any type specific fields. */
+  if (nrlikely(segment->segment)) {
+    switch (segment->segment->type) {
+      case NR_SEGMENT_DATASTORE:
+        newrelic_destroy_datastore_segment_fields(segment);
+        break;
+
+      case NR_SEGMENT_CUSTOM:
+      case NR_SEGMENT_EXTERNAL:
+        /* No special destruction required. */
+        break;
+
+      default:
+        nrl_error(NRL_INSTRUMENT, "unknown segment type %d",
+                  (int)segment->segment->type);
+    }
+  }
+
+  nr_realfree((void**)segment_ptr);
+}
 
 bool newrelic_validate_segment_param(const char* in, const char* name) {
   if (nr_strchr(in, '/')) {
@@ -48,22 +104,18 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   {
     char* metric_name;
 
-    /* Create the axiom segment. */
-    segment->segment = nr_segment_start(transaction->txn, NULL, NULL);
-    if (NULL == segment->segment) {
-      nrt_mutex_unlock(&transaction->lock);
-      nr_free(segment);
-
-      return NULL;
+    /* Start the segment. */
+    segment = newrelic_segment_create(transaction->txn);
+    if (NULL == segment) {
+      goto unlock_and_end;
     }
-
-    segment->kids_duration_save = transaction->txn->cur_kids_duration;
-    transaction->txn->cur_kids_duration = &segment->kids_duration;
 
     /* Set the segment name. */
     metric_name = nr_formatf("%s/%s", category, name);
     nr_segment_set_name(segment->segment, metric_name);
     nr_free(metric_name);
+
+  unlock_and_end:;
   }
   nrt_mutex_unlock(&transaction->lock);
 
@@ -72,8 +124,6 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
 
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr) {
-  nrtime_t duration;
-  nrtime_t exclusive;
   newrelic_segment_t* segment;
   bool status = false;
 
@@ -101,29 +151,47 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 
   nrt_mutex_lock(&transaction->lock);
   {
+    nrtime_t duration;
+    nrtime_t exclusive;
+
     /* Stop the segment. */
     nr_segment_end(segment->segment);
 
-    /* Calculate exclusive time and restore the previous child duration field.
-     */
     duration = nr_time_duration(segment->segment->start_time,
                                 segment->segment->stop_time);
     exclusive = duration - segment->kids_duration;
-    transaction->txn->cur_kids_duration = segment->kids_duration_save;
-    nr_txn_adjust_exclusive_time(transaction->txn, duration);
+    segment->transaction->cur_kids_duration = segment->kids_duration_save;
+    nr_txn_adjust_exclusive_time(segment->transaction, duration);
 
-    /* Add a custom metric. */
-    nrm_add_ex(
-        transaction->txn->scoped_metrics,
-        nr_string_get(transaction->txn->trace_strings, segment->segment->name),
-        duration, exclusive);
+    switch (segment->segment->type) {
+      case NR_SEGMENT_CUSTOM:
+        /* Add a custom metric. */
+        nrm_add_ex(transaction->txn->scoped_metrics,
+                   nr_string_get(transaction->txn->trace_strings,
+                                 segment->segment->name),
+                   duration, exclusive);
+        break;
+
+      case NR_SEGMENT_DATASTORE:
+        newrelic_end_datastore_segment(segment);
+        break;
+
+      case NR_SEGMENT_EXTERNAL:
+        newrelic_end_external_segment(segment);
+        break;
+
+      default:
+        nrl_error(NRL_INSTRUMENT, "unknown segment type %d",
+                  (int)segment->segment->type);
+        status = false;
+    }
   }
   nrt_mutex_unlock(&transaction->lock);
 
   status = true;
 
 end:
-  nr_realfree((void**)segment_ptr);
+  newrelic_segment_destroy(segment_ptr);
 
   return status;
 }

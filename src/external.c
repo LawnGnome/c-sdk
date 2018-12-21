@@ -35,19 +35,10 @@ static char* newrelic_create_external_segment_metrics(
   return metric_name;
 }
 
-void newrelic_destroy_external_segment(
-    newrelic_external_segment_t** segment_ptr) {
-  if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
-    return;
-  }
-
-  nr_realfree((void**)segment_ptr);
-}
-
-newrelic_external_segment_t* newrelic_start_external_segment(
+newrelic_segment_t* newrelic_start_external_segment(
     newrelic_txn_t* transaction,
     const newrelic_external_segment_params_t* params) {
-  newrelic_external_segment_t* segment = NULL;
+  newrelic_segment_t* segment = NULL;
 
   /* Validate our inputs. */
   if (NULL == transaction) {
@@ -74,14 +65,12 @@ newrelic_external_segment_t* newrelic_start_external_segment(
     return NULL;
   }
 
-  /* We zero-allocate to ensure that the nr_node_external_params_t embedded
-   * within the newrelic_external_segment_t struct is correctly initialised. */
-  segment = nr_zalloc(sizeof(newrelic_external_segment_t));
-  segment->txn = transaction->txn;
-
   nrt_mutex_lock(&transaction->lock);
   {
-    segment->segment = nr_segment_start(transaction->txn, NULL, NULL);
+    segment = newrelic_segment_create(transaction->txn);
+    if (NULL == segment) {
+      goto unlock_and_end;
+    }
 
     nr_segment_set_external(segment->segment,
                             &((nr_segment_external_t){
@@ -90,76 +79,34 @@ newrelic_external_segment_t* newrelic_start_external_segment(
                                 .library = params->library,
                                 .procedure = params->procedure,
                             }));
+
+  unlock_and_end:;
   }
   nrt_mutex_unlock(&transaction->lock);
-
-  if (NULL == segment->segment) {
-    newrelic_destroy_external_segment(&segment);
-  }
 
   return segment;
 }
 
-bool newrelic_end_external_segment(newrelic_txn_t* transaction,
-                                   newrelic_external_segment_t** segment_ptr) {
+bool newrelic_end_external_segment(newrelic_segment_t* segment) {
   nrtime_t duration;
-  bool status = false;
-  newrelic_external_segment_t* segment = NULL;
-
-  /* Validate our inputs. We can only early return from the segment check
-   * because the documented behaviour is to destroy any segment that's passed
-   * in. */
-  if ((NULL == segment_ptr) || (NULL == *segment_ptr)) {
-    nrl_error(NRL_INSTRUMENT, "cannot end a NULL external segment");
-    return false;
-  }
-  segment = *segment_ptr;
-
-  if (NULL == transaction) {
-    nrl_error(NRL_INSTRUMENT,
-              "cannot end an external segment on a NULL transaction");
-    goto end;
-  }
-
-  /* Sanity check that the external segment is being ended on the same
-   * transaction it was started on. Transitioning an external segment between
-   * transactions would be problematic, since times are transaction-specific.
-   * */
-  if (transaction->txn != segment->txn) {
-    nrl_error(NRL_INSTRUMENT,
-              "cannot end an external segment on a different transaction to "
-              "the one it was created on");
-    goto end;
-  }
+  char* name;
 
   /* Sanity check that the external segment is really an external segment. */
-  if (NR_SEGMENT_EXTERNAL != segment->segment->type) {
+  if (nrunlikely(NR_SEGMENT_EXTERNAL != segment->segment->type)) {
     nrl_error(NRL_INSTRUMENT,
               "unexpected external segment type: expected %d; got %d",
               (int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
-    goto end;
+    return false;
   }
 
-  nrt_mutex_lock(&transaction->lock);
-  {
-    char* name;
+  duration = nr_time_duration(segment->segment->start_time,
+                              segment->segment->stop_time);
 
-    /* Stop the transaction and save the node. */
-    nr_segment_end(segment->segment);
-    duration = nr_time_duration(segment->segment->start_time,
-                                segment->segment->stop_time);
+  /* Create metrics. */
+  name = newrelic_create_external_segment_metrics(segment->transaction,
+                                                  segment->segment, duration);
+  nr_segment_set_name(segment->segment, name);
+  nr_free(name);
 
-    /* Create metrics. */
-    name = newrelic_create_external_segment_metrics(segment->txn,
-                                                    segment->segment, duration);
-    nr_segment_set_name(segment->segment, name);
-    nr_free(name);
-  }
-  nrt_mutex_unlock(&transaction->lock);
-
-  status = true;
-
-end:
-  newrelic_destroy_external_segment(segment_ptr);
-  return status;
+  return true;
 }

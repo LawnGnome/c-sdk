@@ -17,10 +17,12 @@ static void segmentThread(Transaction& txn,
   std::uniform_int_distribution<unsigned int> distribution(1, maxTime);
 
   for (unsigned int i = 0; i < segments; i++) {
-    Segment segment(randomSegment(txn));
+    auto segment(randomSegment(txn));
 
     std::this_thread::sleep_for(
         std::chrono::milliseconds(distribution(generator)));
+
+    segment->end();
   }
 }
 

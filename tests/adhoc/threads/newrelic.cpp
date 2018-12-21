@@ -5,19 +5,19 @@
 #include "newrelic.h"
 #include "random.h"
 
-Segment randomSegment(Transaction& txn) {
+std::unique_ptr<Segment> randomSegment(Transaction& txn) {
   auto generator(defaultGenerator());
   std::uniform_int_distribution<int> distribution(0, 2);
 
   switch (distribution(generator)) {
     case 0:
-      return CustomSegment(txn, "Random", "Custom");
+      return std::make_unique<Segment>(CustomSegment(txn, "Random", "Custom"));
 
     case 1:
-      return DatastoreSegment(txn);
+      return std::make_unique<Segment>(DatastoreSegment(txn));
 
     case 2:
-      return ExternalSegment(txn);
+      return std::make_unique<Segment>(ExternalSegment(txn));
 
     default:
       throw std::logic_error("unexpected segment type");

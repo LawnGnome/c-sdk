@@ -16,7 +16,7 @@ int main(void) {
       .procedure = "GET",
       .uri = "https://httpbin.org/delay/1",
   };
-  newrelic_external_segment_t* segment = 0;
+  newrelic_segment_t* segment = 0;
 
   char* app_name = get_app_name();
   if (NULL == app_name)
@@ -47,7 +47,7 @@ int main(void) {
    * operation, for example. */
   segment = newrelic_start_external_segment(txn, &params);
   sleep(1);
-  newrelic_end_external_segment(txn, &segment);
+  newrelic_end_segment(txn, &segment);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);

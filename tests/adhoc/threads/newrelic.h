@@ -4,6 +4,7 @@
 #ifndef THREADS_NEWRELIC_HDR
 #define THREADS_NEWRELIC_HDR
 
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -63,10 +64,13 @@ class Transaction {
 
 class Segment {
  public:
-  Segment(Transaction& txn) : txn(txn.txn) {}
-  virtual ~Segment() {}
+  Segment(Transaction& txn, newrelic_segment_t* segment = NULL)
+      : segment(segment), txn(txn.txn) {}
+
+  virtual void end() { newrelic_end_segment(txn, &segment); }
 
  protected:
+  newrelic_segment_t* segment;
   newrelic_txn_t* txn;
 };
 
@@ -75,8 +79,8 @@ class CustomSegment : public Segment {
   CustomSegment(Transaction& txn,
                 const std::string& name,
                 const std::string& category)
-      : Segment(txn),
-        segment(
+      : Segment(
+            txn,
             newrelic_start_segment(txn.txn, name.c_str(), category.c_str())) {
     if (nullptr == segment) {
       throw NewRelicError(boost::str(
@@ -85,11 +89,6 @@ class CustomSegment : public Segment {
           % txn.txn % name % category));
     }
   }
-
-  virtual ~CustomSegment() { newrelic_end_segment(txn, &segment); }
-
- private:
-  newrelic_segment_t* segment;
 };
 
 class DatastoreSegment : public Segment {
@@ -112,11 +111,6 @@ class DatastoreSegment : public Segment {
           % txn.txn));
     }
   }
-
-  ~DatastoreSegment() { newrelic_end_datastore_segment(txn, &segment); }
-
- private:
-  newrelic_datastore_segment_t* segment;
 };
 
 class ExternalSegment : public Segment {
@@ -135,13 +129,8 @@ class ExternalSegment : public Segment {
           % txn.txn));
     }
   }
-
-  ~ExternalSegment() { newrelic_end_external_segment(txn, &segment); }
-
- private:
-  newrelic_external_segment_t* segment;
 };
 
-extern Segment randomSegment(Transaction& txn);
+extern std::unique_ptr<Segment> randomSegment(Transaction& txn);
 
 #endif /* THREADS_NEWRELIC_HDR */
