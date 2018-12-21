@@ -16,7 +16,7 @@ int main(void) {
   newrelic_segment_t* segment2 = 0;
 
   /* Staging account 432507 */
-  config = newrelic_new_config("C-Agent Test App 0.0.6",
+  config = newrelic_new_config("C-Agent Test App",
                                "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");
