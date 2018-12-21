@@ -23,6 +23,8 @@ typedef struct _nr_app_and_info_t {
 
   /*! The list of applications. */
   nrapplist_t* context;
+
+  nrthread_mutex_t lock;
 } nr_app_and_info_t;
 
 /*!

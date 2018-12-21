@@ -1,6 +1,7 @@
 #include "libnewrelic.h"
 #include "external.h"
 #include "segment.h"
+#include "transaction.h"
 
 #include "node_external.h"
 #include "util_logging.h"
@@ -76,15 +77,25 @@ newrelic_external_segment_t* newrelic_start_external_segment(
   /* We zero-allocate to ensure that the nr_node_external_params_t embedded
    * within the newrelic_external_segment_t struct is correctly initialised. */
   segment = nr_zalloc(sizeof(newrelic_external_segment_t));
-  segment->segment = nr_segment_start(transaction, NULL, NULL);
-  segment->txn = transaction;
+  segment->txn = transaction->txn;
 
-  nr_segment_set_external(segment->segment, &((nr_segment_external_t){
-                                                .transaction_guid = NULL,
-                                                .uri = params->uri,
-                                                .library = params->library,
-                                                .procedure = params->procedure,
-                                            }));
+  nrt_mutex_lock(&transaction->lock);
+  {
+    segment->segment = nr_segment_start(transaction->txn, NULL, NULL);
+
+    nr_segment_set_external(segment->segment,
+                            &((nr_segment_external_t){
+                                .transaction_guid = NULL,
+                                .uri = params->uri,
+                                .library = params->library,
+                                .procedure = params->procedure,
+                            }));
+  }
+  nrt_mutex_unlock(&transaction->lock);
+
+  if (NULL == segment->segment) {
+    newrelic_destroy_external_segment(&segment);
+  }
 
   return segment;
 }
@@ -92,7 +103,6 @@ newrelic_external_segment_t* newrelic_start_external_segment(
 bool newrelic_end_external_segment(newrelic_txn_t* transaction,
                                    newrelic_external_segment_t** segment_ptr) {
   nrtime_t duration;
-  char* name;
   bool status = false;
   newrelic_external_segment_t* segment = NULL;
 
@@ -115,7 +125,7 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
    * transaction it was started on. Transitioning an external segment between
    * transactions would be problematic, since times are transaction-specific.
    * */
-  if (transaction != segment->txn) {
+  if (transaction->txn != segment->txn) {
     nrl_error(NRL_INSTRUMENT,
               "cannot end an external segment on a different transaction to "
               "the one it was created on");
@@ -130,16 +140,22 @@ bool newrelic_end_external_segment(newrelic_txn_t* transaction,
     goto end;
   }
 
-  /* Stop the transaction and save the node. */
-  nr_segment_end(segment->segment);
-  duration = nr_time_duration(segment->segment->start_time,
-                              segment->segment->stop_time);
+  nrt_mutex_lock(&transaction->lock);
+  {
+    char* name;
 
-  /* Create metrics. */
-  name = newrelic_create_external_segment_metrics(segment->txn,
-                                                  segment->segment, duration);
-  nr_segment_set_name(segment->segment, name);
-  nr_free(name);
+    /* Stop the transaction and save the node. */
+    nr_segment_end(segment->segment);
+    duration = nr_time_duration(segment->segment->start_time,
+                                segment->segment->stop_time);
+
+    /* Create metrics. */
+    name = newrelic_create_external_segment_metrics(segment->txn,
+                                                    segment->segment, duration);
+    nr_segment_set_name(segment->segment, name);
+    nr_free(name);
+  }
+  nrt_mutex_unlock(&transaction->lock);
 
   status = true;
 

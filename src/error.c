@@ -10,8 +10,6 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            int priority,
                            const char* errmsg,
                            const char* errclass) {
-  char* stacktrace_json;
-
   if (NULL == transaction) {
     nrl_error(NRL_INSTRUMENT, "unable to add error to NULL transaction");
     return;
@@ -29,31 +27,40 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
     return;
   }
 
-  if (0 == transaction->options.err_enabled) {
-    nrl_error(NRL_INSTRUMENT,
-              "unable to add error to transaction when errors are disabled");
-    return;
-  }
+  nrt_mutex_lock(&transaction->lock);
+  {
+    char* stacktrace_json;
 
-  if (0 == transaction->status.recording) {
-    nrl_error(NRL_INSTRUMENT,
-              "unable to add error to transaction that is not recording");
-    return;
-  }
+    if (0 == transaction->txn->options.err_enabled) {
+      nrl_error(NRL_INSTRUMENT,
+                "unable to add error to transaction when errors are disabled");
+      goto end;
+    }
 
-  if (0 != transaction->error
-      && priority < nr_error_priority(transaction->error)) {
-    nrl_error(NRL_INSTRUMENT,
-              "an error with a higher priority already exists on transaction");
-    return;
-  }
+    if (0 == transaction->txn->status.recording) {
+      nrl_error(NRL_INSTRUMENT,
+                "unable to add error to transaction that is not recording");
+      goto end;
+    }
 
-  if (NR_FAILURE == nr_txn_record_error_worthy(transaction, priority)) {
-    nrl_error(NRL_INSTRUMENT, "unable to add error to transaction");
-    return;
-  }
+    if (0 != transaction->txn->error
+        && priority < nr_error_priority(transaction->txn->error)) {
+      nrl_error(
+          NRL_INSTRUMENT,
+          "an error with a higher priority already exists on transaction");
+      goto end;
+    }
 
-  stacktrace_json = newrelic_get_stack_trace_as_json();
-  nr_txn_record_error(transaction, priority, errmsg, errclass, stacktrace_json);
-  nr_free(stacktrace_json);
+    if (NR_FAILURE == nr_txn_record_error_worthy(transaction->txn, priority)) {
+      nrl_error(NRL_INSTRUMENT, "unable to add error to transaction");
+      goto end;
+    }
+
+    stacktrace_json = newrelic_get_stack_trace_as_json();
+    nr_txn_record_error(transaction->txn, priority, errmsg, errclass,
+                        stacktrace_json);
+    nr_free(stacktrace_json);
+  }
+end:
+  nrt_mutex_unlock(&transaction->lock);
 }

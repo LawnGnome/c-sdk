@@ -85,6 +85,7 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
   nrt_mutex_unlock(&app->app->app_lock);
   nrl_info(NRL_INSTRUMENT, "application %s connected",
            NRSAFESTR(app->app_info->appname));
+  nrt_mutex_init(&app->lock, 0);
 
   return NR_SUCCESS;
 }

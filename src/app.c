@@ -104,18 +104,24 @@ bool newrelic_destroy_app(newrelic_app_t** app) {
 
   nrl_info(NRL_INSTRUMENT, "newrelic shutting down");
 
-  nr_agent_close_daemon_connection();
-  nrl_close_log_file();
+  nrt_mutex_lock(&(*app)->lock);
+  {
+    nr_agent_close_daemon_connection();
+    nrl_close_log_file();
 
-  nr_applist_destroy(&(*app)->context);
-  nr_free((*app)->context);
+    nr_applist_destroy(&(*app)->context);
+    nr_free((*app)->context);
 
-  nr_app_info_destroy_fields((*app)->app_info);
-  nr_free((*app)->app_info);
+    nr_app_info_destroy_fields((*app)->app_info);
+    nr_free((*app)->app_info);
 
-  if ((*app)->config) {
-    nr_free((*app)->config);
+    if ((*app)->config) {
+      nr_free((*app)->config);
+    }
   }
+  nrt_mutex_unlock(&(*app)->lock);
+
+  nrt_mutex_destroy(&(*app)->lock);
 
   nr_realfree((void**)app);
 

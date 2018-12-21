@@ -59,7 +59,8 @@ static void test_start_transaction_null_name_web(void** state) {
   txn = newrelic_start_transaction(appWithInfo, NULL, true);
 
   assert_non_null(txn);
-  nr_txn_destroy(&txn);
+  assert_non_null(txn->txn);
+  newrelic_end_transaction(&txn);
 }
 
 /*
@@ -77,7 +78,8 @@ static void test_start_transaction_null_name_background(void** state) {
   txn = newrelic_start_transaction(appWithInfo, NULL, false);
 
   assert_non_null(txn);
-  nr_txn_destroy(&txn);
+  assert_non_null(txn->txn);
+  newrelic_end_transaction(&txn);
 }
 
 /*
@@ -95,7 +97,8 @@ static void test_start_transaction_string_name_web(void** state) {
   txn = newrelic_start_transaction(appWithInfo, "TheTransaction", true);
 
   assert_non_null(txn);
-  nr_txn_destroy(&txn);
+  assert_non_null(txn->txn);
+  newrelic_end_transaction(&txn);
 }
 
 /*
@@ -113,7 +116,8 @@ static void test_start_transaction_string_name_background(void** state) {
   txn = newrelic_start_transaction(appWithInfo, "TheTransaction", false);
 
   assert_non_null(txn);
-  nr_txn_destroy(&txn);
+  assert_non_null(txn->txn);
+  newrelic_end_transaction(&txn);
 }
 
 /*

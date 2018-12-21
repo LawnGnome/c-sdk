@@ -62,7 +62,7 @@ typedef struct _newrelic_datastore_segment_t newrelic_datastore_segment_t;
  * by adding custom attributes or recording errors only after it has been
  * started.
  */
-typedef struct _nrtxn_t newrelic_txn_t;
+typedef struct _newrelic_txn_t newrelic_txn_t;
 
 /*!
  * @brief Log levels.  An enumeration of the possible log levels for an agent
@@ -412,7 +412,7 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
  * @return false if transaction is NULL or points to NULL; false if data cannot
  * be sent to newrelic; true otherwise.
  */
-bool newrelic_end_transaction(newrelic_txn_t** transaction);
+bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr);
 
 /*!
  * @brief Add a custom integer attribute to a transaction.

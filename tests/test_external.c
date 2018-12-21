@@ -6,6 +6,7 @@
 
 #include "libnewrelic.h"
 #include "external.h"
+#include "transaction.h"
 #include "util_memory.h"
 
 #include "test.h"
@@ -56,7 +57,7 @@ static void test_start_external_segment_valid(void** state) {
   segment = newrelic_start_external_segment(txn, &params);
   assert_non_null(segment);
   assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
-  assert_ptr_equal(txn, segment->txn);
+  assert_ptr_equal(txn->txn, segment->txn);
 
   /* Ensure the uri was actually copied. */
   assert_string_equal(params.uri,
@@ -74,7 +75,7 @@ static void test_start_external_segment_valid(void** state) {
   segment = newrelic_start_external_segment(txn, &params);
   assert_non_null(segment);
   assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
-  assert_ptr_equal(txn, segment->txn);
+  assert_ptr_equal(txn->txn, segment->txn);
   assert_string_equal(params.uri,
                       segment->segment->typed_attributes.external.uri);
   assert_ptr_not_equal(params.uri,
@@ -134,8 +135,9 @@ static void test_end_external_segment_valid(void** state) {
 
   assert_true(newrelic_end_external_segment(txn, &segment));
 
-  assert_string_equal("External/newrelic.com/all",
-                      nr_string_get(txn->trace_strings, axiom_segment->name));
+  assert_string_equal(
+      "External/newrelic.com/all",
+      nr_string_get(txn->txn->trace_strings, axiom_segment->name));
 
   /* Ensure that segment_ptr was freed by checking that it's NULL here (and by
    * checking that the test doesn't leak). */
