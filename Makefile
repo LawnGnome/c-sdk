@@ -127,11 +127,11 @@ run_tests: vendor libnewrelic.a
 vendor:
 	$(MAKE) -C vendor
 
-.PHONY: axiom
+.PHONY: axiom php_agent/axiom/libaxiom.a
 axiom: php_agent/axiom/libaxiom.a
 
 php_agent/axiom/libaxiom.a: export CFLAGS := $(C_AGENT_CFLAGS) -DNR_CAGENT
-php_agent/axiom/libaxiom.a: php_agent/Makefile
+php_agent/axiom/libaxiom.a:
 	$(MAKE) -C php_agent/axiom
 
 .PHONY: axiom-clean
