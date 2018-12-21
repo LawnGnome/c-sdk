@@ -82,8 +82,12 @@ newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
     return NULL;
   }
 
-  options = newrelic_get_transaction_options(app->config);
-  transaction->txn = nr_txn_begin(app->app, options, attribute_config);
+  nrt_mutex_lock(&app->lock);
+  {
+    options = newrelic_get_transaction_options(app->config);
+    transaction->txn = nr_txn_begin(app->app, options, attribute_config);
+  }
+  nrt_mutex_unlock(&app->lock);
   if (NULL == transaction->txn) {
     nrl_error(NRL_INSTRUMENT, "unable to start transaction");
     nr_free(transaction);
