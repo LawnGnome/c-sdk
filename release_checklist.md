@@ -42,6 +42,8 @@
 
 7. If the release process and testing regime uncover problems that require code changes, make those changes on the release branch and then merge into master.  Be sure to rerun the [c-agent-release-tag](https://c-agent-build.pdx.vm.datanerd.us/job/c-agent-release-branch/) to tag the new HEAD of the branch.
 
-8. [For production only] Send an email to `agent-releases@newrelic.com` with the release notes.
+8. Build the source tarball by running `tools/build-tarball.bash`. Send it to any customers who are appropriately NDA'd.
 
-9. [For production only] Are there new docs staged? If so tell the `#documentation` `@hero` to release the docs!
+9. [For production only] Send an email to `agent-releases@newrelic.com` with the release notes.
+
+10. [For production only] Are there new docs staged? If so tell the `#documentation` `@hero` to release the docs!

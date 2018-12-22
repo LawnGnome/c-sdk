@@ -38,3 +38,8 @@ libnewrelic.o
 gotags
 tags
 *.sw?
+
+#
+# Release byproducts
+#
+*.tar.xz
