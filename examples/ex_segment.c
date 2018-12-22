@@ -60,7 +60,9 @@ int main(void) {
 
   seg_c = newrelic_start_segment(txn, "C", "Secret");
   newrelic_set_segment_parent(seg_c, seg_a);
-  sleep(1);
+  /* Instead of sleeping, we'll just manually time seg_c and immediately end
+   * it. */
+  newrelic_set_segment_timing(seg_c, 1000000, 500000);
   newrelic_end_segment(txn, &seg_c);
 
   newrelic_end_segment(txn, &seg);
