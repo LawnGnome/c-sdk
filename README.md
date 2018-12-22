@@ -1,70 +1,93 @@
 # New Relic C Agent
 
-### Description
-Generic library to communicate with New Relic.
+A generic library to communicate with New Relic from any language with a C FFI
+mechanism.
+
+## Building the agent
 
 ### Requirements
 
+* gcc or clang (any version in the last ten years is likely fine)
 * cmake
-* cmocka 1.1.1, (available in the `vendor` directory)
 * golang 1.4+
 * libpcre 8.20+
 
-### Getting started
+Note that the unit tests require cmocka 1.1.1 or later, but this is vendored in
+the `vendor` directory.
 
-Clone the agent
-```
-git clone git@source.datanerd.us:c-agent/c-agent.git
-```
+### Agent
 
-Compile the agent
-```
+Building the agent should be as simple as:
+
+```sh
 make
 ```
 
-Compile and run unit tests
-```
-make run_tests
+This will create a `libnewrelic.a` in this directory, ready to link against.
+
+### Daemon
+
+To build the daemon, run:
+
+```sh
+make daemon
 ```
 
-Compile and start the daemon
-```
-make daemon
+This creates `php_agent/bin/daemon`. You can then start the daemon in the
+foreground with:
+
+```sh
 ./php_agent/bin/daemon -f --logfile stdout --loglevel debug
 ```
 
-Compile and run the test app, (the `test_app` requires the agent to be built
-and a running daemon to work properly -- see above)
+## Using the agent
 
-```
-cd tests/adhoc/test_app
-make
-./test_app
-```
+API usage information can be found in [the guide](GUIDE.md).
 
-Check out the data in the [PHP test account](https://staging.newrelic.com/accounts/432507/applications/)!
+### Headers
 
-### What do we give customers?
+Note that only `include/libnewrelic.h` contains the stable, public API. Other
+header files are internal to the agent, and their stability is not guaranteed.
 
-```
-libnewrelic
-|-- bin
-|   |-- newrelic-daemon
-|-- examples
-    |-- *
-|-- libnewrelic.h
-|-- libnewrelic.a
-|-- GUIDE.md
-|-- LICENSE.txt
+### API reference
+
+You can use [doxygen](http://www.doxygen.nl/) to generate API reference
+documentation:
+
+```sh
+doxygen
 ```
 
-### Dependencies 
+This will create HTML output in the `html` directory.
 
-The C Agent is dependent on code [from the php_agent repository](https://source.datanerd.us/php-agent/php_agent). This code is managed via git subtrees. This code lives in the `php_agent` folder of this repository. 
+## Running tests
 
-For day to day development, you don't need to be aware of this, i.e. this repo will `make` with additional steps.
+### Unit tests
 
-When we need a fix/feature that's been added to the upstream [php_agent repository](https://source.datanerd.us/php-agent/php_agent), we use `git subtree` to pull in those changes. We've also codified this process in the
+To compile and run the unit tests:
+
+```sh
+make run_tests
+```
+
+### Ad hoc tests
+
+A number of ad hoc tests have been provided. More information can be found in
+[the ad hoc test readme](tests/adhoc/README.md).
+
+## Dependencies 
+
+The C Agent is dependent on code
+[from the php_agent repository](https://source.datanerd.us/php-agent/php_agent).
+This code is managed via git subtrees. This code lives in the `php_agent`
+folder of this repository. 
+
+For day to day development, you don't need to be aware of this, i.e. this repo
+will `make` with additional steps.
+
+When we need a fix/feature that's been added to the upstream
+[php_agent repository](https://source.datanerd.us/php-agent/php_agent), we use
+`git subtree` to pull in those changes. We've also codified this process in the
 
     ./tools/manage-subtree.bash
     
@@ -76,4 +99,6 @@ invokation to set the commits SHAs you want to fetch, and then run
 
     ./tools/manage-subtree.bash update_subtrees
     
-The `manage-subtree.bash` script will also automatically update a `vendor.xml` file for each subtree dependency. These files include the relative folder name managed by `git subtree`, as well as the current commit SHA.      
+The `manage-subtree.bash` script will also automatically update a `vendor.xml`
+file for each subtree dependency. These files include the relative folder name
+managed by `git subtree`, as well as the current commit SHA.      
