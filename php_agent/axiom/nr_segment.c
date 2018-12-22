@@ -323,8 +323,7 @@ static void nr_segment_iterate_helper(nr_segment_t* root,
         }
 
         /* Free the segment */
-        nr_segment_destroy_typed_attributes(root->type,
-                                            &root->typed_attributes);
+        nr_segment_destroy_fields(root);
         nr_free(root);
 
         /* If there are no more children in this family, if this is
