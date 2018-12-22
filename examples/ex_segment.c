@@ -13,6 +13,8 @@ int main(void) {
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
   newrelic_segment_t* seg = 0;
+  newrelic_segment_t* seg_a = 0;
+  newrelic_segment_t* seg_c = 0;
 
   char* app_name = get_app_name();
   if (NULL == app_name)
@@ -39,16 +41,33 @@ int main(void) {
 
   /* Fake custom segments */
   seg = newrelic_start_segment(txn, NULL, NULL);
-  sleep(2);
+  sleep(1);
   newrelic_end_segment(txn, &seg);
 
-  seg = newrelic_start_segment(txn, "A", "Secret");
-  sleep(2);
-  newrelic_end_segment(txn, &seg);
+  /* Set up a nested structure of segments, and reparent one of them.
+   *
+   * A is the parent of B, which by default is the parent of C. However, we
+   * will reparent C to be the direct child of A.
+   *
+   * Note that this means that seg_a must outlive (at least) the call to
+   * newrelic_set_segment_parent() for seg_c.
+   */
+  seg_a = newrelic_start_segment(txn, "A", "Secret");
+  sleep(1);
 
   seg = newrelic_start_segment(txn, "B", "Secret");
-  sleep(2);
+  sleep(1);
+
+  seg_c = newrelic_start_segment(txn, "C", "Secret");
+  newrelic_set_segment_parent(seg_c, seg_a);
+  /* Instead of sleeping, we'll just manually time seg_c and immediately end
+   * it. */
+  newrelic_set_segment_timing(seg_c, 1000000, 500000);
+  newrelic_end_segment(txn, &seg_c);
+
   newrelic_end_segment(txn, &seg);
+
+  newrelic_end_segment(txn, &seg_a);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
