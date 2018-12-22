@@ -42,8 +42,23 @@ foreground with:
 
 ## Using the agent
 
+API usage information can be found in [the guide](GUIDE.md).
+
+### Headers
+
 Note that only `include/libnewrelic.h` contains the stable, public API. Other
 header files are internal to the agent, and their stability is not guaranteed.
+
+### API reference
+
+You can use [doxygen](http://www.doxygen.nl/) to generate API reference
+documentation:
+
+```sh
+doxygen
+```
+
+This will create HTML output in the `html` directory.
 
 ## Running tests
 
