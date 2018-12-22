@@ -4,15 +4,21 @@
 
 ### New Features ###
 
+### Bug Fixes ###
+
+### End of Life Notices ###
+
+### Upgrade Notices ###
+
+## 0.1.0 ##
+
+### New Features ###
+
 - Segments may now be reparented manually using the new
   `newrelic_set_segment_parent()` function.
 
 - Segments now support manual timing via the new
   `newrelic_set_segment_timing()` function.
-
-### Bug Fixes ###
-
-### End of Life Notices ###
 
 ### Upgrade Notices ###
 
