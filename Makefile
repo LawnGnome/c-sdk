@@ -100,6 +100,17 @@ export AGENT_VERSION VERSION_FLAGS
 
 all: libnewrelic.a
 
+ifeq (Darwin,$(UNAME))
+#
+# This rule builds a static axiom library and a static C agent library, and
+# then uses macOS's special libtool to smoosh them together into a single,
+# beautiful library.
+#
+LIBTOOL := /usr/bin/libtool
+
+libnewrelic.a: axiom src-static
+	$(LIBTOOL) -static -o $@ php_agent/axiom/libaxiom.a src/libnewrelic.a
+else
 #
 # This rule builds a static axiom library and a static C agent library, and
 # then uses GNU ar's MRI support to smoosh them together into a single,
@@ -111,6 +122,7 @@ all: libnewrelic.a
 #
 libnewrelic.a: combine.mri axiom src-static
 	$(AR) -M < $<
+endif
 
 .PHONY: static
 static: libnewrelic.a
