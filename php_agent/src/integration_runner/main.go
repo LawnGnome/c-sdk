@@ -30,7 +30,7 @@ var (
 	flagCollector = flag.String("collector", "", "the collector host")
 	flagLoglevel  = flag.String("loglevel", "", "agent log level")
 	flagOutputDir = flag.String("output-dir", ".", "")
-	flagPattern   = flag.String("pattern", "test_*.php", "shell pattern describing tests to run")
+	flagPattern   = flag.String("pattern", "test_*", "shell pattern describing tests to run")
 	flagPHP       = flag.String("php", "", "")
 	flagPort      = flag.String("port", defaultPort(), "")
 	flagRetry     = flag.Int("retry", 0, "maximum retry attempts")
@@ -245,8 +245,7 @@ func main() {
 	var err error
 	*flagCGI, err = exec.LookPath(*flagCGI)
 	if nil != err {
-		fmt.Fprintf(os.Stderr, "unable to find cgi: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "WARNING: unable to find cgi: %v\n", err)
 	}
 
 	// Start server for external requests.
@@ -323,9 +322,10 @@ func main() {
 	tests := make([]*integration.Test, 0, len(testFiles))
 	testsToRun := make(chan *integration.Test, len(testFiles))
 	for _, filename := range testFiles {
-		test := integration.ParseTestFile(filename)
-		tests = append(tests, test)
-		testsToRun <- test
+		if test := integration.ParseTestFile(filename); test != nil {
+			tests = append(tests, test)
+			testsToRun <- test
+		}
 	}
 
 	runTests(testsToRun, *flagWorkers)
