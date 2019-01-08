@@ -71,6 +71,9 @@ type Test struct {
 	// to 0.
 	Duration time.Duration
 
+	// Adaptions made to the configuration of C Agent tests.
+	Config string
+
 	// If the test ran to completion, contains one element for each
 	// failed expectation.
 	Failed   bool
@@ -90,6 +93,10 @@ func (c ComparisonFailure) Error() string {
 func (t *Test) IsWeb() bool {
 	_, found := t.Env["REQUEST_METHOD"]
 	return found || len(t.headers) > 0
+}
+
+func (t *Test) IsPHP() bool {
+	return strings.HasSuffix(t.Path, ".php")
 }
 
 func (t *Test) ShouldCheckResponseHeaders() bool {
@@ -144,6 +151,9 @@ func (t *Test) MakeRun(ctx *Context) (Tx, error) {
 	settings := merge(ctx.Settings, t.Settings)
 	settings["newrelic.appname"] = t.Name
 
+	if t.IsC() {
+		return CTx(ScriptFile(t.Path), env, settings, t.headers, ctx)
+	}
 	if t.IsWeb() {
 		return CgiTx(ScriptFile(t.Path), env, settings, t.headers, ctx)
 	}
