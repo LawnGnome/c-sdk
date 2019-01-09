@@ -15,12 +15,13 @@ int main(void) {
   newrelic_config_t* config = 0;
   newrelic_segment_t* segment1 = 0;
   newrelic_segment_t* segment2 = 0;
-  char* app_name;
+  const char* version = newrelic_version();
+  char buffer[25];
 
-  sprintf(app_name, "C-Agent Test App %s", newrelic_version());
+  snprintf(buffer, 25, "C-Agent Test App %s", version);
 
   /* Staging account 432507 */
-  config = newrelic_new_config(app_name,
+  config = newrelic_new_config(buffer,
                                "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");

@@ -54,8 +54,3 @@ tags
 #
 .idea/
 
-#
-# working on the php_agent code inside the c_agent
-#
-php_agent/*
-
