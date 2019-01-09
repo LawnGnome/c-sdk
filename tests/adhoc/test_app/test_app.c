@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "libnewrelic.h"
+#include "version.h"
 
 int main(void) {
   int priority = 50;
@@ -14,9 +15,12 @@ int main(void) {
   newrelic_config_t* config = 0;
   newrelic_segment_t* segment1 = 0;
   newrelic_segment_t* segment2 = 0;
+  char* app_name;
+
+  sprintf(app_name, "C-Agent Test App %s", newrelic_version());
 
   /* Staging account 432507 */
-  config = newrelic_new_config("C-Agent Test App",
+  config = newrelic_new_config(app_name,
                                "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");
