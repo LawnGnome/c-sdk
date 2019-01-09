@@ -1,11 +1,11 @@
-THISDIR  := $(shell dirname $(shell readlink -f $(lastword $(MAKEFILE_LIST))))
+THISDIR  := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 #
 # Set up the basic variables required to build the C agent. This is mostly
 # knowing where we are in the filesystem and setting up the appropriate
 # compiler flags.
 #
-C_AGENT_ROOT := $(shell readlink -f $(THISDIR)/..)
+C_AGENT_ROOT := $(abspath $(THISDIR)/..)
 
 #
 # The PHP agent's build system does a bunch of useful platform detection that
@@ -45,6 +45,7 @@ C_AGENT_CFLAGS += -Wswitch
 C_AGENT_CFLAGS += -Wswitch-enum
 C_AGENT_CFLAGS += -Wuninitialized
 C_AGENT_CFLAGS += -Wunused-label
+C_AGENT_CFLAGS += -Wno-typedef-redefinition
 endif
 
 #
