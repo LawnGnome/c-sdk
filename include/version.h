@@ -14,6 +14,6 @@
  * empty, or the environment variable is not defined, return the string
  * "NEWRELIC_VERSION".
  */
-const char* newrelic_version(void);
+extern const char* newrelic_version(void);
 
 #endif /* LIBNEWRELIC_VERSION_H */

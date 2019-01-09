@@ -48,3 +48,14 @@ tags
 *.tar.lz
 *.tar.xz
 *.tar.Z
+
+#
+# Byproducts of jetbrains
+#
+.idea/
+
+#
+# working on the php_agent code inside the c_agent
+#
+php_agent/*
+
