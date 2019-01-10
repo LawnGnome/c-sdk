@@ -656,6 +656,23 @@ bool newrelic_set_segment_timing(newrelic_segment_t* segment,
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
 
+/*
+ * NEWRELIC_VERSION ultimately comes from the top-level VERSION file.
+ */
+#ifndef NEWRELIC_VERSION
+#define NEWRELIC_VERSION "unreleased"
+#endif
+
+/*!
+ * @brief Return the string in this repository's top-level VERSION file
+ *
+ * @return The string in this repository's top-level VERSION file, i.e. the
+ * stringified environment variable NEWRELIC_VERSION. If this file is missing or
+ * empty, or the environment variable is not defined, return the string
+ * "NEWRELIC_VERSION".
+ */
+const char* newrelic_version(void);
+
 #ifdef __cplusplus
 }
 #endif

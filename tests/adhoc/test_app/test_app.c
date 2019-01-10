@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 #include "libnewrelic.h"
-#include "version.h"
 
 int main(void) {
   int priority = 50;
@@ -16,9 +15,10 @@ int main(void) {
   newrelic_segment_t* segment1 = 0;
   newrelic_segment_t* segment2 = 0;
   const char* version = newrelic_version();
-  char buffer[25];
+  char* buffer;
 
-  snprintf(buffer, 25, "C-Agent Test App %s", version);
+//  snprintf(buffer, 25, "C-Agent Test App %s", version);
+  asprintf(&buffer, "C-Agent Test App %s", version);
 
   /* Staging account 432507 */
   config = newrelic_new_config(buffer,
@@ -72,6 +72,8 @@ int main(void) {
   newrelic_end_transaction(&txn);
 
   newrelic_destroy_app(&app);
+
+  free(buffer);
 
   return 0;
 }

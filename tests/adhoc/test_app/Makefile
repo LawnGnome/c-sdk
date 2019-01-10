@@ -1,7 +1,7 @@
 LIBNEWRELIC_INCLUDE := ../../../include
 LIBNEWRELIC_LIB := ../../../libnewrelic.a
 
-CFLAGS := -O0 -g3
+CFLAGS := -O0 -g3 -v
 CPPFLAGS := -I$(LIBNEWRELIC_INCLUDE) $(shell pcre-config --cflags)
 LDFLAGS := -rdynamic
 LIBS := $(LIBNEWRELIC_LIB) -lpcre -pthread -lm
