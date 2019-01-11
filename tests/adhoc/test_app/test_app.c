@@ -17,7 +17,6 @@ int main(void) {
   const char* version = newrelic_version();
   char* buffer;
 
-//  snprintf(buffer, 25, "C-Agent Test App %s", version);
   asprintf(&buffer, "C-Agent Test App %s", version);
 
   /* Staging account 432507 */
