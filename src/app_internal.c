@@ -5,7 +5,6 @@
 
 #include "libnewrelic.h"
 #include "app.h"
-#include "version.h"
 
 #include "nr_agent.h"
 #include "util_logging.h"

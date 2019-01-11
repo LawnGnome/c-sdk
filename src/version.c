@@ -1,5 +1,5 @@
 #include "util_strings.h"
-#include "version.h"
+#include "libnewrelic.h"
 
 /*
  * NEWRELIC_VERSION ultimately comes from the top-level VERSION file.

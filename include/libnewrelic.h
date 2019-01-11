@@ -656,13 +656,6 @@ bool newrelic_set_segment_timing(newrelic_segment_t* segment,
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
 
-/*
- * NEWRELIC_VERSION ultimately comes from the top-level VERSION file.
- */
-#ifndef NEWRELIC_VERSION
-#define NEWRELIC_VERSION "unreleased"
-#endif
-
 /*!
  * @brief Return the string in this repository's top-level VERSION file
  *
