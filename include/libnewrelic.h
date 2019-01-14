@@ -657,12 +657,11 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
 
 /*!
- * @brief Return the string in this repository's top-level VERSION file
+ * @brief Get a string of the VERSION
  *
- * @return The string in this repository's top-level VERSION file, i.e. the
- * stringified environment variable NEWRELIC_VERSION. If this file is missing or
- * empty, or the environment variable is not defined, return the string
- * "NEWRELIC_VERSION".
+ * @return A string that represents the current running VERSION if
+ * the VERSION in unknown the string "NEWRELIC_VERSION" will be
+ * returned.
  */
 const char* newrelic_version(void);
 
