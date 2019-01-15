@@ -657,11 +657,13 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
 
 /*!
- * @brief Get a string of the VERSION
+ * @brief Get the agent version.
  *
- * @return A string that represents the current running VERSION if
- * the VERSION in unknown the string "NEWRELIC_VERSION" will be
+ * @return A NULL terminated string containing the C agent version number. If
+ * the version number is unavailable, the string "NEWRELIC_VERSION" will be
  * returned.
+ *
+ * This string is owned by the agent, and must not be freed or modified.
  */
 const char* newrelic_version(void);
 
