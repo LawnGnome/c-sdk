@@ -5,6 +5,7 @@
 
 #include "app.h"
 #include "nr_txn.h"
+#include "nr_segment_private.h"
 #include "util_memory.h"
 
 /*! @brief Provides a fake app ready to be used in a transaction. */
@@ -44,6 +45,15 @@ int txn_group_setup(void** state) {
   txn->txn->trace_strings = nr_string_pool_create();
   nr_stack_init(&txn->txn->parent_stack, NR_STACK_DEFAULT_CAPACITY);
 
+  txn->txn->segment_root = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_children_init(&txn->txn->segment_root->children);
+  txn->txn->segment_root->start_time = nr_get_time();
+  nr_txn_set_current_segment(txn->txn, txn->txn->segment_root);
+  txn->txn->segment_count = 1;
+
+  txn->txn->root_kids_duration = 0;
+  txn->txn->cur_kids_duration = &txn->txn->root_kids_duration;
+
   *state = txn;
   return 0;  // tells cmocka setup completed, 0==OK
 }
@@ -64,11 +74,8 @@ int txn_group_teardown(void** state) {
 
   nrt_mutex_destroy(&txn->lock);
 
-  nr_stack_destroy_fields(&txn->txn->parent_stack);
-  nr_string_pool_destroy(&txn->txn->trace_strings);
-  nrm_table_destroy(&txn->txn->scoped_metrics);
-  nrm_table_destroy(&txn->txn->unscoped_metrics);
-  nr_free(txn->txn);
+  nr_txn_destroy(&txn->txn);
+  nr_free(txn);
 
   return 0;  // tells cmocka teardown completed, 0==OK
 }

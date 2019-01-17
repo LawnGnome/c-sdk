@@ -43,7 +43,6 @@ int __wrap_nr_agent_try_daemon_connect(int time_limit_ms NRUNUSED) {
 
 static void test_init_null_socket(void** state NRUNUSED) {
   nrapplist_t* ret = NULL;
-  will_return(__wrap_nr_applist_create, true);
   ret = newrelic_init(NULL);
   assert_null(ret);
 }
@@ -83,6 +82,7 @@ static void test_init_daemon_connect_success(void** state NRUNUSED) {
   will_return(__wrap_nr_agent_try_daemon_connect, 1);
   ret = newrelic_init("daemon socket");
   assert_non_null(ret);
+  nr_applist_destroy(&ret);
 }
 
 int main(void) {

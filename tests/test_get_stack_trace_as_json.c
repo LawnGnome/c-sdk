@@ -46,6 +46,7 @@ static void test_backtrace_is_jsonish(void** state NRUNUSED) {
   // free 'em up
   nr_free(stacktrace_json);
   nro_delete(obj);
+  nr_free(stacktrace_json2);
 }
 
 #ifndef HAVE_BACKTRACE

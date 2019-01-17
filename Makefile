@@ -11,6 +11,8 @@
 # - dynamic:   Builds libnewrelic.so
 # - static:    Builds libnewrelic.a
 # - run_tests: Runs the unit tests
+# - tests:     Builds, but does not run, the unit tests
+# - valgrind:  Runs the unit tests under valgrind
 #
 
 include make/config.mk
@@ -99,6 +101,21 @@ daemon-clean:
 
 .PHONY: dynamic
 dynamic: libnewrelic.so
+
+#
+# Unit test related targets.
+#
+.PHONY: tests
+tests: vendor libnewrelic.a
+	$(MAKE) -C tests tests
+
+.PHONY: run_tests
+run_tests: vendor libnewrelic.a
+	$(MAKE) -C tests run_tests
+
+.PHONY: valgrind
+valgrind: vendor libnewrelic.a
+	$(MAKE) -C tests valgrind
 
 #
 # We build the shared library at the top level, since it's easiest to just take

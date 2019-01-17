@@ -3,6 +3,9 @@
 #
 # all:       Builds but does not run the tests.
 # run_tests: Builds and runs the tests.
+# valgrind:  Builds and runs the tests under valgrind.
+
+VALGRIND := valgrind
 
 #
 # Operating system detection.
@@ -11,7 +14,7 @@ include ../php_agent/make/config.mk
 
 # These flags that are required to build the tests, and should be unioned with
 # any flags inherited from the environment.
-TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE)
+TEST_CFLAGS := -std=gnu99 -pthread $(CMOCKA_INCLUDE) -g
 
 TEST_CFLAGS += -Wall
 TEST_CFLAGS += -Werror
@@ -206,9 +209,42 @@ check run_tests: $(RUNNABLE_TESTS:%=%.phony) Makefile | tests
 # and any output files.
 #
 clean:
-	rm -f *.gcov *.gcno *.gcda
+	rm -f *.gcov *.gcno *.gcda *.valgrind.log
 	rm -f *.d *.o $(TESTS)
 	rm -rf .deps *.dSYM
+
+#
+# Valgrind variables. These aren't defined at the top due to the extreme
+# unlikeliness that we'll ever want to override them at runtime, but can be
+# overridden if you really want to.
+#
+CHECK_VALGRIND_OUTPUT := $(C_AGENT_ROOT)/php_agent/make/check_valgrind_output.awk
+
+#
+# The exit code handling below is subtle. Valgrind returns the exit code of the
+# called test, which (if it's non-zero) we need to detect to abort the for loop
+# manually (by default, the exit code never makes it back to make, as the only
+# exit code make sees is the eventual one from the for loop). So we grab it in
+# $TEST_EXIT_CODE, then check that after we've finished reporting and exit if
+# needed.
+#
+# We _also_ need to abort if Valgrind itself detected errors. You can't
+# configure Valgrind to report a non-zero exit code for its own errors _and_
+# the underlying program's exit code (it's one or the other), so we'll do this
+# by post-processing the already post-processed output from
+# CHECK_VALGRIND_OUTPUT. Ugly, but effective.
+#
+.PHONY: valgrind
+valgrind: tests Makefile
+	@for T in $(TESTS); do \
+	   $(VALGRIND) --tool=memcheck --num-callers=30 --dsymutil=yes --leak-check=full --show-reachable=yes --log-file=$$T.valgrind.log ./$$T $(TESTARGS); \
+	   TEST_EXIT_CODE=$$?; \
+	   VALGRIND_RESULTS=$$(VALGRIND_VERBOSE=1 $(CHECK_VALGRIND_OUTPUT) $$T.valgrind.log); \
+	   printf "%42s with %s\n" ' ' "$$VALGRIND_RESULTS"; \
+	   test "$$TEST_EXIT_CODE" -ne 0 && exit "$$TEST_EXIT_CODE"; \
+(	   echo "$$VALGRIND_RESULTS" | grep -Eqv '^0 errors from 0 contexts') && exit 1; \
+	done; \
+	exit 0;
 
 #
 # Dependency handling. When we build a .o file, we also build a .d file

@@ -13,6 +13,7 @@
 
 static void test_segment_set_parent(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+  newrelic_segment_t* root = newrelic_start_segment(txn, NULL, NULL);
   newrelic_segment_t* a = newrelic_start_segment(txn, NULL, NULL);
   newrelic_segment_t* b = newrelic_start_segment(txn, NULL, NULL);
 
@@ -25,8 +26,12 @@ static void test_segment_set_parent(void** state) {
   assert_ptr_equal(b->segment, a->segment->parent);
   assert_ptr_equal(a->segment, b->segment->children.children[0]);
 
-  newrelic_end_segment(txn, &a);
+  assert_true(newrelic_set_segment_parent(a, root));
+  assert_true(newrelic_set_segment_parent(b, a));
+
   newrelic_end_segment(txn, &b);
+  newrelic_end_segment(txn, &a);
+  newrelic_end_segment(txn, &root);
 }
 
 static void test_segment_set_timing(void** state) {
@@ -74,16 +79,23 @@ static void test_segment_validate_empty_name(void** state NRUNUSED) {
 
 int main(void) {
   const struct CMUnitTest segment_tests[] = {
-      cmocka_unit_test(test_segment_set_parent),
-      cmocka_unit_test(test_segment_set_timing),
-      cmocka_unit_test(test_segment_validate_success),
-      cmocka_unit_test(test_segment_validate_failure),
-      cmocka_unit_test(test_segment_validate_null_in),
-      cmocka_unit_test(test_segment_validate_empty_in),
-      cmocka_unit_test(test_segment_validate_null_name),
-      cmocka_unit_test(test_segment_validate_empty_name),
+      cmocka_unit_test_setup_teardown(test_segment_set_parent, txn_group_setup,
+                                      txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_set_timing, txn_group_setup,
+                                      txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_validate_success,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_validate_failure,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_validate_null_in,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_validate_empty_in,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_validate_null_name,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_segment_validate_empty_name,
+                                      txn_group_setup, txn_group_teardown),
   };
 
-  return cmocka_run_group_tests(segment_tests, txn_group_setup,
-                                txn_group_teardown);
+  return cmocka_run_group_tests(segment_tests, NULL, NULL);
 }

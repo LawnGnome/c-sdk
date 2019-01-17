@@ -64,6 +64,7 @@ int main(int argc __attribute__((__unused__)),
 
   run(app);
   newrelic_destroy_app(&app);
+  free(cfg);
 
   return 0;
 }
