@@ -48,3 +48,9 @@ tags
 *.tar.lz
 *.tar.xz
 *.tar.Z
+
+#
+# Byproducts of jetbrains
+#
+.idea/
+

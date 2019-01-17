@@ -656,6 +656,17 @@ bool newrelic_set_segment_timing(newrelic_segment_t* segment,
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
 
+/*!
+ * @brief Get the agent version.
+ *
+ * @return A NULL terminated string containing the C agent version number. If
+ * the version number is unavailable, the string "NEWRELIC_VERSION" will be
+ * returned.
+ *
+ * This string is owned by the agent, and must not be freed or modified.
+ */
+const char* newrelic_version(void);
+
 #ifdef __cplusplus
 }
 #endif
