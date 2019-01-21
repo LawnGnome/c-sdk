@@ -13,10 +13,6 @@ typedef struct _newrelic_segment_t {
   nr_segment_t* segment;
   nrtxn_t* transaction;
 
-  /* Fields related to exclusive time calculation. */
-  nrtime_t kids_duration;
-  nrtime_t* kids_duration_save;
-
   /* Type fields. Which union is valid depends on segment->type, which is the
    * source of truth for what type of segment this is.
    *

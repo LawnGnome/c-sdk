@@ -9,17 +9,14 @@
 #include "util_strings.h"
 #include "util_url.h"
 
-static char* newrelic_create_external_segment_metrics(
-    nrtxn_t* txn,
-    const nr_segment_t* segment,
-    nrtime_t duration) {
+static char* newrelic_create_external_segment_metrics(nr_segment_t* segment) {
   const char* domain;
   int domainlen = 0;
   char* metric_name;
   const char* uri = segment->typed_attributes.external.uri;
 
   /* Rollup metric */
-  nrm_force_add(txn->unscoped_metrics, "External/all", duration);
+  nr_segment_add_metric(segment, "External/all", false);
 
   domain = nr_url_extract_domain(uri, nr_strlen(uri), &domainlen);
   if ((0 == domain) || (domainlen <= 0)) {
@@ -30,7 +27,7 @@ static char* newrelic_create_external_segment_metrics(
   metric_name = nr_formatf("External/%.*s/all", domainlen, domain);
 
   /* Scoped metric */
-  nrm_add(txn->scoped_metrics, metric_name, duration);
+  nr_segment_add_metric(segment, metric_name, true);
 
   return metric_name;
 }
@@ -88,7 +85,6 @@ newrelic_segment_t* newrelic_start_external_segment(
 }
 
 bool newrelic_end_external_segment(newrelic_segment_t* segment) {
-  nrtime_t duration;
   char* name;
 
   /* Sanity check that the external segment is really an external segment. */
@@ -99,12 +95,8 @@ bool newrelic_end_external_segment(newrelic_segment_t* segment) {
     return false;
   }
 
-  duration = nr_time_duration(segment->segment->start_time,
-                              segment->segment->stop_time);
-
   /* Create metrics. */
-  name = newrelic_create_external_segment_metrics(segment->transaction,
-                                                  segment->segment, duration);
+  name = newrelic_create_external_segment_metrics(segment->segment);
   nr_segment_set_name(segment->segment, name);
   nr_free(name);
 
