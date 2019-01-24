@@ -13,6 +13,7 @@ int main(void) {
   newrelic_txn_t* txn = 0;
   newrelic_config_t* config = 0;
   newrelic_custom_event_t* custom_event = 0;
+  newrelic_segment_t* seg = 0;
 
   char* app_name = get_app_name();
   if (NULL == app_name)
@@ -27,9 +28,8 @@ int main(void) {
   customize_config(&config);
 
   /* Change the transaction tracer threshold to ensure a trace is generated */
-  //  config->transaction_tracer.threshold =
-  //  NEWRELIC_THRESHOLD_IS_OVER_DURATION;
-  //  config->transaction_tracer.duration_us = 1;
+  config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
+  config->transaction_tracer.duration_us = 1;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
@@ -37,6 +37,9 @@ int main(void) {
 
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
+
+  seg = newrelic_start_segment(txn, NULL, NULL);
+  sleep(1);
 
   /* Record a metric value of 100ms in the transaction txn */
   newrelic_record_custom_metric(txn, "Custom/YourMetric/Label", 100);
@@ -51,7 +54,9 @@ int main(void) {
 
   newrelic_record_custom_event(txn, &custom_event);
 
-  newrelic_record_custom_event(txn, &custom_event);
+
+  /* End the one and only segment */
+  newrelic_end_segment(txn, &seg);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
