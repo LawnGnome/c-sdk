@@ -4,6 +4,11 @@
 
 ### New Features ###
 
+- Custom events can now be sent using the new Custom Events API.  Events
+  are created via the `newrelic_create_custom_event` function, and attributes
+  may be added to custom events via the `newrelic_custom_event_add_*` family
+  of functions.  See GUIDE.md for usage information.
+
 ### Bug Fixes ###
 
 ### End of Life Notices ###

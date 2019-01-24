@@ -540,6 +540,13 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
 typedef struct _newrelic_segment_t newrelic_segment_t;
 
 /*!
+ * @brief A Custom Event
+ *
+ * @see newrelic_create_custom_event().
+ */
+typedef struct _newrelic_custom_event_t newrelic_custom_event_t;
+
+/*!
  * @brief Record the start of a custom segment in a transaction.
  *
  * Given an active transaction this function creates a custom segment to be
@@ -655,6 +662,113 @@ bool newrelic_set_segment_timing(newrelic_segment_t* segment,
  */
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
+
+/*!
+ * @brief Creates a custom event
+ *
+ * Attributes can be added to the custom event using the
+ * newrelic_custom_event_add_* family of functions. When the required attributes
+ * have been added, the custom event can be recorded using
+ * newrelic_record_custom_event().
+ *
+ * When passed to newrelic_record_custom_event, the custom event will be freed.
+ * If you can't pass an allocated event to newrelic_record_custom_event, use the
+ * newrelic_discard_custom_event function to free the event.
+ *
+ * @param [in] event_type The type/name of the event
+ *
+ * @return A pointer to a custom event; NULL otherwise.
+ */
+newrelic_custom_event_t* newrelic_create_custom_event(const char* event_type);
+
+/*!
+ * @brief Frees the memory for custom events created via the
+ * newrelic_create_custom_event function
+ *
+ * This function is here in case there's an allocated newrelic_custom_event_t
+ * that ends up not being recorded as a custom event, but still needs to be
+ * freed
+ *
+ * @param [in] event The address of a valid custom event, @see
+ *             newrelic_create_custom_event.
+ */
+void newrelic_discard_custom_event(newrelic_custom_event_t** event);
+
+/*!
+ * @brief Records the custom event.
+ *
+ * Given an active transaction, this function adds the custom event to the
+ * transaction and timestamps it, ensuring the event will be sent to New Relic.
+ *
+ * @param [in] transaction pointer to a started transaction
+ * @param [in] event The address of a valid custom event, @see
+ *                   newrelic_create_custom_event.
+ *
+ * newrelic_create_custom_event
+ */
+void newrelic_record_custom_event(newrelic_txn_t* transaction,
+                                  newrelic_custom_event_t** event);
+
+/*!
+ * @brief Adds an int key/value pair to the custom event's attributes
+ *
+ * Given a custom event, this function adds an integer attributes to the event.
+ *
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] key the string key for the key/value pair
+ * @param [in] value the integer value of the key/value pair
+ *
+ * @return false indicates the attribute could not be added
+ */
+bool newrelic_custom_event_add_attribute_int(newrelic_custom_event_t* event,
+                                             const char* key,
+                                             int value);
+
+/*!
+ * @brief Adds a long key/value pair to the custom event's attributes
+ *
+ * Given a custom event, this function adds a long attribute to the event.
+ *
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] key the string key for the key/value pair
+ * @param [in] value the long value of the key/value pair
+ *
+ * @return false indicates the attribute could not be added
+ */
+bool newrelic_custom_event_add_attribute_long(newrelic_custom_event_t* event,
+                                              const char* key,
+                                              long value);
+
+/*!
+ * @brief Adds a double key/value pair to the custom event's attributes
+ *
+ * Given a custom event, this function adds a double attribute to the event.
+ *
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] key the string key for the key/value pair
+ * @param [in] value the double value of the key/value pair
+ *
+ * @return false indicates the attribute could not be added
+ */
+bool newrelic_custom_event_add_attribute_double(newrelic_custom_event_t* event,
+                                                const char* key,
+                                                double value);
+
+/*!
+ * @brief Adds a string key/value pair to the custom event's attributes
+ *
+ * Given a custom event, this function adds a char* (string) attribute to the
+ * event.
+ *
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] key the string key for the key/value pair
+ * @param [in] value the string value of the key/value pair
+ *
+ * @return false indicates the attribute could not be added
+ */
+bool newrelic_custom_event_add_attribute_string(newrelic_custom_event_t* event,
+                                                const char* key,
+                                                const char* value);
 
 /*!
  * @brief Get the agent version.

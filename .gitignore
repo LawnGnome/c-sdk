@@ -49,6 +49,10 @@ tags
 *.tar.xz
 *.tar.Z
 
+# Integration Runner Logs
+integration-tests.log
+tests/integration/*/*.log
+
 #
 # Byproducts of jetbrains
 #

@@ -103,6 +103,7 @@ TESTS := \
 	test_config \
 	test_connect_app \
 	test_create_app \
+	test_custom_event \
 	test_custom_metric \
 	test_custom_segment \
 	test_datastore \
