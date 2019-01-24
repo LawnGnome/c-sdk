@@ -280,13 +280,35 @@ function symbols are not available, and so the backtrace may not be as
 meaningful:
 
 ```
-   ./ex_notice_error.out() [0x4037fd]
-   ./ex_notice_error.out() [0x403009]
-   ./ex_notice_error.out() [0x4021b2]
-   ./ex_notice_error.out() [0x40229d]
-   /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7f39062d6830]
-   ./ex_notice_error.out() [0x4020b9]
+    ./ex_notice_error.out() [0x4037fd]
+    ./ex_notice_error.out() [0x403009]
+    ./ex_notice_error.out() [0x4021b2]
+    ./ex_notice_error.out() [0x40229d]
+    /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7f39062d6830]
+    ./ex_notice_error.out() [0x4020b9]
 ```
+
+### Custom Metrics
+
+The agent provides the function `newrelic_record_custom_metric`, which allows users to
+record custom timing metrics. To create a custom metric, just provide a name/identifier
+and an amount of time in milliseconds to the function, (along with the active
+transaction).
+
+```c
+    // txn is a newrelic_txn_t*, create via newrelic_start_web_transaction
+
+    // Record a metric value of 100ms in the transaction txn
+    newrelic_record_custom_metric(txn, "Custom/YourMetric/Label", 100);
+```
+
+**Important**: Start all metric names with `Custom/`; for example,
+`Custom/MyMetric/My_label`. The `Custom/` prefix is required for all custom metrics.
+
+To learn more about collecting custom metrics, including naming strategies to
+avoid metric grouping issues (also calls MGIs) read the
+[Collect Custom Metrics](https://docs.newrelic.com/docs/agents/manage-apm-agents/agent-data/collect-custom-metrics)
+documentation.
 
 ## About
 

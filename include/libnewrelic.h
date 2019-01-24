@@ -667,6 +667,23 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
  */
 const char* newrelic_version(void);
 
+/*
+ * @brief Generate a custom metric.
+ *
+ * Given an active transaction and valid parameters, this function creates a
+ * custom metric to be recorded as part of the transaction.
+ *
+ * @param [in] transaction An active transaction.
+ * @param [in] metric_name The name/identifier for the metric.
+ * @param [in] milliseconds The amount of time the metric will
+ *             record, in milliseconds.
+ *
+ * @return true on success.
+ */
+bool newrelic_record_custom_metric(newrelic_txn_t* transaction,
+                                   const char* metric_name,
+                                   double milliseconds);
+
 #ifdef __cplusplus
 }
 #endif

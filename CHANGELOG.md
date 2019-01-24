@@ -20,6 +20,9 @@
 - Segments now support manual timing via the new
   `newrelic_set_segment_timing()` function.
 
+- Custom metrics can now be sent using the new Custom Metrics API.
+  See GUIDE.md for usage information.
+
 ### Upgrade Notices ###
 
 - The segment API has been mildly refactored: all segment types are now
@@ -35,7 +38,7 @@
 ### New Features ###
 
 - Added support for creating custom segments using the new
-  `newrelic_start_segment()` and `newrelic_end_segment()` functions. See 
+  `newrelic_start_segment()` and `newrelic_end_segment()` functions. See
   `libnewrelic.h`, `GUIDE.md` and `examples/ex_segment.c` for usage
   information.
 
@@ -43,7 +46,7 @@
 
 ### Upgrade Notices ###
 
-- To increase security, TLS will now always be used in communication between 
+- To increase security, TLS will now always be used in communication between
 the C Agent and New Relic servers.  This change should be invisible to
 customers since the C Agent did not previously offer any way to disable TLS.
 
@@ -55,7 +58,7 @@ customers since the C Agent did not previously offer any way to disable TLS.
   `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()`
   functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_datastore.c` for usage
   information.
-   
+
 - Added support for creating external segments using the new
   `newrelic_start_external_segment()` and `newrelic_end_external_segment()`
   functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_external.c` for usage
