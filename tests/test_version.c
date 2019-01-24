@@ -7,7 +7,6 @@
 #include <cmocka.h>
 
 #include "libnewrelic.h"
-#include "version.h"
 #include "nr_axiom.h"
 
 static void test_version(void** state) {

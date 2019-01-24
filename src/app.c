@@ -1,6 +1,5 @@
 #include "libnewrelic.h"
 #include "app.h"
-#include "version.h"
 
 #include "nr_agent.h"
 #include "util_logging.h"
@@ -83,6 +82,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
   context = newrelic_init(app->config->daemon_socket);
   if (NULL == context) {
     /* There should already be an error message printed */
+    newrelic_destroy_app(&app);
     return NULL;
   }
 
@@ -91,6 +91,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_config_t* given_config,
   if (NR_FAILURE == newrelic_connect_app(app, context, timeout_ms)) {
     /* There should already be an error message printed */
     nrl_close_log_file();
+    newrelic_destroy_app(&app);
     return NULL;
   }
 

@@ -18,6 +18,7 @@ var (
 		"HEADERS":                 parseHeaders,
 		"SKIPIF":                  parseRawSkipIf,
 		"INI":                     parseSettings,
+		"CONFIG":                  parseConfig,
 		"DESCRIPTION":             parseDescription,
 		"EXPECT_ANALYTICS_EVENTS": parseAnalyticEvents,
 		"EXPECT_CUSTOM_EVENTS":    parseCustomEvents,
@@ -37,15 +38,24 @@ var (
 
 func ParseTestFile(name string) *Test {
 	test := &Test{Name: name}
+	test.Path, _ = filepath.Abs(name)
 
-	f, err := os.Open(name)
+	if test.IsC() {
+		return parseCTestFile(test)
+	} else if test.IsPHP() {
+		return parsePHPTestFile(test)
+	} else {
+		return nil
+	}
+}
+
+func parsePHPTestFile(test *Test) *Test {
+	f, err := os.Open(test.Name)
 	if err != nil {
 		test.Fatal(err)
 		return test
 	}
 	defer f.Close()
-
-	test.Path, _ = filepath.Abs(name)
 
 	scanner := bufio.NewScanner(f)
 	scanner.Split(splitDirectives)
@@ -228,6 +238,10 @@ func parseExpectRegex(test *Test, content []byte) error {
 }
 func parseExpectScrubbed(test *Test, content []byte) error {
 	test.expectScrubbed = content
+	return nil
+}
+func parseConfig(test *Test, content []byte) error {
+	test.Config = string(bytes.TrimSpace(content))
 	return nil
 }
 

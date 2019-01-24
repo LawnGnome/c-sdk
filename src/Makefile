@@ -16,6 +16,8 @@ OBJS := \
 	app_internal.o \
 	attribute.o \
 	config.o \
+	custom_event.o \
+	custom_metric.o \
 	datastore.o \
 	error.o \
 	external.o \

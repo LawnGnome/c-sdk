@@ -26,7 +26,7 @@ static void test_destroy_null_app(void** state NRUNUSED) {
 static void test_destroy_valid_app(void** state NRUNUSED) {
   bool ret;
   newrelic_app_t* app;
-  app = (newrelic_app_t*)malloc(sizeof(newrelic_app_t));
+  app = (newrelic_app_t*)calloc(1, sizeof(newrelic_app_t));
   ret = newrelic_destroy_app(&app);
   assert_true(ret);
   free(app);

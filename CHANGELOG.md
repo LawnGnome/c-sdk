@@ -4,15 +4,29 @@
 
 ### New Features ###
 
+- Custom events can now be sent using the new Custom Events API.  Events
+  are created via the `newrelic_create_custom_event` function, and attributes
+  may be added to custom events via the `newrelic_custom_event_add_*` family
+  of functions.  See GUIDE.md for usage information.
+
+### Bug Fixes ###
+
+### End of Life Notices ###
+
+### Upgrade Notices ###
+
+## 0.1.0 ##
+
+### New Features ###
+
 - Segments may now be reparented manually using the new
   `newrelic_set_segment_parent()` function.
 
 - Segments now support manual timing via the new
   `newrelic_set_segment_timing()` function.
 
-### Bug Fixes ###
-
-### End of Life Notices ###
+- Custom metrics can now be sent using the new Custom Metrics API.
+  See GUIDE.md for usage information.
 
 ### Upgrade Notices ###
 
@@ -29,7 +43,7 @@
 ### New Features ###
 
 - Added support for creating custom segments using the new
-  `newrelic_start_segment()` and `newrelic_end_segment()` functions. See 
+  `newrelic_start_segment()` and `newrelic_end_segment()` functions. See
   `libnewrelic.h`, `GUIDE.md` and `examples/ex_segment.c` for usage
   information.
 
@@ -37,7 +51,7 @@
 
 ### Upgrade Notices ###
 
-- To increase security, TLS will now always be used in communication between 
+- To increase security, TLS will now always be used in communication between
 the C Agent and New Relic servers.  This change should be invisible to
 customers since the C Agent did not previously offer any way to disable TLS.
 
@@ -49,7 +63,7 @@ customers since the C Agent did not previously offer any way to disable TLS.
   `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()`
   functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_datastore.c` for usage
   information.
-   
+
 - Added support for creating external segments using the new
   `newrelic_start_external_segment()` and `newrelic_end_external_segment()`
   functions. See `libnewrelic.h`, `GUIDE.md` and `examples/ex_external.c` for usage

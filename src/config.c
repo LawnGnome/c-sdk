@@ -59,7 +59,7 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   nrtxnopt_t* opt = nr_zalloc(sizeof(nrtxnopt_t));
 
   opt->analytics_events_enabled = true;
-  opt->custom_events_enabled = false;
+  opt->custom_events_enabled = true;
   opt->synthetics_enabled = false;
   opt->instance_reporting_enabled = true;
   opt->database_name_reporting_enabled = true;

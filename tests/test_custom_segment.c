@@ -37,6 +37,8 @@ static void test_start_segment_name_cat_null(void** state) {
       "Custom/Unnamed Segment",
       nr_string_get(txn->txn->trace_strings, seg->segment->name));
   assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
+
+  newrelic_segment_destroy(&seg);
 }
 
 /*
@@ -51,11 +53,13 @@ static void test_start_segment_name_cat_invalid(void** state) {
       "c/Unnamed Segment",
       nr_string_get(txn->txn->trace_strings, seg->segment->name));
   assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
+  newrelic_segment_destroy(&seg);
 
   seg = newrelic_start_segment(txn, "a", "b/c");
   assert_string_equal(
       "Custom/a", nr_string_get(txn->txn->trace_strings, seg->segment->name));
   assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
+  newrelic_segment_destroy(&seg);
 }
 
 /*
@@ -76,6 +80,8 @@ static void test_start_segment_name_cat_txn(void** state) {
 
   assert_ptr_equal(seg->kids_duration_save, cur_kids_duration);
   assert_ptr_equal(txn->txn->cur_kids_duration, &seg->kids_duration);
+
+  newrelic_segment_destroy(&seg);
 }
 
 /*
@@ -146,16 +152,23 @@ static void test_end_segment_duration(void** state) {
  */
 int main(void) {
   const struct CMUnitTest segment_tests[] = {
-      cmocka_unit_test(test_start_segment_invalid),
-      cmocka_unit_test(test_start_segment_name_cat_null),
-      cmocka_unit_test(test_start_segment_name_cat_invalid),
-      cmocka_unit_test(test_start_segment_name_cat_txn),
-      cmocka_unit_test(test_end_segment_invalid),
-      cmocka_unit_test(test_end_segment_free),
-      cmocka_unit_test(test_end_segment_metric_trace),
-      cmocka_unit_test(test_end_segment_duration),
+      cmocka_unit_test_setup_teardown(test_start_segment_invalid,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_start_segment_name_cat_null,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_start_segment_name_cat_invalid,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_start_segment_name_cat_txn,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_end_segment_invalid, txn_group_setup,
+                                      txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_end_segment_free, txn_group_setup,
+                                      txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_end_segment_metric_trace,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_end_segment_duration,
+                                      txn_group_setup, txn_group_teardown),
   };
 
-  return cmocka_run_group_tests(segment_tests, txn_group_setup,
-                                txn_group_teardown);
+  return cmocka_run_group_tests(segment_tests, NULL, NULL);
 }

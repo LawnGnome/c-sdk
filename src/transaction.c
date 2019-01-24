@@ -22,6 +22,7 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
 
 bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
   newrelic_txn_t* transaction;
+  bool ret = true;
 
   if ((NULL == transaction_ptr) || (NULL == *transaction_ptr)) {
     nrl_error(NRL_INSTRUMENT, "unable to end a NULL transaction");
@@ -48,7 +49,7 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
     if (0 == txn->status.ignore) {
       if (NR_FAILURE == nr_cmd_txndata_tx(nr_get_daemon_fd(), txn)) {
         nrl_error(NRL_INSTRUMENT, "failed to send transaction");
-        return false;
+        ret = false;
       }
     }
 
@@ -59,7 +60,7 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
   nrt_mutex_destroy(&transaction->lock);
   nr_realfree((void**)transaction_ptr);
 
-  return true;
+  return ret;
 }
 
 newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,

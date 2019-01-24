@@ -324,7 +324,7 @@ use(extensions) {
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
-              "make run_tests")
+              "make valgrind")
       }
 
       buildInDockerImage('./jenkins/docker-files/hbb')

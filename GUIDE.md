@@ -11,8 +11,8 @@ Generic library to communicate with New Relic.
 
 ## Getting started
 
-Instrument your code. Consider the brief program below or look at the `examples` directory
-for source and Makefiles highlighting particular features.
+Instrument your code. Consider the brief program below or look at the
+`examples` directory for source and Makefiles highlighting particular features.
 
 ```c
 #include <stdio.h>
@@ -116,27 +116,38 @@ Run your test application and check the `c-agent.log` file for output.
 
 ### Segment Instrumentation
 
-The agent provides several API functions for creating optional *segment* instrumentation.  Segments allow you to measure the time taken by specific portions of a transaction.  The agent allows you to create two different segment types.
+The agent provides several API functions for creating optional *segment*
+instrumentation.  Segments allow you to measure the time taken by specific
+portions of a transaction.  The agent allows you to create two different
+segment types.
 
 * External Segments
 * Datastore Segments
 
 ### External Segments
 
-The agent provides two functions, `newrelic_start_external_segment()` and `newrelic_end_external_segment()` that allows end-user-programmers to create external segments. External segments appear in the transaction "Breakdown table" and in the "External services" page in APM.
+The agent provides two functions, `newrelic_start_external_segment()` and
+`newrelic_end_external_segment()` that allows end-user-programmers to create
+external segments. External segments appear in the transaction "Breakdown
+table" and in the "External services" page in APM.
 
 * [More info on External Services page](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/external-services-page)
 
 Timing an external segment transaction is a three-step process.
 
-1. Create a `newrelic_external_segment_params_t` struct that describes the external segment
+1. Create a `newrelic_external_segment_params_t` struct that describes the external
+   segment
 
 2. Start the timer with `newrelic_start_external_segment()`
 
 3. Stop the timer with `newrelic_end_external_segment()`
 
-Here are those three steps in code.  The `txn` variable below is a transaction, created via `newrelic_start_web_transaction()` or `newrelic_start_non_web_transaction()`. Segments may only be recorded on active transactions.
+Here are those three steps in code.  The `txn` variable below is a
+transaction, created via `newrelic_start_web_transaction()` or
+`newrelic_start_non_web_transaction()`. Segments may only be recorded on
+active transactions.
 
+```c
     newrelic_external_segment_params_t params = {
         .procedure = "GET",
         .uri       = "https://httpbin.org/delay/1",
@@ -147,25 +158,47 @@ Here are those three steps in code.  The `txn` variable below is a transaction, 
     // The external call to be timed goes here
 
     newrelic_end_external_segment(txn, &segment);
+```
 
-The `newrelic_external_segment_params_t` struct contains a list of parameters that New Relic will use to identify a segment. These parameters also drive the user interface in APM. Only the `.uri` field is required. Documentation for each field can be found in `libnewrelic.h`. You can also find a working code sample in `examples/ex_external.c`.
+The `newrelic_external_segment_params_t` struct contains a list of parameters
+that New Relic will use to identify a segment. These parameters also drive
+the user interface in APM. Only the `.uri` field is required. Documentation
+for each field can be found in `libnewrelic.h`. You can also find a working
+code sample in `examples/ex_external.c`.
 
-**IMPORTANT**:  In order to ensure accurate timing, external segments cannot be nested within other external segments, and cannot be nested with datastore segments. You **must** call `newrelic_end_external_segment()` before starting a new external segment with `newrelic_start_external_segment()`. Starting a new segment before the previous segment has ended will produce undefined results, and should be avoided.
+**IMPORTANT**:  In order to ensure accurate timing, external segments cannot
+be nested within other external segments, and cannot be nested with datastore
+segments. You **must** call `newrelic_end_external_segment()` before starting
+a new external segment with `newrelic_start_external_segment()`. Starting a
+new segment before the previous segment has ended will produce undefined
+results, and should be avoided.
 
 ### Datastore Segments
 
-The agent provides two functions, `newrelic_start_datastore_segment()` and `newrelic_end_datastore_segment()` that allow you to create datastore segments.  APM uses segments recorded in this manner in the [Databases and Slow Queries](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/databases-slow-queries-page) of APM.  Segments created with these functions also populate the `databaseDuration` attribute of a [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights) Transaction event.
+The agent provides two functions, `newrelic_start_datastore_segment()` and
+`newrelic_end_datastore_segment()` that allow you to create datastore
+segments.  APM uses segments recorded in this manner in the
+[Databases and Slow Queries](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/databases-slow-queries-page)
+of APM.  Segments created with these functions
+also populate the `databaseDuration` attribute of a
+[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights)
+Transaction event.
 
 To record a datastore segment on an active transaction, you'll need to
 
-1. Create a `newrelic_datastore_segment_params_t` struct that describes the datastore segment
+1. Create a `newrelic_datastore_segment_params_t` struct that describes the
+   datastore segment
 
 2. Start the timer with `newrelic_start_datastore_segment()`
 
 3. Stop the timer with `newrelic_end_datastore_segment()`
 
-Here are those three steps in code. The `txn` variable below is a transaction, created via `newrelic_start_web_transaction()` or `newrelic_start_non_web_transaction()`.  You may only record segments on active transactions.
+Here are those three steps in code. The `txn` variable below is a
+transaction, created via `newrelic_start_web_transaction()` or
+`newrelic_start_non_web_transaction()`.  You may only record segments on
+active transactions.
 
+```c
     txn = newrelic_start_web_transaction(app, "aTransactionName");
 
     /* ... */
@@ -186,16 +219,34 @@ Here are those three steps in code. The `txn` variable below is a transaction, c
     // the code you want to time goes here
 
     newrelic_end_datastore_segment(txn, &segment);
+```
 
-The `newrelic_datastore_segment_params_t` struct contains a list of parameters that New Relic uses to identify your segment. New Relic also uses these values to drive its user interface in APM. Only the `.product` field is required. You can find documentation for each field in `libnewrelic.h`. You can also find a working code sample in `examples/ex_datastore.c`.
+The `newrelic_datastore_segment_params_t` struct contains a list of
+parameters that New Relic uses to identify your segment. New Relic also uses
+these values to drive its user interface in APM. Only the `.product` field is
+required. You can find documentation for each field in `libnewrelic.h`. You
+can also find a working code sample in `examples/ex_datastore.c`.
 
-**IMPORTANT**:  In order to ensure accurate timing, datastore segments cannot be nested within other datastore segments, and cannot be nested with external segments. You **must** call `newrelic_end_datastore_segment()` before starting a new datastore or external segment. Starting a new segment before the previous segment has ended will produce undefined results, and should be avoided.
+**IMPORTANT**:  In order to ensure accurate timing, datastore segments cannot
+be nested within other datastore segments, and cannot be nested with external
+segments. You **must** call `newrelic_end_datastore_segment()` before
+starting a new datastore or external segment. Starting a new segment before
+the previous segment has ended will produce undefined results, and should be
+avoided.
 
 #### Slow Query Tracing for Datastore Segments
 
-When you send New Relic datastore segments, those segments may be eligible for [Slow Query tracing](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/viewing-slow-query-details).  Only SQL-like databases are eligible for slow query tracing.   If your datastore segment's `.product` is set to `Firebird`, `Informix`, `MSSQL`, `MySQL`, `Oracle`, `Postgres`, `SQLite`, or `Sybase`, the C-Agent will make your segment eligible for slow query tracing.
+When you send New Relic datastore segments, those segments may be eligible
+for
+[Slow Query tracing](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/viewing-slow-query-details).
+Only SQL-like databases are eligible for slow query tracing.   If your
+datastore segment's `.product` is set to `Firebird`, `Informix`, `MSSQL`,
+`MySQL`, `Oracle`, `Postgres`, `SQLite`, or `Sybase`, the C-Agent will make
+your segment eligible for slow query tracing.
 
-Both the time threshold to trigger a slow query trace and whether slow query tracing is enabled are controlled via the C-Agent's **application** configuration, specifically the `datastore_reporting.*` fields.
+Both the time threshold to trigger a slow query trace and whether slow query
+tracing is enabled are controlled via the C-Agent's **application**
+configuration, specifically the `datastore_reporting.*` fields.
 
 ```c
     config = newrelic_new_config("C Agent Test App", "<LICENSE_KEY_HERE>");
@@ -280,13 +331,86 @@ function symbols are not available, and so the backtrace may not be as
 meaningful:
 
 ```
-   ./ex_notice_error.out() [0x4037fd]
-   ./ex_notice_error.out() [0x403009]
-   ./ex_notice_error.out() [0x4021b2]
-   ./ex_notice_error.out() [0x40229d]
-   /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7f39062d6830]
-   ./ex_notice_error.out() [0x4020b9]
+    ./ex_notice_error.out() [0x4037fd]
+    ./ex_notice_error.out() [0x403009]
+    ./ex_notice_error.out() [0x4021b2]
+    ./ex_notice_error.out() [0x40229d]
+    /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7f39062d6830]
+    ./ex_notice_error.out() [0x4020b9]
 ```
+
+### Creating Custom Events
+
+The agent provides a Custom Events API that allows users to send custom events to
+New Relic Insights.  To send an event, start a transaction and use the
+`newrelic_create_custom_event` and `newrelic_record_custom_event` functions
+
+```c
+    // txn is a newrelic_txn_t*, create via newrelic_start_web_transaction
+    // see above examples for more information
+
+    newrelic_custom_event_t* custom_event=0;
+    custom_event = newrelic_create_custom_event("aTypeForYourEvent");
+    newrelic_record_custom_event(txn, &custom_event);
+```
+
+You can also add `int`, `long`, `double`, and `char*` (string) attributes to your event
+via the `newrelic_custom_event_add_*` family of functions.
+
+```c
+    newrelic_custom_event_t* custom_event=0;
+    custom_event = newrelic_create_custom_event("aTypeForYourEvent");
+
+    newrelic_custom_event_add_attribute_int(custom_event, "keya", 42);
+    newrelic_custom_event_add_attribute_long(custom_event, "keyb", 84);
+    newrelic_custom_event_add_attribute_double(custom_event, "keyc", 42.42);
+    newrelic_custom_event_add_attribute_string(custom_event, "keyd", "A string");
+
+    newrelic_record_custom_event(txn, &custom_event);
+```
+
+Don't forget to review the
+[Insights custom data requirements and limits](https://docs.newrelic.com/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits)
+for guidance on what are and aren't allowed values inside of a custom event.
+
+#### Memory Lifecycle for Custom Events
+
+Under normal circumstances, the `newrelic_record_custom_event` function will
+free the memory allocated when you called `newrelic_create_custom_event`.
+If you you end up creating a custom event that you do NOT need to record,
+you may use the `newrelic_discard_custom_event` function to free the allocated
+memory in order to avoid leaks in your program.
+
+```c
+    newrelic_custom_event_t* custom_event=0;
+    custom_event = newrelic_create_custom_event("aTypeForYourEvent");
+
+    // circumstances
+
+    newrelic_discard_custom_event(&custom_event);
+```
+
+### Custom Metrics
+
+The agent provides the function `newrelic_record_custom_metric`, which allows users to
+record custom timing metrics. To create a custom metric, just provide a name/identifier
+and an amount of time in milliseconds to the function, (along with the active
+transaction).
+
+```c
+    // txn is a newrelic_txn_t*, create via newrelic_start_web_transaction
+
+    // Record a metric value of 100ms in the transaction txn
+    newrelic_record_custom_metric(txn, "Custom/YourMetric/Label", 100);
+```
+
+**Important**: Start all metric names with `Custom/`; for example,
+`Custom/MyMetric/My_label`. The `Custom/` prefix is required for all custom metrics.
+
+To learn more about collecting custom metrics, including naming strategies to
+avoid metric grouping issues (also calls MGIs) read the
+[Collect Custom Metrics](https://docs.newrelic.com/docs/agents/manage-apm-agents/agent-data/collect-custom-metrics)
+documentation.
 
 ## About
 

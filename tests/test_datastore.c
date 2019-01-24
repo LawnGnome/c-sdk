@@ -193,6 +193,7 @@ static void test_end_datastore_segment_invalid_segment_type(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_segment_t* segment_ptr = mock_datastore_segment(txn);
 
+  newrelic_destroy_datastore_segment_fields(segment_ptr);
   nr_segment_set_custom(segment_ptr->segment);
 
   /* This should destroy the given segment, even though the transaction is
@@ -221,12 +222,13 @@ static void test_end_datastore_segment_invalid_txn(void** state) {
  * was started.
  */
 static void test_end_datastore_segment_different_txn(void** state) {
+  newrelic_txn_t other_txn = {0};
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_segment_t* segment_ptr = mock_datastore_segment(txn);
 
   /* A different transaction should result in failure and destroy the segment.
    */
-  assert_false(newrelic_end_segment(txn + 1, &segment_ptr));
+  assert_false(newrelic_end_segment(&other_txn, &segment_ptr));
   assert_null(segment_ptr);
 }
 

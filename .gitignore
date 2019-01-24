@@ -38,3 +38,23 @@ libnewrelic.o
 gotags
 tags
 *.sw?
+
+#
+# Release byproducts
+#
+*.tar
+*.tar.bz2
+*.tar.gz
+*.tar.lz
+*.tar.xz
+*.tar.Z
+
+# Integration Runner Logs
+integration-tests.log
+tests/integration/*/*.log
+
+#
+# Byproducts of jetbrains
+#
+.idea/
+

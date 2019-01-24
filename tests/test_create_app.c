@@ -103,8 +103,6 @@ static void test_create_app_newrelic_connect_app_returns_failure(
 
   app = newrelic_create_app(config, 1000);
   assert_null(app);
-
-  nr_free(app);
 }
 
 static void test_create_app_newrelic_init_returns_null(void** state NRUNUSED) {
@@ -158,7 +156,7 @@ static void test_create_app_newrelic_app_correctly_populated(
   assert_memory_equal(&tt_config, &app->config->transaction_tracer,
                       sizeof(tt_config));
 
-  nr_free(app);
+  newrelic_destroy_app(&app);
 }
 
 int main(void) {

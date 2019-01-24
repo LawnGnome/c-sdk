@@ -97,6 +97,7 @@ static void test_start_external_segment_valid(void** state) {
  * correctly.
  */
 static void test_end_external_segment_invalid(void** state) {
+  newrelic_txn_t other_txn = {0};
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_external_segment_params_t params = {
       .uri = "https://newrelic.com/",
@@ -116,7 +117,7 @@ static void test_end_external_segment_invalid(void** state) {
   /* A different transaction should result in failure, but should still destroy
    * the segment. */
   segment = newrelic_start_external_segment(txn, &params);
-  assert_false(newrelic_end_segment(txn + 1, &segment));
+  assert_false(newrelic_end_segment(&other_txn, &segment));
   assert_null(segment);
 }
 
@@ -148,12 +149,15 @@ static void test_end_external_segment_valid(void** state) {
  */
 int main(void) {
   const struct CMUnitTest external_tests[] = {
-      cmocka_unit_test(test_start_external_segment_invalid),
-      cmocka_unit_test(test_start_external_segment_valid),
-      cmocka_unit_test(test_end_external_segment_invalid),
-      cmocka_unit_test(test_end_external_segment_valid),
+      cmocka_unit_test_setup_teardown(test_start_external_segment_invalid,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_start_external_segment_valid,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_end_external_segment_invalid,
+                                      txn_group_setup, txn_group_teardown),
+      cmocka_unit_test_setup_teardown(test_end_external_segment_valid,
+                                      txn_group_setup, txn_group_teardown),
   };
 
-  return cmocka_run_group_tests(external_tests,  // our tests
-                                txn_group_setup, txn_group_teardown);
+  return cmocka_run_group_tests(external_tests, NULL, NULL);
 }
