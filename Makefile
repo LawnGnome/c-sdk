@@ -102,17 +102,6 @@ daemon-clean:
 .PHONY: dynamic
 dynamic: libnewrelic.so
 
-#
-# Unit test related targets.
-#
-.PHONY: tests
-tests: vendor libnewrelic.a
-	$(MAKE) -C tests tests
-
-.PHONY: run_tests
-run_tests: vendor libnewrelic.a
-	$(MAKE) -C tests run_tests
-
 .PHONY: valgrind
 valgrind: vendor libnewrelic.a
 	$(MAKE) -C tests valgrind
