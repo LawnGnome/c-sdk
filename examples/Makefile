@@ -13,6 +13,7 @@ PCRE_CFLAGS := $(shell pcre-config --cflags)
 PCRE_LIBS := $(shell pcre-config --libs)
 
 EXAMPLES := \
+	ex_custom.out \
 	ex_datastore.out \
 	ex_external.out \
 	ex_notice_error.out \
