@@ -9,8 +9,7 @@
 #include "util_sql.h"
 #include "util_strings.h"
 
-static char* newrelic_create_datastore_segment_metrics(nrtxn_t* txn,
-                                                       nrtime_t duration,
+static char* newrelic_create_datastore_segment_metrics(nr_segment_t* segment,
                                                        const char* product,
                                                        const char* collection,
                                                        const char* operation) {
@@ -19,16 +18,16 @@ static char* newrelic_create_datastore_segment_metrics(nrtxn_t* txn,
   char* scoped_metric = NULL;
   char* statement_metric = NULL;
 
-  nrm_force_add(txn->unscoped_metrics, "Datastore/all", duration);
+  nr_segment_add_metric(segment, "Datastore/all", false);
 
   rollup_metric = nr_formatf("Datastore/%s/all", product);
-  nrm_force_add(txn->unscoped_metrics, rollup_metric, duration);
+  nr_segment_add_metric(segment, rollup_metric, false);
 
   operation_metric
       = nr_formatf("Datastore/operation/%s/%s", product, operation);
 
   if (collection) {
-    nrm_add(txn->unscoped_metrics, operation_metric, duration);
+    nr_segment_add_metric(segment, operation_metric, false);
     statement_metric = nr_formatf("Datastore/statement/%s/%s/%s", product,
                                   collection, operation);
     scoped_metric = statement_metric;
@@ -36,7 +35,7 @@ static char* newrelic_create_datastore_segment_metrics(nrtxn_t* txn,
     scoped_metric = operation_metric;
   }
 
-  nrm_add(txn->scoped_metrics, scoped_metric, duration);
+  nr_segment_add_metric(segment, scoped_metric, true);
 
   scoped_metric = nr_strdup(scoped_metric);
 
@@ -184,8 +183,7 @@ bool newrelic_end_datastore_segment(newrelic_segment_t* segment) {
 
   /* Create metrics. */
   name = newrelic_create_datastore_segment_metrics(
-      segment->transaction, duration,
-      segment->segment->typed_attributes.datastore.component,
+      segment->segment, segment->segment->typed_attributes.datastore.component,
       segment->type.datastore.collection, segment->type.datastore.operation);
   nr_segment_set_name(segment->segment, name);
   nr_free(name);

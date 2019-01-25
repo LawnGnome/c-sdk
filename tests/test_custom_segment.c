@@ -9,6 +9,7 @@
 #include "transaction.h"
 #include "util_memory.h"
 #include "util_sleep.h"
+#include "util_vector.h"
 
 #include "test.h"
 
@@ -70,16 +71,12 @@ static void test_start_segment_name_cat_txn(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   const char* name = "bob";
   const char* category = "bee";
-  nrtime_t* cur_kids_duration = txn->txn->cur_kids_duration;
 
   newrelic_segment_t* seg = newrelic_start_segment(txn, name, category);
   assert_string_equal(
       "bee/bob", nr_string_get(txn->txn->trace_strings, seg->segment->name));
   assert_int_equal(NR_SEGMENT_CUSTOM, seg->segment->type);
   assert_ptr_equal(txn->txn, seg->transaction);
-
-  assert_ptr_equal(seg->kids_duration_save, cur_kids_duration);
-  assert_ptr_equal(txn->txn->cur_kids_duration, &seg->kids_duration);
 
   newrelic_segment_destroy(&seg);
 }
@@ -127,24 +124,10 @@ static void test_end_segment_free(void** state) {
 static void test_end_segment_metric_trace(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_segment_t* seg = newrelic_start_segment(txn, NULL, NULL);
+  nr_segment_t* segment = seg->segment;
 
   assert_non_null(newrelic_end_segment(txn, &seg));
-  assert_int_equal(1, nrm_table_size(txn->txn->scoped_metrics));
-}
-
-/*
- * Purpose: Test that newrelic_end_segment() updates duration
- * in the transaction.
- */
-static void test_end_segment_duration(void** state) {
-  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
-  newrelic_segment_t* seg = newrelic_start_segment(txn, NULL, NULL);
-  nrtime_t duration = *(txn->txn->cur_kids_duration);
-
-  nr_msleep(5); /* To see a change in duration */
-
-  assert_non_null(newrelic_end_segment(txn, &seg));
-  assert_int_not_equal(duration, *(txn->txn->cur_kids_duration));
+  assert_int_equal(1, nr_vector_size(segment->metrics));
 }
 
 /*
@@ -165,8 +148,6 @@ int main(void) {
       cmocka_unit_test_setup_teardown(test_end_segment_free, txn_group_setup,
                                       txn_group_teardown),
       cmocka_unit_test_setup_teardown(test_end_segment_metric_trace,
-                                      txn_group_setup, txn_group_teardown),
-      cmocka_unit_test_setup_teardown(test_end_segment_duration,
                                       txn_group_setup, txn_group_teardown),
   };
 

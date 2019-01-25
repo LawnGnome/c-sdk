@@ -130,4 +130,13 @@ extern void nr_buffer_write_uint64_t_as_text(nrbuf_t* bufp, uint64_t val);
  */
 extern nr_status_t nr_buffer_read_uint32_t_le(nrbuf_t* bufp, uint32_t* val);
 
+/*
+ * Purpose : Peek at the last char in the buffer
+ *
+ * Params : 1. The buffer to read from.
+ *
+ * Return : The last byte in the buffer cast to a char.
+ */
+extern char nr_buffer_peek_end(nrbuf_t* bufp);
+
 #endif /* UTIL_BUFFER_HDR */

@@ -36,6 +36,10 @@ nr_segment_t* nr_segment_children_get_next(nr_segment_children_t* children,
  * Params  : 1. A pointer to a segment's nr_segment_children_t structure.
  *           2. A pointer to the segment to add as a sibling.
  *
+ * Warning : As this is an internal function, the children parameter is NOT
+ *           checked for validity within this function. If it is possible that
+ *           children may be NULL, you must check that before invoking this
+ *           function.
  */
 void nr_segment_children_add(nr_segment_children_t* children,
                              nr_segment_t* child);
@@ -59,11 +63,11 @@ bool nr_segment_children_remove(nr_segment_children_t* children,
 void nr_segment_children_destroy_fields(nr_segment_children_t* children);
 
 /*
- * Purpose : Free all data related to a segment's
+ * Purpose : Free all data related to a segment's typed attributes.
  *
  * Params  : 1. A segment's type.
  *           2. A pointer to a segment's _nr_segment_typed_attributes_t
- * structure.
+ *              structure.
  */
 void nr_segment_destroy_typed_attributes(
     nr_segment_type_t type,
@@ -82,5 +86,12 @@ void nr_segment_datastore_destroy_fields(nr_segment_datastore_t* datastore);
  * Params  : 1. A pointer to a segment's nr_segment_external_t structure.
  */
 void nr_segment_external_destroy_fields(nr_segment_external_t* external);
+
+/*
+ * Purpose : Free all data related to a segment metric.
+ *
+ * Params  : 1. A pointer to a segment's nr_segment_metric_t structure.
+ */
+void nr_segment_metric_destroy_fields(nr_segment_metric_t* sm);
 
 #endif

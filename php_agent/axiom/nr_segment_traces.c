@@ -1,10 +1,17 @@
 #include "nr_axiom.h"
 
+#include "nr_guid.h"
 #include "nr_segment.h"
+#include "nr_segment_private.h"
 #include "nr_segment_traces.h"
+#include "nr_segment_tree.h"
 #include "nr_txn.h"
 #include "util_minmax_heap.h"
 #include "util_strings.h"
+
+static void nr_vector_span_event_dtor(void* element, void* userdata NRUNUSED) {
+  nr_span_event_destroy((nr_span_event_t**)&element);
+}
 
 static void add_hash_json_to_buffer(nrbuf_t* buf, const nrobj_t* hash) {
   char* json;
@@ -54,22 +61,87 @@ static void add_async_hash_json_to_buffer(nrbuf_t* buf,
   nr_buffer_add(buf, "}", 1);
 }
 
-bool nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
-                                              void* userdata) {
-  uint64_t zerobased_start_ms;
-  uint64_t zerobased_stop_ms;
-  const char* segment_name;
-  int idx;
+static void nr_segment_traces_stot_iterator_post_callback(
+    nr_segment_t* segment,
+    nr_segment_userdata_t* userdata) {
+  nr_segment_t* current_trace_segment;
+  nr_segment_t* current_span_segment;
 
-  const nrtxn_t* txn = ((nr_segment_userdata_t*)userdata)->txn;
-  nrbuf_t* buf = ((nr_segment_userdata_t*)userdata)->buf;
-  nrpool_t* segment_names = ((nr_segment_userdata_t*)userdata)->segment_names;
-
-  if (segment->start_time >= segment->stop_time) {
-    ((nr_segment_userdata_t*)userdata)->success = -1;
-    return false;
+  if (nrunlikely(NULL == segment || NULL == userdata)) {
+    userdata->success = -1;
+    return;
   }
 
+  current_trace_segment = nr_vector_get(userdata->trace.current_path, 0);
+  current_span_segment = nr_vector_get(userdata->spans.current_path, 0);
+
+  /*
+   * The segment is sampled for the the trace output. It has to be popped off 
+   * the current trace ancestor path and brackets have to be added to the 
+   * trace output.
+   */
+  if (NULL != userdata->trace.buf && segment == current_trace_segment) {
+    nr_buffer_add(userdata->trace.buf, "]", 1);
+    nr_buffer_add(userdata->trace.buf, "]", 1);
+
+    nr_vector_remove(userdata->trace.current_path, 0,
+                     (void**)&current_trace_segment);
+  }
+
+  /*
+   * The segment is sampled for the the span event output. It has to be popped 
+   * off the current span event ancestor paths (both for the segment path and 
+   * the span event path).
+   */
+  if (segment == current_span_segment) {
+    void* dump;
+    nr_vector_remove(userdata->spans.current_span_path, 0, &dump);
+    nr_vector_remove(userdata->spans.current_path, 0, &dump);
+  }
+}
+
+static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
+                                            nr_segment_userdata_t* userdata,
+                                            const char* segment_name) {
+  nr_segment_userdata_trace_t* tracedata = &(userdata->trace);
+  bool trace_is_sampled = (NULL != tracedata->sample);
+  bool segment_is_sampled = nr_set_contains(tracedata->sample, (void*)segment);
+  const nrtxn_t* txn = userdata->txn;
+  nrpool_t* segment_names = userdata->segment_names;
+  nrbuf_t* buf = userdata->trace.buf;
+  int idx;
+  nr_segment_t* parent = NULL;
+  uint64_t zerobased_start_ms;
+  uint64_t zerobased_stop_ms;
+
+  if (trace_is_sampled && !segment_is_sampled) {
+    return;
+  }
+
+  /* Get nearest sampled ancestor segment. This will serve as parent. */
+  parent = (nr_segment_t*)nr_vector_get(tracedata->current_path, 0);
+
+  /* Update the current ancestor path of segments added to the trace
+   * output. */
+  nr_vector_push_front(tracedata->current_path, (void*)segment);
+
+  /* Examine the sampled_ancestors.  If the closest sampled ancestor of this
+   * segment appears in the set, this means the current segment has a previous
+   * sibling. and so the JSON needs a comma. */
+  if (nr_set_contains(tracedata->sampled_ancestors_with_child, parent)) {
+    nr_buffer_add(buf, ",", 1);
+  }
+
+  if (NULL != parent) {
+    nr_set_insert(tracedata->sampled_ancestors_with_child, (void*)parent);
+  }
+
+  /* Get the name index.
+   * The internal string tables index at 1, and we wish to index by 0 here. */
+  idx = nr_string_add(segment_names, segment_name);
+  idx--;
+
+  /* Calculate zerobased start and stop times. */
   zerobased_start_ms = (segment->start_time - txn->segment_root->start_time)
                        / NR_TIME_DIVISOR_MS;
 
@@ -87,11 +159,6 @@ bool nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
   if (zerobased_start_ms > zerobased_stop_ms) {
     zerobased_stop_ms = zerobased_start_ms;
   }
-
-  segment_name = nr_string_get(txn->trace_strings, segment->name);
-  idx = nr_string_add(segment_names, segment_name ? segment_name : "<unknown>");
-  /* The internal string tables index at 1, and we wish to index by 0 here. */
-  idx--;
 
   nr_buffer_add(buf, "[", 1);
   nr_buffer_write_uint64_t_as_text(buf, zerobased_start_ms);
@@ -131,64 +198,247 @@ bool nr_segment_traces_stot_iterator_callback(nr_segment_t* segment,
     add_hash_json_to_buffer(buf, segment->user_attributes);
   }
 
-  // And now for all its children.
+  /* And now for all its children. */
   nr_buffer_add(buf, ",", 1);
   nr_buffer_add(buf, "[", 1);
+}
 
-  return true;
+static void nr_populate_datastore_spans(nr_span_event_t* span_event,
+                                        const nr_segment_t* segment) {
+  const char* port_path_or_id;
+  const char* sql;
+  const char* component;
+  char* address;
+  char* host;
+
+  nr_span_event_set_category(span_event, NR_SPAN_DATASTORE);
+
+  if (nrunlikely(NULL == segment)) {
+    return;
+  }
+
+  component = segment->typed_attributes.datastore.component;
+  nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_COMPONENT,
+                              component);
+
+  host = segment->typed_attributes.datastore.instance.host;
+  nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_PEER_HOSTNAME,
+                              host);
+
+  port_path_or_id
+      = segment->typed_attributes.datastore.instance.port_path_or_id;
+  if (NULL == host) {
+    /* When host is not set, it should be NULL when used as
+     * NR_SPAN_DATASTORE_PEER_ADDRESS, however, when used in connection
+     * with NR_SPAN_DATASTORE_PEER_ADDRESS it should be set to
+     * "unknown".
+     */
+    host = "unknown";
+  }
+  if (NULL == port_path_or_id) {
+    port_path_or_id = "unknown";
+  }
+  address = nr_formatf("%s:%s", host, port_path_or_id);
+  nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_PEER_ADDRESS,
+                              address);
+  nr_free(address);
+
+  nr_span_event_set_datastore(
+      span_event, NR_SPAN_DATASTORE_DB_INSTANCE,
+      segment->typed_attributes.datastore.instance.database_name);
+
+  sql = segment->typed_attributes.datastore.sql;
+  if (NULL == sql) {
+    sql = segment->typed_attributes.datastore.sql_obfuscated;
+  }
+  nr_span_event_set_datastore(span_event, NR_SPAN_DATASTORE_DB_STATEMENT, sql);
+}
+
+static void nr_populate_http_spans(nr_span_event_t* span_event,
+                                   const nr_segment_t* segment) {
+  nr_span_event_set_external(span_event, NR_SPAN_EXTERNAL_METHOD,
+                             segment->typed_attributes.external.procedure);
+  nr_span_event_set_external(span_event, NR_SPAN_EXTERNAL_URL,
+                             segment->typed_attributes.external.uri);
+  nr_span_event_set_external(span_event, NR_SPAN_EXTERNAL_COMPONENT,
+                             segment->typed_attributes.external.library);
+  nr_span_event_set_category(span_event, NR_SPAN_HTTP);
+}
+
+static void nr_segment_iteration_pass_span(nr_segment_t* segment,
+                                           nr_segment_userdata_t* userdata,
+                                           const char* segment_name) {
+  nr_segment_userdata_spans_t* spandata = &userdata->spans;
+  const nrtxn_t* txn = userdata->txn;
+  bool span_is_sampled = (NULL != spandata->sample);
+  bool segment_is_sampled = nr_set_contains(spandata->sample, (void*)segment);
+  nr_span_event_t* span;
+
+  if (span_is_sampled && !segment_is_sampled) {
+    return;
+  }
+
+  span = nr_span_event_create();
+
+  /* Update the current ancestor paths of segments and spans added to the
+   * output span event list. */
+  nr_vector_push_front(spandata->current_path, (void*)segment);
+  nr_vector_push_front(spandata->current_span_path, (void*)span);
+
+  if (NULL == segment->id) {
+    char* guid = nr_guid_create(txn->rnd);
+    nr_span_event_set_guid(span, guid);
+    nr_free(guid);
+  } else {
+    nr_span_event_set_guid(span, segment->id);
+  }
+
+  nr_span_event_set_name(span, segment_name);
+  nr_span_event_set_parent(span, nr_vector_get(spandata->current_span_path, 1));
+  nr_span_event_set_timestamp(span, segment->start_time);
+  nr_span_event_set_duration(
+      span, nr_time_duration(segment->start_time, segment->stop_time));
+
+  switch (segment->type) {
+    case NR_SEGMENT_CUSTOM:
+      break;
+    case NR_SEGMENT_DATASTORE:
+      nr_populate_datastore_spans(span, segment);
+      break;
+    case NR_SEGMENT_EXTERNAL:
+      nr_populate_http_spans(span, segment);
+      break;
+  }
+  nr_vector_push_back(spandata->events, span);
+}
+
+nr_segment_iter_return_t nr_segment_traces_stot_iterator_callback(
+    nr_segment_t* segment,
+    void* data) {
+  nr_segment_userdata_t* userdata = (nr_segment_userdata_t*)data;
+  const nrtxn_t* txn = userdata->txn;
+  const char* segment_name;
+
+  /*
+   * Sanity check, the segment should have started before it stopped.
+   */
+  if (segment->start_time >= segment->stop_time) {
+    userdata->success = -1;
+    return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
+  }
+
+  segment_name = nr_string_get(txn->trace_strings, segment->name);
+  if (NULL == segment_name) {
+    segment_name = "<unknown>";
+  }
+
+  /*
+   * Spans are only created if the span event output vector is given.
+   */
+  if (NULL != userdata->spans.events) {
+    nr_segment_iteration_pass_span(segment, userdata, segment_name);
+  }
+
+  /*
+   * Traces are only created if the trace output buffer is given.
+   */
+  if (NULL != userdata->trace.buf) {
+    nr_segment_iteration_pass_trace(segment, userdata, segment_name);
+  }
+
+  /*
+   * Register a post-callback to close brackets and to adapt parent stacks.
+   */
+  return ((nr_segment_iter_return_t){
+      .post_callback
+      = (nr_segment_post_iter_t)nr_segment_traces_stot_iterator_post_callback,
+      .userdata = userdata});
 }
 
 int nr_segment_traces_json_print_segments(nrbuf_t* buf,
+                                          nr_vector_t* span_events,
+                                          nr_set_t* trace_set,
+                                          nr_set_t* span_set,
                                           const nrtxn_t* txn,
                                           nr_segment_t* root,
                                           nrpool_t* segment_names) {
-  if ((NULL == buf) || (NULL == txn) || (NULL == segment_names) || (NULL == root)) {
+  nr_segment_userdata_t* userdata;
+
+  if (NULL == buf && NULL == span_events) {
+    /* The trace output buffer and the span output vector are not given.
+     * In that case, there's no work to do.
+     */
     return -1;
-  } else {
-    /* Construct the userdata to be supplied to the callback */
-    nr_segment_userdata_t userdata = {
-        .buf = buf, .txn = txn, .segment_names = segment_names, .success = 0};
-
-    nr_segment_iterate(
-        root, (nr_segment_iter_t)nr_segment_traces_stot_iterator_callback,
-        &userdata);
-
-    return userdata.success;
   }
-  return -1;
+
+  if ((NULL == txn) || (NULL == segment_names) || (NULL == root)) {
+    return -1;
+  }
+
+  /* Construct the userdata to be supplied to the callback */
+  userdata = &(nr_segment_userdata_t){
+         .txn = txn,
+         .segment_names = segment_names,
+         .success = 0,
+         .trace = {
+           .buf = buf,
+           .sample = trace_set,
+           .current_path = nr_vector_create(12, NULL, NULL),
+           .sampled_ancestors_with_child = nr_set_create(),
+         },
+         .spans = {
+           .events = span_events,
+           .sample = span_set,
+           .current_path = nr_vector_create(12, NULL, NULL),
+           .current_span_path = nr_vector_create(12, NULL, NULL),
+         }
+  };
+
+  nr_segment_iterate(
+      root, (nr_segment_iter_t)nr_segment_traces_stot_iterator_callback,
+      userdata);
+
+  nr_set_destroy(&(userdata->trace.sampled_ancestors_with_child));
+  nr_vector_destroy(&(userdata->trace.current_path));
+  nr_vector_destroy(&(userdata->spans.current_path));
+  nr_vector_destroy(&(userdata->spans.current_span_path));
+
+  return userdata->success;
 }
 
-int nr_segment_compare(const nr_segment_t* a, const nr_segment_t* b) {
-  nrtime_t duration_a = a->stop_time - a->start_time;
-  nrtime_t duration_b = b->stop_time - b->start_time;
-
-  if (duration_a < duration_b) {
-    return -1;
-  } else if (duration_a > duration_b) {
-    return 1;
-  }
-  return 0;
-}
-
-char* nr_segment_traces_create_data(const nrtxn_t* txn,
-                                    nrtime_t duration,
-                                    const nrobj_t* agent_attributes,
-                                    const nrobj_t* user_attributes,
-                                    const nrobj_t* intrinsics) {
-  nrbuf_t* buf;
-  char* data;
+void nr_segment_traces_create_data(
+    const nrtxn_t* txn,
+    nrtime_t duration,
+    nr_segment_tree_sampling_metadata_t* metadata,
+    const nrobj_t* agent_attributes,
+    const nrobj_t* user_attributes,
+    const nrobj_t* intrinsics,
+    bool create_trace,
+    bool create_spans) {
+  nrbuf_t* buf = NULL;
+  nr_vector_t* span_events = NULL;
   int rv;
   nrpool_t* segment_names;
 
-  /* Currently, this function will not create a trace if the segment count of a transaction
-   * exceeds 2000.  Future versions of this function shall sample segments down to
-   * 2000.
-   */
-  if ((NULL == txn) || (0 == txn->segment_count) || (0 == duration) || (2000 < txn->segment_count)) {
-    return NULL;
+  if ((NULL == txn) || (0 == txn->segment_count) || (0 == duration)
+      || NULL == metadata || NULL == metadata->out
+      || (NULL != metadata->trace_set
+          && NR_TXN_MAX_NODES < nr_set_size(metadata->trace_set))) {
+    return;
   }
 
-  buf = nr_buffer_create(4096 * 8, 4096 * 4);
+  if (create_trace) {
+    buf = nr_buffer_create(4096 * 8, 4096 * 4);
+  }
+
+  if (create_spans) {
+    size_t vector_size = (txn->segment_count > NR_SPAN_EVENTS_MAX)
+                             ? NR_SPAN_EVENTS_MAX
+                             : txn->segment_count;
+    span_events
+        = nr_vector_create(vector_size, nr_vector_span_event_dtor, NULL);
+  }
+
   segment_names = nr_string_pool_create();
 
   /*
@@ -218,13 +468,14 @@ char* nr_segment_traces_create_data(const nrtxn_t* txn,
   nr_buffer_add(buf, ",", 1);
   nr_buffer_add(buf, "[", 1);
 
-  rv = nr_segment_traces_json_print_segments(buf, txn, txn->segment_root,
-                                             segment_names);
+  rv = nr_segment_traces_json_print_segments(
+      buf, span_events, metadata->trace_set, metadata->span_set, txn,
+      txn->segment_root, segment_names);
 
   if (rv < 0) {
     nr_string_pool_destroy(&segment_names);
     nr_buffer_destroy(&buf);
-    return 0;
+    return;
   }
 
   nr_buffer_add(buf, "]", 1);
@@ -256,39 +507,15 @@ char* nr_segment_traces_create_data(const nrtxn_t* txn,
   }
   nr_buffer_add(buf, "]", 1);
   nr_buffer_add(buf, "\0", 1);
-  data = nr_strdup((const char*)nr_buffer_cptr(buf));
+  if (create_trace) {
+    metadata->out->trace_json = nr_strdup((const char*)nr_buffer_cptr(buf));
+  } else {
+    metadata->out->trace_json = NULL;
+  }
+  metadata->out->span_events = span_events;
 
   nr_string_pool_destroy(&segment_names);
   nr_buffer_destroy(&buf);
 
-  return data;
-}
-
-static int segment_compare_wrapper(const void* a,
-                                   const void* b,
-                                   void* userdata NRUNUSED) {
-  return nr_segment_compare((const nr_segment_t*)a, (const nr_segment_t*)b);
-}
-
-nr_minmax_heap_t* nr_segment_traces_heap_create(ssize_t bound) {
-  return nr_minmax_heap_create(bound, segment_compare_wrapper, NULL, NULL,
-                               NULL);
-}
-
-bool nr_segment_traces_stoh_iterator_callback(nr_segment_t* segment,
-                                              void* userdata) {
-  if (nrunlikely(NULL == segment || NULL == userdata)) {
-    return false;
-  } else {
-    nr_minmax_heap_t* heap = (nr_minmax_heap_t*)userdata;
-    nr_minmax_heap_insert(heap, segment);
-
-    return true;
-  }
-}
-
-void nr_segment_traces_tree_to_heap(nr_segment_t* root,
-                                    nr_minmax_heap_t* heap) {
-  nr_segment_iterate(
-      root, (nr_segment_iter_t)nr_segment_traces_stoh_iterator_callback, heap);
+  return;
 }

@@ -27,8 +27,6 @@ newrelic_segment_t* newrelic_segment_create(nrtxn_t* txn) {
 
   segment->transaction = txn;
   segment->segment = txn_seg;
-  segment->kids_duration_save = txn->cur_kids_duration;
-  txn->cur_kids_duration = &segment->kids_duration;
 
   return segment;
 }
@@ -183,25 +181,16 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 
   nrt_mutex_lock(&transaction->lock);
   {
-    nrtime_t duration;
-    nrtime_t exclusive;
-
     /* Stop the segment. */
     nr_segment_end(segment->segment);
-
-    duration = nr_time_duration(segment->segment->start_time,
-                                segment->segment->stop_time);
-    exclusive = duration - segment->kids_duration;
-    segment->transaction->cur_kids_duration = segment->kids_duration_save;
-    nr_txn_adjust_exclusive_time(segment->transaction, duration);
 
     switch (segment->segment->type) {
       case NR_SEGMENT_CUSTOM:
         /* Add a custom metric. */
-        nrm_add_ex(transaction->txn->scoped_metrics,
-                   nr_string_get(transaction->txn->trace_strings,
-                                 segment->segment->name),
-                   duration, exclusive);
+        nr_segment_add_metric(segment->segment,
+                              nr_string_get(transaction->txn->trace_strings,
+                                            segment->segment->name),
+                              true);
         break;
 
       case NR_SEGMENT_DATASTORE:

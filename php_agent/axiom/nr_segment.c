@@ -4,9 +4,11 @@
 #include "nr_segment.h"
 #include "nr_segment_traces.h"
 #include "nr_txn.h"
+#include "util_logging.h"
 #include "util_memory.h"
 #include "util_string_pool.h"
 #include "util_time.h"
+#include "util_logging.h"
 
 nr_segment_t* nr_segment_start(nrtxn_t* txn,
                                nr_segment_t* parent,
@@ -133,6 +135,37 @@ bool nr_segment_add_child(nr_segment_t* parent, nr_segment_t* child) {
   return true;
 }
 
+static void nr_segment_metric_destroy_wrapper(void* sm,
+                                              void* userdata NRUNUSED) {
+  nr_segment_metric_destroy_fields((nr_segment_metric_t*)sm);
+  nr_free(sm);
+}
+
+bool nr_segment_add_metric(nr_segment_t* segment,
+                           const char* name,
+                           bool scoped) {
+  nr_segment_metric_t* sm;
+
+  if (nrunlikely(NULL == segment || NULL == name)) {
+    return false;
+  }
+
+  if (NULL == segment->metrics) {
+    /* We'll use 4 as the default vector size here because that's the most
+     * metrics we should see from an automatically instrumented segment: legacy
+     * CAT will create scoped and unscoped rollup and ExternalTransaction
+     * metrics. */
+    segment->metrics
+        = nr_vector_create(4, nr_segment_metric_destroy_wrapper, NULL);
+  }
+
+  sm = nr_malloc(sizeof(nr_segment_metric_t));
+  sm->name = nr_strdup(name);
+  sm->scoped = scoped;
+
+  return nr_vector_push_back(segment->metrics, sm);
+}
+
 bool nr_segment_set_name(nr_segment_t* segment, const char* name) {
   if ((NULL == segment) || (NULL == name)) {
     return false;
@@ -144,6 +177,8 @@ bool nr_segment_set_name(nr_segment_t* segment, const char* name) {
 }
 
 bool nr_segment_set_parent(nr_segment_t* segment, nr_segment_t* parent) {
+  nr_segment_t* ancestor = NULL;
+
   if (NULL == segment) {
     return false;
   }
@@ -154,6 +189,23 @@ bool nr_segment_set_parent(nr_segment_t* segment, nr_segment_t* parent) {
 
   if (segment->parent == parent) {
     return true;
+  }
+
+  /*
+   * Check if we are creating a cycle. If the to-be child segment is a child
+   * of the to-be parent segment then we are creating a cycle. We should not
+   * continue.
+   */
+  ancestor = parent;
+  while (NULL != ancestor) {
+    if (ancestor == segment) {
+      nrl_warning(NRL_API,
+                  "Unsuccessful call to newrelic_set_segment_parent(). Cannot "
+                  "set parent because it would introduce a cycle into the "
+                  "agent's call stack representation.");
+      return false;
+    }
+    ancestor = ancestor->parent;
   }
 
   if (segment->parent) {
@@ -217,17 +269,34 @@ static nr_segment_color_t nr_segment_toggle_color(nr_segment_color_t color) {
 }
 
 /*
+ * Purpose : The callback registered by nr_segment_destroy_children_callback()
+ *           to finish destroying the segment and (if necessary) its child
+ *           structures.
+ */
+static void nr_segment_destroy_children_post_callback(nr_segment_t* segment,
+                                                      void* userdata NRUNUSED) {
+  /* Free the segment */
+  nr_segment_destroy_fields(segment);
+  nr_segment_children_destroy_fields(&segment->children);
+  nr_exclusive_time_destroy(&segment->exclusive_time);
+  nr_free(segment);
+}
+
+/*
  * Purpose : The callback necessary to iterate over a
  * tree of segments and free them and all their children.
  */
-static bool nr_segment_destroy_children_callback(nr_segment_t* segment,
-                                                 void* userdata NRUNUSED) {
+static nr_segment_iter_return_t nr_segment_destroy_children_callback(
+    nr_segment_t* segment,
+    void* userdata NRUNUSED) {
   // If this segment has room for children, but no children,
   // then let's free the room for children.
-  if (segment->children.used == 0 && segment->children.children != NULL) {
-    nr_segment_children_destroy_fields(&segment->children);
+  if (0 == nr_vector_size(&segment->children)) {
+    nr_vector_deinit(&segment->children);
   }
-  return true;
+
+  return ((nr_segment_iter_return_t){
+      .post_callback = nr_segment_destroy_children_post_callback});
 }
 
 /*
@@ -249,92 +318,30 @@ static void nr_segment_iterate_helper(nr_segment_t* root,
                                       nr_segment_color_t set_color,
                                       nr_segment_iter_t callback,
                                       void* userdata) {
-  nrbuf_t* buf;
-  size_t i;
   if (NULL == root) {
     return;
   } else {
     // Color the segments as the tree is traversed to prevent infinite regress.
     if (reset_color == root->color) {
+      nr_segment_iter_return_t cb_return;
+      size_t i;
+      size_t n_children = nr_vector_size(&root->children);
+
       root->color = set_color;
-      (callback)(root, userdata);
 
-      for (i = 0; i < root->children.used; i++) {
-        nr_segment_iterate_helper(root->children.children[i], reset_color,
-                                  set_color, callback, userdata);
+      // Invoke the pre-traversal callback.
+      cb_return = (callback)(root, userdata);
+
+      // Iterate the children.
+      for (i = 0; i < n_children; i++) {
+        nr_segment_iterate_helper(nr_vector_get(&root->children, i),
+                                  reset_color, set_color, callback, userdata);
       }
-      /*
-       * Currently, nr_segment_iterate() and nr_segment_iterate_helper() do a
-       * really good job of visiting each segment in the tree in prefix order.
-       * At each segment nr_segment_iterate_helper():
-       *
-       * - Invokes a callback function.
-       * - Recurses on the children.
-       *
-       * This works really well for something like "Convert this tree to a
-       * min-max heap." The iterator visits each segment. At each segment, a
-       * callback is invoked to copy the segment into the heap.
-       *
-       * This doesn't work so well if work is needed after the segment has been
-       * traversed. For example, with nr_segment_traces_json_print_segments(),
-       * at each segment we need it to:
-       *
-       * - Invoke a callback function to convert the segment to JSON.
-       * - Recurse on the children, converting them to JSON.
-       * - Add any closing brackets or commas after recursing on the children is
-       * complete.
-       *
-       * Currently, nr_segment_iterate_helper() has one special case for doing
-       * post-traversal work for nr_segment_traces_json_print_segments().  It
-       * checks for the iterator callback used specifically by this function and
-       * does the post-work.  Future versions of nr_segment_iterate_helper()
-       * should allow one to register a post-traversal callback.
-       */
-      if (callback
-          == (nr_segment_iter_t)nr_segment_traces_stot_iterator_callback) {
-        buf = ((nr_segment_userdata_t*)userdata)->buf;
-        nr_buffer_add(buf, "]", 1);
-        nr_buffer_add(buf, "]", 1);
 
-        /* Conditionally, we need a comma here if this node has a next sibling.
-         */
-        if (root->parent != NULL) {
-          if (nr_segment_children_get_next(&(root->parent->children), root)) {
-            nr_buffer_add(buf, ",", 1);
-          }
-        }
+      // If a post-traversal callback was registered, invoke it.
+      if (cb_return.post_callback) {
+        (cb_return.post_callback)(root, cb_return.userdata);
       }
-      if (callback == (nr_segment_iter_t)nr_segment_destroy_children_callback) {
-        /* We've reached this point because the recursion has reached the bottom
-         * and now we are unrolling.  We free segments from the bottom-up.
-         * If we free segments from the top down, we lose track of the child
-         * pointers. */
-
-        /* Save a pointer to the parent; it's inaccessible once the segment is freed. */
-        nr_segment_t* parent = root->parent;
-
-        /* Save a pointer to the sibling; it's inaccessible once the segment is freed.
-         * Initialize the pointer to not NULL.  If nr_segment_children_get_next()
-         * returns NULL, then there are no siblings */
-        nr_segment_t* sibling = (nr_segment_t*)0xC0FFEE;
-        if (NULL != parent) {
-          sibling
-              = nr_segment_children_get_next(&(root->parent->children), root);
-        }
-
-        /* Free the segment */
-        nr_segment_destroy_fields(root);
-        nr_free(root);
-
-        /* If there are no more children in this family, if this is
-         * the last child to be freed, then free the memory used
-         * to manage the children.  Like turning a kid's bedroom
-         * into a craft room when she leaves for college. */
-        if (NULL == sibling) {
-          nr_segment_children_destroy_fields(&parent->children);
-        }
-      }
-      return;
     }
   }
 }
@@ -368,4 +375,152 @@ void nr_segment_destroy(nr_segment_t* root) {
 
   nr_segment_iterate(
       root, (nr_segment_iter_t)nr_segment_destroy_children_callback, NULL);
+}
+
+static int nr_segment_duration_comparator(const nr_segment_t* a,
+                                          const nr_segment_t* b) {
+  nrtime_t duration_a = a->stop_time - a->start_time;
+  nrtime_t duration_b = b->stop_time - b->start_time;
+
+  if (duration_a < duration_b) {
+    return -1;
+  } else if (duration_a > duration_b) {
+    return 1;
+  }
+  return 0;
+}
+
+int nr_segment_wrapped_duration_comparator(const void* a,
+                                           const void* b,
+                                           void* userdata NRUNUSED) {
+  return nr_segment_duration_comparator((const nr_segment_t*)a,
+                                        (const nr_segment_t*)b);
+}
+
+nr_minmax_heap_t* nr_segment_heap_create(ssize_t bound,
+                                         nr_minmax_heap_cmp_t comparator) {
+  return nr_minmax_heap_create(bound, comparator, NULL, NULL, NULL);
+}
+
+static void nr_segment_stoh_post_iterator_callback(
+    nr_segment_t* segment,
+    nr_segment_tree_to_heap_metadata_t* metadata) {
+  nrtime_t exclusive_time;
+  size_t i;
+  size_t metric_count;
+
+  if (nrunlikely(NULL == segment || NULL == metadata)) {
+    return;
+  }
+
+  exclusive_time = nr_exclusive_time_calculate(segment->exclusive_time);
+  nr_exclusive_time_destroy(&segment->exclusive_time);
+  metric_count = nr_vector_size(segment->metrics);
+  for (i = 0; i < metric_count; i++) {
+    nr_segment_metric_t* sm
+        = (nr_segment_metric_t*)nr_vector_get(segment->metrics, i);
+
+    nrm_add(sm->scoped ? metadata->scoped_metrics : metadata->unscoped_metrics,
+            sm->name, exclusive_time);
+  }
+}
+
+/*
+ * Purpose : Place an nr_segment_t pointer into a nr_minmax_heap,
+ *             or "segments to heap".
+ *
+ * Params  : 1. The segment pointer to place into the heap.
+ *           2. A void* pointer to be recast as the pointer to the heap.
+ *
+ * Note    : This is the callback function supplied to nr_segment_iterate(),
+ *           used for iterating over a tree of segments and placing each
+ *           segment into the heap.
+ */
+static nr_segment_iter_return_t nr_segment_stoh_iterator_callback(
+    nr_segment_t* segment,
+    void* userdata) {
+  nr_minmax_heap_t* trace_heap = NULL;
+  nr_minmax_heap_t* span_heap = NULL;
+  nr_segment_tree_to_heap_metadata_t* metadata
+      = (nr_segment_tree_to_heap_metadata_t*)userdata;
+
+  if (nrunlikely(NULL == segment) || nrunlikely(NULL == userdata)) {
+    return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
+  }
+
+  /* Set up the exclusive time so that children can adjust it as necessary. */
+  segment->exclusive_time
+      = nr_exclusive_time_create(segment->start_time, segment->stop_time);
+
+  /* Adjust the parent's exclusive time. */
+  if (segment->parent
+      && segment->parent->async_context == segment->async_context) {
+    nr_exclusive_time_add_child(segment->parent->exclusive_time,
+                                segment->start_time, segment->stop_time);
+  }
+
+  trace_heap = metadata->trace_heap;
+  span_heap = metadata->span_heap;
+
+  if (NULL != trace_heap) {
+    nr_minmax_heap_insert(trace_heap, segment);
+  }
+
+  if (NULL != span_heap) {
+    nr_minmax_heap_insert(span_heap, segment);
+  }
+
+  // clang-format off
+  return ((nr_segment_iter_return_t){
+    .post_callback
+      = (nr_segment_post_iter_t)nr_segment_stoh_post_iterator_callback,
+    .userdata = metadata,
+  });
+  // clang-format on
+}
+
+void nr_segment_tree_to_heap(nr_segment_t* root,
+                             nr_segment_tree_to_heap_metadata_t* metadata) {
+  if (NULL == root || NULL == metadata) {
+    return;
+  }
+  /* Convert the tree to two minmax heap.  The bound, or
+   * size, of the heaps, and the comparison functions installed
+   * by the nr_segment_heap_create() calls will assure that the
+   * segments in the heaps are of highest priority. */
+  nr_segment_iterate(root, (nr_segment_iter_t)nr_segment_stoh_iterator_callback,
+                     metadata);
+}
+
+/*
+ * Purpose : Place an nr_segment_t pointer in a heap into a nr_set_t,
+ *             or "heap to set".
+ *
+ * Params  : 1. The segment pointer in the heap.
+ *           2. A void* pointer to be recast as the pointer to the set.
+ *
+ * Note    : This is the callback function supplied to nr_minmax_heap_iterate
+ *           used for iterating over a heap of segments and placing each
+ *           segment into a set.
+ */
+static bool nr_segment_htos_iterator_callback(void* value, void* userdata) {
+  if (nrlikely(value && userdata)) {
+    nr_set_t* set = (nr_set_t*)userdata;
+    nr_set_insert(set, value);
+  }
+
+  return true;
+}
+
+void nr_segment_heap_to_set(nr_minmax_heap_t* heap, nr_set_t* set) {
+  if (NULL == heap || NULL == set) {
+    return;
+  }
+
+  /* Convert the heap to a set */
+  nr_minmax_heap_iterate(
+      heap, (nr_minmax_heap_iter_t)nr_segment_htos_iterator_callback,
+      (void*)set);
+
+  return;
 }

@@ -37,11 +37,13 @@ typedef struct _test_txn_state_t {
   nrapp_t* txns_app;
 } test_txn_state_t;
 
+#ifndef NR_CAGENT
 static char* stack_dump_callback(void) {
   return nr_strdup(
       "[\"Zip called on line 123 of script.php\","
       "\"Zap called on line 456 of hack.php\"]");
 }
+#endif /* NR_CAGENT */
 
 /*
  * hash_is_subset_of is a callback that can be passed to nro_iteratehash. It
@@ -1723,7 +1725,8 @@ static void test_save_trace_node(void) {
   tlib_pass_if_int_equal("success, no context", 0,
                          txn->last_added->async_context);
 
-  nr_txn_save_trace_node(txn, &start, &stop, "myname", "mycontext", data_hash, NULL);
+  nr_txn_save_trace_node(txn, &start, &stop, "myname", "mycontext", data_hash,
+                         NULL);
   tlib_pass_if_int_equal("success, with context", 3, txn->nodes_used);
   tlib_pass_if_not_null("success, with context", txn->last_added);
   tlib_pass_if_int_equal("success, with context", 2,
@@ -2205,14 +2208,22 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
     return txn;
   }
 
-  txn->root.start_time.when
-      -= 5
-         * (txn->options.tt_threshold + txn->options.ep_threshold
-            + txn->options.ss_threshold);
   txn->status.http_x_start = txn->root.start_time.when - 100;
   txn->high_security = 0;
   txn->options.ep_threshold = 0;
   txn->options.ss_threshold = 0;
+
+#ifdef NR_CAGENT
+  txn->segment_root->start_time
+      -= 5
+         * (txn->options.tt_threshold + txn->options.ep_threshold
+            + txn->options.ss_threshold);
+#else
+  txn->root.start_time.when
+      -= 5
+         * (txn->options.tt_threshold + txn->options.ep_threshold
+            + txn->options.ss_threshold);
+#endif /* NR_CAGENT */
 
   /*
    * Add an Error
@@ -2228,6 +2239,15 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
    * done above in test_save_if_slow_enough.
    */
   {
+#ifdef NR_CAGENT
+    nr_segment_t* seg = nr_segment_start(txn, NULL, NULL);
+    nr_segment_end(seg);
+    seg->start_time = txn->segment_root->start_time + 1 * NR_TIME_DIVISOR;
+    seg->stop_time = txn->segment_root->start_time + 2 * NR_TIME_DIVISOR;
+    seg->type = NR_SEGMENT_DATASTORE;
+    seg->typed_attributes.datastore.sql = nr_strdup("SELECT * from TABLE;");
+    seg->typed_attributes.datastore.component = nr_strdup("MySql");
+#else
     nr_node_datastore_params_t params = {
         .start
         = {.when = txn->root.start_time.when + 1 * NR_TIME_DIVISOR, .stamp = 1},
@@ -2240,9 +2260,17 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
         }};
 
     nr_txn_end_node_datastore(txn, &params, NULL);
+#endif /* NR_CAGENT */
   }
 
   {
+#ifdef NR_CAGENT
+    nr_segment_t* seg = nr_segment_start(txn, NULL, NULL);
+    nr_segment_end(seg);
+    seg->start_time = txn->segment_root->start_time + 3 * NR_TIME_DIVISOR;
+    seg->stop_time = txn->segment_root->start_time + 4 * NR_TIME_DIVISOR;
+    seg->type = NR_SEGMENT_DATASTORE;
+#else
     nr_node_datastore_params_t params = {
         .start
         = {.when = txn->root.start_time.when + 3 * NR_TIME_DIVISOR, .stamp = 3},
@@ -2254,9 +2282,17 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
     };
 
     nr_txn_end_node_datastore(txn, &params, NULL);
+#endif /* NR_CAGENT */
   }
 
   {
+#ifdef NR_CAGENT
+    nr_segment_t* seg = nr_segment_start(txn, NULL, NULL);
+    nr_segment_end(seg);
+    seg->start_time = txn->segment_root->start_time + 5 * NR_TIME_DIVISOR;
+    seg->stop_time = txn->segment_root->start_time + 6 * NR_TIME_DIVISOR;
+    seg->type = NR_SEGMENT_DATASTORE;
+#else
     nr_node_datastore_params_t params = {
         .start
         = {.when = txn->root.start_time.when + 5 * NR_TIME_DIVISOR, .stamp = 5},
@@ -2267,9 +2303,18 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
     };
 
     nr_txn_end_node_datastore(txn, &params, NULL);
+#endif /* NR_CAGENT */
   }
 
   {
+#ifdef NR_CAGENT
+    nr_segment_t* seg = nr_segment_start(txn, NULL, NULL);
+    nr_segment_end(seg);
+    seg->start_time = txn->segment_root->start_time + 7 * NR_TIME_DIVISOR;
+    seg->stop_time = txn->segment_root->start_time + 8 * NR_TIME_DIVISOR;
+    seg->type = NR_SEGMENT_EXTERNAL;
+    seg->typed_attributes.external.uri = nr_strdup("newrelic.com");
+#else
     nr_node_external_params_t params = {
         .start
         = {.when = txn->root.start_time.when + 7 * NR_TIME_DIVISOR, .stamp = 7},
@@ -2280,10 +2325,16 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
     };
 
     nr_txn_end_node_external(txn, &params);
+#endif /* NR_CAGENT */
   }
 
+#ifdef NR_CAGENT
+  tlib_pass_if_true("four segments added", 5 == txn->segment_count,
+                    "txn->segment_count=%lu", txn->segment_count);
+#else
   tlib_pass_if_true("four nodes added", 4 == txn->nodes_used,
                     "txn->nodes_used=%d", txn->nodes_used);
+#endif /* NR_CAGENT */
 
   /*
    * Set the Path
@@ -2993,21 +3044,35 @@ static void test_add_error_attributes(void) {
 }
 
 static void test_duration(void) {
-  nrtxn_t txn;
+  nrtxn_t txn = {0};
   nrtime_t duration;
+#ifdef NR_CAGENT
+  nr_segment_t seg = {0};
+  txn.segment_root = &seg;
+#endif /* NR_CAGENT */
 
   duration = nr_txn_duration(NULL);
   tlib_pass_if_true("null txn", 0 == duration, "duration=" NR_TIME_FMT,
                     duration);
 
+#ifdef NR_CAGENT
+  txn.segment_root->start_time = 1;
+  txn.segment_root->stop_time = 0;
+#else
   txn.root.start_time.when = 1;
   txn.root.stop_time.when = 0;
+#endif /* NR_CAGENT */
   duration = nr_txn_duration(&txn);
   tlib_pass_if_true("unfinished txn", 0 == duration, "duration=" NR_TIME_FMT,
                     duration);
 
+#ifdef NR_CAGENT
+  txn.segment_root->start_time = 1;
+  txn.segment_root->stop_time = 2;
+#else
   txn.root.start_time.when = 1;
   txn.root.stop_time.when = 2;
+#endif /* NR_CAGENT */
   duration = nr_txn_duration(&txn);
   tlib_pass_if_true("finished txn", 1 == duration, "duration=" NR_TIME_FMT,
                     duration);
@@ -3241,9 +3306,13 @@ static void test_is_account_trusted(void) {
 }
 
 static void test_should_save_trace(void) {
-  nrtxn_t txn;
+  nrtxn_t txn = {0};
 
+#ifdef NR_CAGENT
+  txn.segment_count = 10;
+#else
   txn.nodes_used = 10;
+#endif /* NR_CAGENT */
   txn.options.tt_threshold = 100;
 
   /*
@@ -3264,10 +3333,18 @@ static void test_should_save_trace(void) {
   txn.type = 0;
   tlib_pass_if_int_equal("fast", 0, nr_txn_should_save_trace(&txn, 0));
 
+#ifdef NR_CAGENT
+  txn.segment_count = 0;
+#else
   txn.nodes_used = 0;
+#endif /* NR_CAGENT */
   tlib_pass_if_int_equal("zero nodes used", 0,
                          nr_txn_should_save_trace(&txn, 100));
+#ifdef NR_CAGENT
+  txn.segment_count = 10;
+#else
   txn.nodes_used = 10;
+#endif /* NR_CAGENT */
 
   /*
    * Test : Slow, non-synthetics transaction.
@@ -3892,7 +3969,13 @@ static void test_is_synthetics(void) {
 static void test_start_time_secs(void) {
   nrtxn_t txn;
 
+#ifdef NR_CAGENT
+  nr_segment_t seg = {0};
+  txn.segment_root = &seg;
+  txn.segment_root->start_time = 123456789 * NR_TIME_DIVISOR_US;
+#else
   txn.root.start_time.when = 123456789 * NR_TIME_DIVISOR_US;
+#endif /* NR_CAGENT */
 
   tlib_pass_if_double_equal("NULL txn", nr_txn_start_time_secs(NULL), 0.0);
   tlib_pass_if_double_equal("success", nr_txn_start_time_secs(&txn),
@@ -3900,9 +3983,15 @@ static void test_start_time_secs(void) {
 }
 
 static void test_start_time(void) {
-  nrtxn_t txn;
+  nrtxn_t txn = {0};
 
+#ifdef NR_CAGENT
+  nr_segment_t seg = {0};
+  txn.segment_root = &seg;
+  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
+#else
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
+#endif /* NR_CAGENT */
 
   tlib_pass_if_time_equal("NULL txn", nr_txn_start_time(NULL), 0);
   tlib_pass_if_time_equal("success", nr_txn_start_time(&txn),
@@ -4043,6 +4132,9 @@ static void test_namer(void) {
 static void test_error_to_event(void) {
   nrtxn_t txn = {.high_security = 0};
   nr_analytics_event_t* event;
+#ifdef NR_CAGENT
+  nr_segment_t seg = {0};
+#endif /* NR_CAGENT */
 
   txn.cat.inbound_guid = NULL;
   txn.error
@@ -4053,8 +4145,15 @@ static void test_error_to_event(void) {
   txn.options.error_events_enabled = 1;
   txn.options.distributed_tracing_enabled = 0;
   txn.options.apdex_t = 10;
+#ifdef NR_CAGENT
+  txn.segment_root = &seg;
+  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
+  txn.segment_root->stop_time
+      = txn.segment_root->start_time + 987 * NR_TIME_DIVISOR_MS;
+#else
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
+#endif
   txn.status.background = 0;
   txn.status.ignore_apdex = 0;
   txn.synthetics = NULL;
@@ -4167,6 +4266,9 @@ static void test_error_to_event(void) {
 static void test_create_event(void) {
   nrtxn_t txn = {.high_security = 0};
   nr_analytics_event_t* event;
+#ifdef NR_CAGENT
+  nr_segment_t seg = {0};
+#endif /* NR_CAGENT */
 
   txn.error = NULL;
   txn.status.background = 0;
@@ -4176,8 +4278,15 @@ static void test_create_event(void) {
   txn.options.distributed_tracing_enabled = 0;
   nr_txn_set_guid(&txn, "abcd");
   txn.name = nr_strdup("my_txn_name");
+#ifdef NR_CAGENT
+  txn.segment_root = &seg;
+  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
+  txn.segment_root->stop_time
+      = txn.segment_root->start_time + 987 * NR_TIME_DIVISOR_MS;
+#else
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
+#endif /* NR_CAGENT */
   txn.unscoped_metrics = nrm_table_create(100);
   txn.synthetics = NULL;
   txn.type = 0;
@@ -4723,8 +4832,13 @@ static void test_txn_dt_cross_agent_testcase(nrapp_t* app,
   /*
    * Intrinsics.
    */
+#ifdef NR_CAGENT
+  txn->segment_root->start_time = 1000;
+  txn->segment_root->stop_time = 2000;
+#else
   txn->root.start_time.stamp = txn->root.start_time.when = 1000;
   txn->root.stop_time.stamp = txn->root.stop_time.when = 2000;
+#endif /* NR_CAGENT */
 
   /* Initialize transaction event */
   txn_event = nr_txn_event_intrinsics(txn);
@@ -4750,8 +4864,10 @@ static void test_txn_dt_cross_agent_testcase(nrapp_t* app,
     nr_flatbuffer_t* fb;
     nr_aoffset_t events;
 
+#ifndef NR_CAGENT
     nr_txn_save_trace_node(txn, &txn->root.start_time, &txn->root.stop_time,
                            "myname", NULL, NULL, NULL);
+#endif /* NR_CAGENT */
 
     txn->root.name = nr_string_add(txn->trace_strings, txn->name);
 
@@ -5410,9 +5526,9 @@ static void test_create_distributed_trace_payload(void) {
   text = nr_txn_create_distributed_trace_payload(&txn);
   tlib_fail_if_null("valid guid wombat", nr_strstr(text, "\"tx\":\"wombat\""));
   test_txn_metric_created(
-          "success", txn.unscoped_metrics, MET_FORCED,
-          "Supportability/DistributedTrace/CreatePayload/Success", 1, 0, 0, 0, 0,
-          0);
+      "success", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/CreatePayload/Success", 1, 0, 0, 0, 0,
+      0);
   nr_free(text);
 
   /*
@@ -5422,11 +5538,12 @@ static void test_create_distributed_trace_payload(void) {
   txn.options.analytics_events_enabled = false;
   nr_txn_set_guid(&txn, "kangaroos");
   text = nr_txn_create_distributed_trace_payload(&txn);
-  tlib_fail_if_null("valid guid kangaroos", nr_strstr(text, "\"tx\":\"kangaroos\""));
+  tlib_fail_if_null("valid guid kangaroos",
+                    nr_strstr(text, "\"tx\":\"kangaroos\""));
   test_txn_metric_created(
-          "success", txn.unscoped_metrics, MET_FORCED,
-          "Supportability/DistributedTrace/CreatePayload/Success", 2, 0, 0, 0, 0,
-          0);
+      "success", txn.unscoped_metrics, MET_FORCED,
+      "Supportability/DistributedTrace/CreatePayload/Success", 2, 0, 0, 0, 0,
+      0);
   nr_free(text);
 
   /*
@@ -6058,11 +6175,12 @@ static void test_should_create_span_events(void) {
 static void test_parent_stack(void) {
   nr_segment_t s = {.type = NR_SEGMENT_CUSTOM, .parent = NULL};
 
- /*
-  * Test : Bad parameters
-  */
-  tlib_pass_if_null("Getting the current segment for a NULL txn must return NULL",
-  nr_txn_get_current_segment(NULL));
+  /*
+   * Test : Bad parameters
+   */
+  tlib_pass_if_null(
+      "Getting the current segment for a NULL txn must return NULL",
+      nr_txn_get_current_segment(NULL));
 
   /* Setting the current segment for a NULL txn must not seg fault */
   nr_txn_set_current_segment(NULL, &s);

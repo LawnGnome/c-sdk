@@ -20,10 +20,11 @@ static void test_bad_parameters(void) {
   nr_segment_destroy_fields(NULL);
   nr_segment_datastore_destroy_fields(NULL);
   nr_segment_external_destroy_fields(NULL);
+  nr_segment_metric_destroy_fields(NULL);
 }
 
 static void test_create_add_destroy(void) {
-  nr_segment_children_t children = {.capacity = 0, .used = 0, .children = NULL};
+  nr_segment_children_t children = {.capacity = 0};
   nr_segment_t embryo;
   nr_segment_t first_born;
   nr_segment_t second_born;
@@ -35,7 +36,6 @@ static void test_create_add_destroy(void) {
   nr_segment_children_init(NULL);
 
   /* Cannot operate on the children when the array is not initialized */
-  nr_segment_children_add(&children, &first_born);
   nr_segment_children_get_prev(&children, NULL);
 
   /*
@@ -43,7 +43,7 @@ static void test_create_add_destroy(void) {
    */
   nr_segment_children_init(&children);
   tlib_pass_if_not_null("An initialized children array must not be NULL",
-                        children.children);
+                        children.elements);
   tlib_pass_if_null("An empty array cannot have a prev child",
                     nr_segment_children_get_prev(&children, &embryo));
   tlib_pass_if_null("An empty array cannot have a next child",
@@ -51,7 +51,7 @@ static void test_create_add_destroy(void) {
 
   nr_segment_children_add(&children, &first_born);
   tlib_pass_if_ptr_equal("A first child must be successfully added",
-                         children.children[0], &first_born);
+                         nr_vector_get(&children, 0), &first_born);
   tlib_pass_if_null("An only child cannot have a prev child",
                     nr_segment_children_get_prev(&children, &first_born));
   tlib_pass_if_null("An only child cannot have a next child",
@@ -59,7 +59,7 @@ static void test_create_add_destroy(void) {
 
   nr_segment_children_add(&children, &second_born);
   tlib_pass_if_ptr_equal("A second child must be successfully added",
-                         children.children[1], &second_born);
+                         nr_vector_get(&children, 1), &second_born);
   tlib_pass_if_ptr_equal("A second child must be inserted after the first",
                          nr_segment_children_get_prev(&children, &second_born),
                          &first_born);
@@ -79,24 +79,24 @@ static void test_create_add_destroy(void) {
 #define NR_EXTENDED_FAMILY_SIZE 100
 static void test_create_add_destroy_extended(void) {
   int i = 0;
-  nr_segment_children_t children = {.capacity = 0, .used = 0, .children = NULL};
+  nr_segment_children_t children = {.capacity = 0};
   nr_segment_t child;
 
   nr_segment_children_init(&children);
-  tlib_pass_if_not_null("Initialize a segment's children", children.children);
+  tlib_pass_if_not_null("Initialize a segment's children", children.elements);
 
   for (i = 0; i < NR_EXTENDED_FAMILY_SIZE; i++) {
     nr_segment_children_add(&children, &child);
     tlib_pass_if_ptr_equal("A child must be successfully added",
-                           children.children[i], &child);
+                           nr_vector_get(&children, i), &child);
     tlib_pass_if_int_equal("The number of used locations must be incremented",
-                           children.used, i + 1);
+                           nr_vector_size(&children), i + 1);
   }
   nr_segment_children_destroy_fields(&children);
 }
 
 static void test_remove(void) {
-  nr_segment_children_t children = {.capacity = 0, .used = 0, .children = NULL};
+  nr_segment_children_t children = {.capacity = 0};
   nr_segment_t first_born;
   nr_segment_t second_born;
   nr_segment_t third_born;
@@ -126,8 +126,8 @@ static void test_remove(void) {
 
   /* Briefly affirm the array is well-formed */
   tlib_pass_if_uint_equal(
-      "Adding five children must yield an expected used value", children.used,
-      total_children);
+      "Adding five children must yield an expected used value",
+      nr_vector_size(&children), total_children);
 
   /* Affirm successful removal of the first child */
   tlib_pass_if_true(
@@ -137,7 +137,7 @@ static void test_remove(void) {
   tlib_pass_if_uint_equal(
       "Removing an existing segment from an array of children must "
       "reduce the number of used locations",
-      children.used, total_children - 1);
+      nr_vector_size(&children), total_children - 1);
   tlib_pass_if_false(
       "Removing a non-existent segment from an array of children must not be "
       "successful",
@@ -157,7 +157,7 @@ static void test_remove(void) {
   tlib_pass_if_uint_equal(
       "Removing an existing segment from an array of children must "
       "reduce the number of used locations",
-      children.used, total_children - 2);
+      nr_vector_size(&children), total_children - 2);
   tlib_pass_if_ptr_equal(
       "Removing the third born means the fourth is after the second",
       nr_segment_children_get_next(&children, &second_born), &fourth_born);
@@ -170,7 +170,7 @@ static void test_remove(void) {
   tlib_pass_if_uint_equal(
       "Removing an existing segment from an array of children must "
       "reduce the number of used locations",
-      children.used, total_children - 3);
+      nr_vector_size(&children), total_children - 3);
   tlib_pass_if_null("Removing the fifth born means the fourth has no next",
                     nr_segment_children_get_next(&children, &fourth_born));
 
@@ -350,10 +350,20 @@ static void test_destroy_fields(void) {
   char* test_string = "0123456789";
 
   s.id = nr_strdup(test_string);
+  s.metrics = nr_vector_create(8, NULL, NULL);
   s.user_attributes = nro_new_hash();
   s.type = NR_SEGMENT_CUSTOM;
 
   nr_segment_destroy_fields(&s);
+}
+
+static void test_destroy_metric(void) {
+  nr_segment_metric_t sm = {
+      .name = nr_strdup("Custom/Metric/To/Be/Destroyed"),
+      .scoped = false,
+  };
+
+  nr_segment_metric_destroy_fields(&sm);
 }
 
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = 0};
@@ -368,4 +378,5 @@ void test_main(void* p NRUNUSED) {
   test_set_destroy_external_fields();
   test_destroy_typed_attributes();
   test_destroy_fields();
+  test_destroy_metric();
 }

@@ -10,14 +10,11 @@
 #include <stdbool.h>
 
 #include "util_memory.h"
+#include "util_vector.h"
 
 #define NR_STACK_DEFAULT_CAPACITY 32
 
-typedef struct _nr_stack_t {
-  size_t capacity;
-  int top;
-  void** elements;
-} nr_stack_t;
+typedef struct _nr_vector_t nr_stack_t;
 
 /*
  * Purpose : Initialize a stack data type.
@@ -40,7 +37,7 @@ bool nr_stack_init(nr_stack_t* s, size_t capacity);
  */
 static inline bool nr_stack_is_empty(nr_stack_t* s) {
   if (s != NULL) {
-    return -1 == s->top;
+    return 0 == nr_vector_size(s);
   }
 
   return true;

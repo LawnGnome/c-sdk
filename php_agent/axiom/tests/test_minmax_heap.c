@@ -8,6 +8,15 @@
 
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = 0};
 
+/* A simple list type to affirm that heap iteration over values is correct. This
+ * type is for test purposes only. */
+#define NR_TEST_LIST_CAPACITY 10
+typedef struct _nr_test_list_t {
+  size_t capacity;
+  int used;
+  int32_t elements[NR_TEST_LIST_CAPACITY];
+} nr_test_list_t;
+
 typedef struct {
   int32_t value;
 } test_t;
@@ -71,6 +80,20 @@ static bool test_iterator_callback(const void* value NRUNUSED,
                                    test_iterator_state* state) {
   if (state) {
     state->calls++;
+  }
+  return true;
+}
+
+static bool test_value_iterator_callback(void* value, void* userdata) {
+  nr_test_list_t* list;
+  test_t* element;
+
+  if (value && userdata) {
+    list = (nr_test_list_t*)userdata;
+    element = (test_t*)value;
+
+    list->elements[list->used] = element->value;
+    list->used = list->used + 1;
   }
   return true;
 }
@@ -235,6 +258,42 @@ static void test_single_element(void) {
   nr_minmax_heap_destroy(&heap);
 }
 
+static void test_value_iteration(void) {
+  nr_minmax_heap_t* heap = nr_minmax_heap_create(
+      0, (nr_minmax_heap_cmp_t)test_compare_with_userdata,
+      (void*)compare_userdata,
+      (nr_minmax_heap_dtor_t)test_destructor_with_userdata,
+      (void*)destructor_userdata);
+  size_t i;
+  int j;
+  int32_t values[] = {5, 10, 15, 20, 25, 30, 35, 40};
+  nr_test_list_t list = {.capacity = NR_TEST_LIST_CAPACITY, .used = 0};
+
+  for (i = 0; i < sizeof(values) / sizeof(int32_t); i++) {
+    nr_minmax_heap_insert(heap, test_new(values[i]));
+  }
+
+  nr_minmax_heap_iterate(
+      heap, (nr_minmax_heap_iter_t)test_value_iterator_callback, &list);
+
+  tlib_pass_if_int32_t_equal("list size", list.used, 8);
+
+  /* Affirm that each value in the heap made it into the list */
+  for (i = 0; i < sizeof(values) / sizeof(int32_t); i++) {
+    bool found = false;
+
+    for (j = 0; j < list.used; j++) {
+      if (values[i] == list.elements[j]) {
+        found = true;
+      }
+    }
+
+    tlib_pass_if_true("list value", found, "Expected true");
+  }
+
+  nr_minmax_heap_destroy(&heap);
+}
+
 static void test_small(void) {
   nr_minmax_heap_t* heap = nr_minmax_heap_create(
       0, (nr_minmax_heap_cmp_t)test_compare_with_userdata,
@@ -378,6 +437,7 @@ void test_main(void* p NRUNUSED) {
   test_create_destroy();
   test_empty();
   test_single_element();
+  test_value_iteration();
   test_small();
   test_expanded();
   test_bounded();

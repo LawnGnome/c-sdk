@@ -1317,7 +1317,16 @@ nrtime_t nr_txn_duration(const nrtxn_t* txn) {
   if (NULL == txn) {
     return 0;
   }
+#ifdef NR_CAGENT
+  if (NULL == txn->segment_root) {
+    return 0;
+  }
+
+  return nr_time_duration(txn->segment_root->start_time,
+                          txn->segment_root->stop_time);
+#else
   return nr_time_duration(txn->root.start_time.when, txn->root.stop_time.when);
+#endif /* NR_CAGENT */
 }
 
 nrtime_t nr_txn_unfinished_duration(const nrtxn_t* txn) {
@@ -2246,7 +2255,11 @@ int nr_txn_should_save_trace(const nrtxn_t* txn, nrtime_t duration) {
     return 0;
   }
 
+#ifdef NR_CAGENT
+  if (txn->segment_count < 1) {
+#else
   if (txn->nodes_used < 1) {
+#endif /* NR_CAGENT */
     return 0;
   }
 
@@ -2351,10 +2364,17 @@ double nr_txn_start_time_secs(const nrtxn_t* txn) {
 }
 
 nrtime_t nr_txn_start_time(const nrtxn_t* txn) {
+#ifdef NR_CAGENT
+  if (NULL == txn || NULL == txn->segment_root) {
+    return 0;
+  }
+  return txn->segment_root->start_time;
+#else
   if (NULL == txn) {
     return 0;
   }
   return txn->root.start_time.when;
+#endif /* NR_CAGENT */
 }
 
 void nr_txn_add_file_naming_pattern(nrtxn_t* txn, const char* user_pattern) {

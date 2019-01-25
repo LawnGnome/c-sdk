@@ -81,4 +81,22 @@ extern nr_status_t nrt_join_f(nrthread_t thread,
 #define nrt_mutex_destroy(T) nrt_mutex_destroy_f((T), __FILE__, __LINE__)
 #define nrt_join(T, V) nrt_join_f((T), (V), __FILE__, __LINE__)
 
+/*
+ * Set up a nrt_thread_local storage class for thread local variables.
+ *
+ * This is essentially cribbed from
+ * https://stackoverflow.com/questions/18298280/how-to-declare-a-variable-as-thread-local-portably,
+ * just without the compilers we don't care about.
+ *
+ * If we're adding support for a new OS, let's try really hard to use a C11
+ * compiler so that we can just use _Thread_local and move on with our lives.
+ */
+#if __STDC_VERSION__ >= 201112 && !defined(__STDC_NO_THREADS__)
+#define nrt_thread_local _Thread_local
+#elif defined(__GNUC__)
+#define nrt_thread_local __thread
+#else
+#error "Unsupported compiler: don't know how to define thread local variables."
+#endif
+
 #endif /* UTIL_THREADS_HDR */

@@ -178,6 +178,44 @@ static void test_read_write(void) {
   nr_buffer_destroy(&buf);
 }
 
+static void test_peek_end(void) {
+  nrbuf_t* buf;
+  char actual = 0;
+
+  // Test : Should not blow up if given NULL
+  actual = nr_buffer_peek_end(NULL);
+  tlib_pass_if_true("NULL buffer peek did not fail", 0 == actual, "actual=%c",
+                    actual);
+
+  buf = nr_buffer_create(0, 0);
+
+  // Test : Should not blow up if nothing is in the buf
+  actual = nr_buffer_peek_end(buf);
+  tlib_pass_if_true("empty buffer peek did not fail", 0 == actual,
+                    "actual=%c", actual);
+
+  // Test : happy path
+  nr_buffer_add(buf, "[asdf", 5);
+
+  actual = nr_buffer_peek_end(buf);
+
+  tlib_pass_if_true("success", 'f' == actual, "bufptr=%c", actual);
+
+  // Test : The previous test should not have changed the buf
+  actual = nr_buffer_peek_end(buf);
+
+  tlib_pass_if_true("success", 'f' == actual, "bufptr=%c", actual);
+
+  // Test : Null char should not blow up
+  nr_buffer_add(buf, "something\0", 10);
+  actual = nr_buffer_peek_end(buf);
+
+  tlib_pass_if_true("NULL term string peek did not fail", 0 == actual,
+                    "actual=%c", actual);
+
+  nr_buffer_destroy(&buf);
+}
+
 static void test_write_uint64_t_as_text(void) {
   nrbuf_t* buf;
   const char* bufptr;
@@ -215,4 +253,5 @@ void test_main(void* p NRUNUSED) {
   test_buffer(-1, -1);
 
   test_write_uint64_t_as_text();
+  test_peek_end();
 }

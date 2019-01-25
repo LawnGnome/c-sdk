@@ -11,6 +11,8 @@
 #include "transaction.h"
 #include "test.h"
 
+#include "util_vector.h"
+
 static void test_segment_set_parent(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_segment_t* root = newrelic_start_segment(txn, NULL, NULL);
@@ -22,12 +24,8 @@ static void test_segment_set_parent(void** state) {
   assert_false(newrelic_set_segment_parent(NULL, b));
   assert_false(newrelic_set_segment_parent(a, a));
 
-  assert_true(newrelic_set_segment_parent(a, b));
-  assert_ptr_equal(b->segment, a->segment->parent);
-  assert_ptr_equal(a->segment, b->segment->children.children[0]);
-
-  assert_true(newrelic_set_segment_parent(a, root));
-  assert_true(newrelic_set_segment_parent(b, a));
+  /* no cycle is possible */
+  assert_false(newrelic_set_segment_parent(a, b));
 
   newrelic_end_segment(txn, &b);
   newrelic_end_segment(txn, &a);

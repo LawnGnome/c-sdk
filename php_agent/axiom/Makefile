@@ -55,6 +55,7 @@ AXIOM_CFLAGS += -Wswitch
 AXIOM_CFLAGS += -Wswitch-enum
 AXIOM_CFLAGS += -Wuninitialized
 AXIOM_CFLAGS += -Wunused-label
+AXIOM_CFLAGS += -Wno-typedef-redefinition
 endif
 
 # TODO(msl): OS X 10.11 (at least) does not provide pcre-config by default.
@@ -89,6 +90,7 @@ OBJS := \
 	nr_datastore_instance.o \
 	nr_distributed_trace.o \
 	nr_errors.o \
+	nr_exclusive_time.o \
 	nr_explain.o \
 	nr_file_naming.o \
 	nr_guid.o \
@@ -101,6 +103,7 @@ OBJS := \
 	nr_segment_private.o \
 	nr_segment_terms.o \
 	nr_segment_traces.o \
+	nr_segment_tree.o \
 	nr_slowsqls.o \
 	nr_span_event.o \
 	nr_synthetics.o \
@@ -133,6 +136,7 @@ OBJS := \
 	util_set.o \
 	util_signals.o \
 	util_sleep.o \
+	util_sort.o \
 	util_sql.o \
 	util_stack.o \
 	util_string_pool.o \
@@ -142,7 +146,8 @@ OBJS := \
 	util_system.o \
 	util_text.o \
 	util_threads.o \
-	util_url.o
+	util_url.o \
+	util_vector.o
 
 #
 # The rule to actually build the library.

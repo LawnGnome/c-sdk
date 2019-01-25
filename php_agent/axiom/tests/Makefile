@@ -59,6 +59,7 @@ TEST_CFLAGS += -Wswitch
 TEST_CFLAGS += -Wswitch-enum
 TEST_CFLAGS += -Wuninitialized
 TEST_CFLAGS += -Wunused-label
+TEST_CFLAGS += -Wno-typedef-redefinition
 endif
 
 TEST_CPPFLAGS := -I.. -DCROSS_AGENT_TESTS_DIR="\"$(CROSS_AGENT_DIR)\"" -DREFERENCE_DIR="\"$(REFERENCE_DIR)\"" $(PLATFORM_DEFS)
@@ -133,6 +134,7 @@ TESTS := \
   test_daemon_spawn \
   test_distributed_trace \
   test_errors \
+  test_exclusive_time \
   test_explain \
   test_file_naming \
   test_flatbuffers \
@@ -165,10 +167,12 @@ TESTS := \
   test_segment_private \
   test_segment_terms \
   test_segment_traces \
+  test_segment_tree \
   test_serialize \
   test_set \
   test_signals \
   test_slowsqls \
+  test_sort \
   test_span_event \
   test_sql \
   test_stack \
@@ -181,7 +185,8 @@ TESTS := \
   test_time \
   test_traces \
   test_txn \
-  test_url
+  test_url \
+  test_vector
 
 #
 # The list of tests to skip and tests to run.

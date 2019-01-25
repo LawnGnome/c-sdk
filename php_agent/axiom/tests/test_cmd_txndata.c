@@ -11,6 +11,7 @@
 #include "nr_custom_events.h"
 #include "nr_errors.h"
 #include "nr_errors_private.h"
+#include "nr_segment_private.h"
 #include "nr_slowsqls.h"
 #include "nr_slowsqls.h"
 #include "nr_traces.h"
@@ -58,10 +59,19 @@ static void test_encode_span_events(void) {
   uint32_t count;
   int data_type;
   int did_pass;
-  nrtxntime_t start;
-  nrtxntime_t stop;
   nrobj_t* data;
   const nrobj_t* evt;
+#ifdef NR_CAGENT
+  nr_segment_t* seg_a;
+  nr_segment_t* seg_b;
+  nr_segment_t* seg_c;
+  nr_segment_t* seg_d;
+  nr_segment_t* seg_e;
+  nr_segment_t* seg_f;
+  nr_segment_t* seg_g;
+#else
+  nrtxntime_t start;
+  nrtxntime_t stop;
   nrobj_t* hash;
   nrobj_t* hash_event_2;
   nrobj_t* hash_event_3;
@@ -92,6 +102,7 @@ static void test_encode_span_events(void) {
       "{\"library\":\"curl\",\"uri\":\"myservice.com\"}");
   hash_event_5 = nro_create_from_json(
       "{\"library\":\"Guzzle 4\",\"procedure\":\"POST\"}");
+#endif /* NR_CAGENT */
 
   /*
    * Initialize transaction
@@ -112,6 +123,92 @@ static void test_encode_span_events(void) {
   nr_distributed_trace_set_trace_id(txn.distributed_trace, "tid");
   nr_distributed_trace_set_txn_id(txn.distributed_trace, "txnid");
 
+#ifdef NR_CAGENT
+  txn.nodes_used = 8;
+  /*
+   * Create segments.
+   */
+  txn.segment_root = nr_segment_start(&txn, NULL, NULL);
+  txn.segment_root->start_time = 1000;
+  txn.segment_root->stop_time = 10000;
+  txn.segment_root->name = txn.root.name;
+
+  seg_a = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_a, txn.segment_root);
+  nr_segment_end(seg_a);
+  seg_a->start_time = 1000;
+  seg_a->stop_time = 10000;
+  seg_a->name = nr_string_add(txn.trace_strings, "A");
+
+  seg_b = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_b, seg_a);
+  nr_segment_end(seg_b);
+  seg_b->start_time = 2000;
+  seg_b->stop_time = 8000;
+  seg_b->name = nr_string_add(txn.trace_strings, "B");
+
+  seg_c = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_c, seg_b);
+  nr_segment_end(seg_c);
+  seg_c->start_time = 3000;
+  seg_c->stop_time = 7000;
+  seg_c->name = nr_string_add(txn.trace_strings, "C");
+  seg_c->type = NR_SEGMENT_DATASTORE;
+  seg_c->typed_attributes.datastore.component = nr_strdup("MySql");
+  seg_c->typed_attributes.datastore.instance.host = nr_strdup("localhost");
+  seg_c->typed_attributes.datastore.sql = nr_strdup("SELECT * FROM ORDERS;");
+  seg_c->typed_attributes.datastore.instance.port_path_or_id
+      = nr_strdup("3306");
+  seg_c->typed_attributes.datastore.instance.database_name
+      = nr_strdup("ORDERS");
+
+  seg_d = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_d, seg_c);
+  nr_segment_end(seg_d);
+  seg_d->start_time = 4000;
+  seg_d->stop_time = 5000;
+  seg_d->name = nr_string_add(txn.trace_strings, "D");
+  seg_d->type = NR_SEGMENT_DATASTORE;
+  seg_d->typed_attributes.datastore.component = nr_strdup("Mongo");
+  seg_d->typed_attributes.datastore.instance.host = nr_strdup("somewhere");
+  seg_d->typed_attributes.datastore.instance.port_path_or_id
+      = nr_strdup("8801");
+  seg_d->typed_attributes.datastore.instance.database_name
+      = nr_strdup("CUSTOMERS");
+
+  seg_e = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_e, seg_c);
+  nr_segment_end(seg_e);
+  seg_e->start_time = 5000;
+  seg_e->stop_time = 10000;
+  seg_e->name = nr_string_add(txn.trace_strings, "E");
+  seg_e->type = NR_SEGMENT_DATASTORE;
+  seg_e->typed_attributes.datastore.instance.port_path_or_id
+      = nr_strdup("3301");
+  seg_e->typed_attributes.datastore.instance.database_name
+      = nr_strdup("somename");
+  seg_e->typed_attributes.datastore.sql = nr_strdup("SELECT * FROM CUSTOMERS;");
+
+  seg_f = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_f, seg_e);
+  nr_segment_end(seg_f);
+  seg_f->start_time = 6000;
+  seg_f->stop_time = 11000;
+  seg_f->name = nr_string_add(txn.trace_strings, "F");
+  seg_f->type = NR_SEGMENT_EXTERNAL;
+  seg_f->typed_attributes.external.uri = nr_strdup("myservice.com");
+  seg_f->typed_attributes.external.library = nr_strdup("curl");
+
+  seg_g = nr_segment_start(&txn, NULL, NULL);
+  nr_segment_set_parent(seg_g, seg_f);
+  nr_segment_end(seg_g);
+  seg_g->start_time = 7000;
+  seg_g->stop_time = 11000;
+  seg_g->name = nr_string_add(txn.trace_strings, "G");
+  seg_g->type = NR_SEGMENT_EXTERNAL;
+  seg_g->typed_attributes.external.procedure = nr_strdup("POST");
+  seg_g->typed_attributes.external.library = nr_strdup("Guzzle 4");
+#else
   /*
    * Create trace nodes.
    */
@@ -155,6 +252,7 @@ static void test_encode_span_events(void) {
   stop.stamp = stop.when = 11000;
   nr_txn_save_trace_node(&txn, &start, &stop, "G", NULL, hash_event_5,
                          external_attributes_4);
+#endif /* NR_CAGENT */
 
   /*
    * Read flatbuffer data
@@ -561,19 +659,21 @@ static void test_encode_span_events(void) {
   nro_delete(data);
 
 done:
-  nr_txnnode_attributes_destroy(datastore_attributes_1);
-  nr_txnnode_attributes_destroy(datastore_attributes_2);
-  nr_txnnode_attributes_destroy(datastore_attributes_3);
-  nr_txnnode_attributes_destroy(external_attributes_4);
   nr_distributed_trace_destroy(&txn.distributed_trace);
   nr_string_pool_destroy(&txn.trace_strings);
   nr_txn_destroy_fields(&txn);
   nr_flatbuffers_destroy(&fb);
+#ifndef NR_CAGENT
+  nr_txnnode_attributes_destroy(datastore_attributes_1);
+  nr_txnnode_attributes_destroy(datastore_attributes_2);
+  nr_txnnode_attributes_destroy(datastore_attributes_3);
+  nr_txnnode_attributes_destroy(external_attributes_4);
   nro_delete(hash);
   nro_delete(hash_event_2);
   nro_delete(hash_event_3);
   nro_delete(hash_event_4);
   nro_delete(hash_event_5);
+#endif /* NR_CAGENT */
 }
 
 static void test_encode_errors(void) {
@@ -785,6 +885,12 @@ static void test_encode_metrics(void) {
 
   nrm_add_apdex(txn.unscoped_metrics, "apdex", 1, 2, 3,
                 4.816326 * NR_TIME_DIVISOR);
+
+#ifdef NR_CAGENT
+  txn.segment_root = nr_segment_start(&txn, NULL, NULL);
+  txn.segment_root->start_time = 1000;
+  txn.segment_root->stop_time = 10000;
+#endif
 
   fb = nr_txndata_encode(&txn);
 
@@ -1004,8 +1110,16 @@ static void test_encode_error_events(void) {
   txn.options.error_events_enabled = 1;
   txn.name = nr_strdup("my_txn_name");
   nr_txn_set_guid(&txn, "abcd");
+
+#ifdef NR_CAGENT
+  txn.segment_root = nr_segment_start(&txn, NULL, NULL);
+  txn.segment_root->start_time = 415 * NR_TIME_DIVISOR;
+  txn.segment_root->stop_time
+      = txn.segment_root->start_time + 543 * NR_TIME_DIVISOR_MS;
+#else
   txn.root.start_time.when = 415 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 543 * NR_TIME_DIVISOR_MS;
+#endif /* NR_CAGENT */
 
   fb = nr_txndata_encode(&txn);
   nr_flatbuffers_table_init_root(&tbl, nr_flatbuffers_data(fb),
@@ -1147,6 +1261,11 @@ static void test_encode_trace(void) {
   nrtime_t duration = 1234 * NR_TIME_DIVISOR;
   int data_type;
   int did_pass;
+  int root_name;
+  int segment_name;
+#ifdef NR_CAGENT
+  nr_segment_t* segment;
+#endif /* NR_CAGENT */
 
   nr_memset(&txn, 0, sizeof(txn));
   txn.options.tt_threshold = duration - 1;
@@ -1175,13 +1294,32 @@ static void test_encode_trace(void) {
       "NOPE", 2);
 
   txn.trace_strings = nr_string_pool_create();
+  root_name = nr_string_add(txn.trace_strings, "the_root");
+  segment_name = nr_string_add(txn.trace_strings, "the_node");
+
+#ifdef NR_CAGENT
+  txn.nodes_used = 1;
+
+  txn.segment_root = nr_segment_start(&txn, NULL, NULL);
+  segment = nr_segment_start(&txn, txn.segment_root, NULL);
+  nr_segment_end(segment);
+  nr_segment_end(txn.segment_root);
+
+  txn.segment_root->name = root_name;
+  segment->name = segment_name;
+
+  txn.segment_root->start_time = 1 * NR_TIME_DIVISOR;
+  segment->start_time = 2 * NR_TIME_DIVISOR;
+  segment->stop_time = 3 * NR_TIME_DIVISOR;
+  txn.segment_root->stop_time = duration + txn.segment_root->start_time;
+#else  /* NR_CAGENT */
   txn.nodes_used = 1;
 
   txn.root.data_hash = 0;
   txn.nodes[0].data_hash = 0;
 
-  txn.root.name = nr_string_add(txn.trace_strings, "the_root");
-  txn.nodes[0].name = nr_string_add(txn.trace_strings, "the_node");
+  txn.root.name = root_name;
+  txn.nodes[0].name = segment_name;
 
   txn.root.start_time.when = 1 * NR_TIME_DIVISOR;
   txn.nodes[0].start_time.when = 2 * NR_TIME_DIVISOR;
@@ -1195,6 +1333,7 @@ static void test_encode_trace(void) {
 
   txn.root.async_context = 0;
   txn.nodes[0].async_context = 0;
+#endif /* NR_CAGENT */
 
   fb = nr_txndata_encode(&txn);
   nr_flatbuffers_table_init_root(&tbl, nr_flatbuffers_data(fb),
@@ -1266,11 +1405,19 @@ static void test_encode_txn_event(void) {
   txn.options.apdex_t = 10;
   nr_txn_set_guid(&txn, "abcd");
   txn.name = nr_strdup("my_txn_name");
-  txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
-  txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
   txn.unscoped_metrics = nrm_table_create(100);
   txn.synthetics = NULL;
   txn.type = 0;
+
+#ifdef NR_CAGENT
+  txn.segment_root = nr_segment_start(&txn, NULL, NULL);
+  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
+  txn.segment_root->stop_time
+      = txn.segment_root->start_time + 987 * NR_TIME_DIVISOR_MS;
+#else
+  txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
+  txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
+#endif /* NR_CAGENT */
 
   nrm_add(txn.unscoped_metrics, "Datastore/all", 1 * NR_TIME_DIVISOR);
   nrm_add(txn.unscoped_metrics, "Datastore/all", 1 * NR_TIME_DIVISOR);

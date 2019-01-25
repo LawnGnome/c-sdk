@@ -7,6 +7,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 
@@ -16,6 +17,8 @@
 #include "nr_commands.h"
 #include "nr_commands_private.h"
 #include "nr_distributed_trace.h"
+#include "nr_segment_traces.h"
+#include "nr_segment_tree.h"
 #include "nr_slowsqls.h"
 #include "nr_span_event.h"
 #include "nr_synthetics.h"
@@ -30,10 +33,6 @@
 #include "util_network.h"
 #include "util_strings.h"
 #include "util_syscalls.h"
-
-#ifdef NR_CAGENT
-#include "nr_segment_traces.h"
-#endif
 
 char* nr_txndata_error_to_json(const nrtxn_t* txn) {
   nrobj_t* agent_attributes;
@@ -338,6 +337,21 @@ static uint32_t nr_txndata_prepend_span_events(nr_flatbuffer_t* fb,
   return data;
 }
 
+#ifdef NR_CAGENT
+static uint32_t nr_txndata_prepend_span_events_to_flatbuffer(
+    nr_flatbuffer_t* fb,
+    const nrtxn_t* txn,
+    nr_vector_t* span_events) {
+  nr_span_event_t* events[NR_SPAN_EVENTS_MAX] = {0};
+  size_t i;
+
+  for (i = 0; i < nr_vector_size(span_events) && i < NR_SPAN_EVENTS_MAX; i++) {
+    nr_vector_get_element(span_events, i, (void**)&events[i]);
+  }
+  return nr_txndata_prepend_span_events(fb, txn, events, i);
+}
+#endif /* NR_CAGENT */
+
 static uint32_t nr_txndata_prepend_errors(nr_flatbuffer_t* fb,
                                           const nrtxn_t* txn) {
   char* json;
@@ -423,19 +437,48 @@ static uint32_t nr_txndata_prepend_metric(nr_flatbuffer_t* fb,
   return nr_flatbuffers_object_end(fb);
 }
 
+typedef struct _nr_txndata_metric_table_t {
+  bool scoped;
+  const nrmtable_t* table;
+} nr_txndata_metric_table_t;
+
+/*
+ * The variadic argument expects a set of const nr_txndata_metric_table_t
+ * structs.
+ */
 static uint32_t nr_txndata_prepend_metrics(nr_flatbuffer_t* fb,
-                                           const nrtxn_t* txn) {
+                                           size_t num_metric_tables,
+                                           ...) {
+  va_list args;
   uint32_t* offsets;
   uint32_t* offset;
   uint32_t metrics;
-  int num_scoped;
-  int num_unscoped;
-  int num_metrics;
-  int i;
+  size_t num_metrics = 0;
+  size_t i;
+  nr_txndata_metric_table_t* tables;
 
-  num_scoped = nrm_table_size(txn->scoped_metrics);
-  num_unscoped = nrm_table_size(txn->unscoped_metrics);
-  num_metrics = num_scoped + num_unscoped;
+  if (0 == num_metric_tables) {
+    return 0;
+  }
+
+  /* We never really expect more than four tables, so using alloca() should be
+   * safe here. */
+  tables = (nr_txndata_metric_table_t*)nr_alloca(
+      num_metric_tables * sizeof(nr_txndata_metric_table_t));
+  va_start(args, num_metric_tables);
+  for (i = 0; i < num_metric_tables; i++) {
+    tables[i] = va_arg(args, nr_txndata_metric_table_t);
+
+    if (nrunlikely(NULL == tables[i].table)) {
+      nrl_warning(NRL_TXN,
+                  "unexpected NULL metric table at index %zu; ignoring metrics",
+                  i);
+      return 0;
+    }
+
+    num_metrics += nrm_table_size(tables[i].table);
+  }
+  va_end(args);
 
   if (0 == num_metrics) {
     return 0;
@@ -444,18 +487,18 @@ static uint32_t nr_txndata_prepend_metrics(nr_flatbuffer_t* fb,
   offsets = (uint32_t*)nr_calloc(num_metrics, sizeof(uint32_t));
   offset = &offsets[0];
 
-  for (i = 0; i < num_unscoped; i++, offset++) {
-    const nrmetric_t* metric;
+  for (i = 0; i < num_metric_tables; i++) {
+    int j;
+    bool scoped = tables[i].scoped;
+    const nrmtable_t* table = tables[i].table;
+    int num_in_table = nrm_table_size(table);
 
-    metric = nrm_get_metric(txn->unscoped_metrics, i);
-    *offset = nr_txndata_prepend_metric(fb, txn->unscoped_metrics, metric, 0);
-  }
+    for (j = 0; j < num_in_table; j++, offset++) {
+      const nrmetric_t* metric;
 
-  for (i = 0; i < num_scoped; i++, offset++) {
-    const nrmetric_t* metric;
-
-    metric = nrm_get_metric(txn->scoped_metrics, i);
-    *offset = nr_txndata_prepend_metric(fb, txn->scoped_metrics, metric, 1);
+      metric = nrm_get_metric(table, j);
+      *offset = nr_txndata_prepend_metric(fb, table, metric, scoped);
+    }
   }
 
   nr_flatbuffers_vector_begin(fb, sizeof(uint32_t), num_metrics,
@@ -529,16 +572,10 @@ static uint32_t nr_txndata_prepend_slowsqls(nr_flatbuffer_t* fb,
   return slowsqls;
 }
 
-#ifdef NR_CAGENT
-static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
-                                        nr_span_event_t* span_events[] NRUNUSED,
-                                        int span_events_size NRUNUSED) {
-#else
+#ifndef NR_CAGENT
 static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
                                         nr_span_event_t* span_events[],
                                         int span_events_size) {
-#endif
-
   nrobj_t* agent_attributes;
   nrobj_t* user_attributes;
   nrtime_t duration;
@@ -555,24 +592,15 @@ static char* nr_txndata_trace_data_json(const nrtxn_t* txn,
   user_attributes = nr_attributes_user_to_obj(
       txn->attributes, NR_ATTRIBUTE_DESTINATION_TXN_TRACE);
 
-  /* The C Agent, leveraging the Axiom library, currently uses a tree of
-   * segments to represent a transaction trace.  Thus, its assembly of a trace
-   * is substantively different than that of the PHP Agent.  Conditionally
-   * compile the appropriate call for trace assembly based on the agent in use.
-   */
-#ifdef NR_CAGENT
-  data_json = nr_segment_traces_create_data(txn, duration, agent_attributes,
-                                            user_attributes, txn->intrinsics);
-#else
   data_json = nr_harvest_trace_create_data(txn, duration, agent_attributes,
                                            user_attributes, txn->intrinsics,
                                            span_events, span_events_size);
-#endif
   nro_delete(agent_attributes);
   nro_delete(user_attributes);
 
   return data_json;
 }
+#endif
 
 static uint32_t nr_txndata_prepend_error_events(nr_flatbuffer_t* fb,
                                                 const nrtxn_t* txn) {
@@ -616,18 +644,15 @@ static uint32_t nr_txndata_prepend_error_events(nr_flatbuffer_t* fb,
   return events;
 }
 
-static uint32_t nr_txndata_prepend_trace(nr_flatbuffer_t* fb,
-                                         const nrtxn_t* txn,
-                                         nr_span_event_t* span_events[],
-                                         int span_events_size) {
+static uint32_t nr_txndata_prepend_trace_to_flatbuffer(nr_flatbuffer_t* fb,
+                                                       const nrtxn_t* txn,
+                                                       char* data_json) {
   double duration_ms;
   double timestamp_ms;
-  char* data_json;
   uint32_t data;
   uint32_t guid;
   int force_persist;
 
-  data_json = nr_txndata_trace_data_json(txn, span_events, span_events_size);
   if (NULL == data_json) {
     return 0;
   }
@@ -649,6 +674,18 @@ static uint32_t nr_txndata_prepend_trace(nr_flatbuffer_t* fb,
   nr_flatbuffers_object_prepend_f64(fb, TRACE_FIELD_TIMESTAMP, timestamp_ms, 0);
   return nr_flatbuffers_object_end(fb);
 }
+
+#ifndef NR_CAGENT
+static uint32_t nr_txndata_prepend_trace(nr_flatbuffer_t* fb,
+                                         const nrtxn_t* txn,
+                                         nr_span_event_t* span_events[],
+                                         int span_events_size) {
+  char* data_json;
+
+  data_json = nr_txndata_trace_data_json(txn, span_events, span_events_size);
+  return nr_txndata_prepend_trace_to_flatbuffer(fb, txn, data_json);
+}
+#endif
 
 static uint32_t nr_txndata_prepend_txn_event(nr_flatbuffer_t* fb,
                                              const nrtxn_t* txn) {
@@ -703,6 +740,23 @@ static uint32_t nr_txndata_prepend_transaction(nr_flatbuffer_t* fb,
   uint32_t txn_event;
   uint32_t txn_trace;
   uint32_t span_events;
+
+#ifdef NR_CAGENT
+  /* The C Agent, leveraging the Axiom library, currently uses a tree of
+   * segments to represent a transaction trace.  Thus, its assembly of a trace
+   * is substantively different than that of the PHP Agent.  Conditionally
+   * compile the appropriate call for trace assembly based on the agent in use.
+   */
+  nr_segment_tree_result_t assembly_result = {0};
+
+  nr_segment_tree_assemble_data(txn, &assembly_result, NR_TXN_MAX_NODES,
+                                NR_SPAN_EVENTS_MAX);
+  txn_trace = nr_txndata_prepend_trace_to_flatbuffer(
+      fb, txn, assembly_result.trace_json);
+
+  span_events = nr_txndata_prepend_span_events_to_flatbuffer(
+      fb, txn, assembly_result.span_events);
+#else
   nr_span_event_t* spans[NR_TXN_MAX_NODES + 1] = {NULL};
   int span_events_size = sizeof(spans) / sizeof(spans[0]);
 
@@ -713,11 +767,35 @@ static uint32_t nr_txndata_prepend_transaction(nr_flatbuffer_t* fb,
   txn_trace = nr_txndata_prepend_trace(fb, txn, spans, span_events_size);
   span_events
       = nr_txndata_prepend_span_events(fb, txn, spans, span_events_size);
+#endif
   error_events = nr_txndata_prepend_error_events(fb, txn);
   custom_events = nr_txndata_prepend_custom_events(fb, txn);
   slowsqls = nr_txndata_prepend_slowsqls(fb, txn);
   errors = nr_txndata_prepend_errors(fb, txn);
-  metrics = nr_txndata_prepend_metrics(fb, txn);
+
+#ifdef NR_CAGENT
+  metrics = nr_txndata_prepend_metrics(
+      fb, 4,
+      ((nr_txndata_metric_table_t){.scoped = false,
+                                   .table = txn->unscoped_metrics}),
+      ((nr_txndata_metric_table_t){.scoped = true,
+                                   .table = txn->scoped_metrics}),
+      ((nr_txndata_metric_table_t){.scoped = false,
+                                   .table = assembly_result.unscoped_metrics}),
+      ((nr_txndata_metric_table_t){.scoped = true,
+                                   .table = assembly_result.scoped_metrics}));
+
+  nrm_table_destroy(&assembly_result.scoped_metrics);
+  nrm_table_destroy(&assembly_result.unscoped_metrics);
+#else
+  metrics = nr_txndata_prepend_metrics(
+      fb, 2,
+      ((nr_txndata_metric_table_t){.scoped = false,
+                                   .table = txn->unscoped_metrics}),
+      ((nr_txndata_metric_table_t){.scoped = true,
+                                   .table = txn->scoped_metrics}));
+#endif
+
   txn_event = nr_txndata_prepend_txn_event(fb, txn);
   resource_id = nr_txndata_prepend_synthetics_resource_id(fb, txn);
   request_uri = nr_txndata_prepend_request_uri(fb, txn);
@@ -747,12 +825,17 @@ static uint32_t nr_txndata_prepend_transaction(nr_flatbuffer_t* fb,
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_URI, request_uri,
                                         0);
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_NAME, name, 0);
+
   nr_flatbuffers_object_prepend_uoffset(fb, TRANSACTION_FIELD_SPAN_EVENTS,
                                         span_events, 0);
 
+#ifdef NR_CAGENT
+  nr_vector_destroy(&assembly_result.span_events);
+#else
   for (int i = 0; i < span_events_size && spans[i]; i++) {
     nr_span_event_destroy(&spans[i]);
   }
+#endif
 
   return nr_flatbuffers_object_end(fb);
 }

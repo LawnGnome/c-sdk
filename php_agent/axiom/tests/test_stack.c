@@ -7,7 +7,7 @@ static void test_bad_parameters(void) {
   tlib_pass_if_true("A NULL stack is empty", nr_stack_is_empty(NULL),
                     "Expected true");
 
-  nr_stack_push(NULL,(void*)1);
+  nr_stack_push(NULL, (void*)1);
 
   tlib_pass_if_null("A NULL stack pops NULL", nr_stack_pop(NULL));
 
@@ -24,7 +24,7 @@ static void test_create_destroy(void) {
 
   tlib_pass_if_int_equal("A destroyed stack should have 0 capacity", s.capacity,
                          0);
-  tlib_pass_if_int_equal("A destroyed stack should have -1 top", s.top, -1);
+  tlib_pass_if_int_equal("A destroyed stack should have 0 size", s.used, 0);
 
   tlib_pass_if_false(
       "An ill-formed set of args cannot create a stack (no capacity)",
@@ -44,7 +44,7 @@ static void test_push_pop(void) {
   tlib_pass_if_not_null(
       "A newly-formed stack must have allocated memory for its elements",
       s.elements);
-  tlib_pass_if_int_equal("A newly formed stack has a top of -1", s.top, -1);
+  tlib_pass_if_int_equal("A newly formed stack has a size of 0", s.used, 0);
   tlib_pass_if_int_equal("A newly formed stack must have the stated capacity",
                          s.capacity, 3);
   tlib_pass_if_null("Popping the top of an empty stack must yield NULL",

@@ -29,6 +29,11 @@
 #define NR_TXN_NODE_LIMIT (NR_TXN_MAX_NODES - NR_TXN_NODES_RESERVED)
 
 /*
+ * The maximum number of span events in a transaction.
+ */
+#define NR_SPAN_EVENTS_MAX 1000
+
+/*
  * Set the maximum number of errors we keep track of. We currently hard code
  * the value here but it would be fairly trivial to get this as a parameter
  * from RPM.

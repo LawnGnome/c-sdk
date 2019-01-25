@@ -8,13 +8,7 @@
 #include "util_time.h"
 
 void nr_segment_children_init(nr_segment_children_t* children) {
-  if (nrunlikely(NULL == children)) {
-    return;
-  }
-  children->capacity = 8;
-  children->used = 0;
-  children->children
-      = nr_reallocarray(NULL, children->capacity, sizeof(nr_segment_t*));
+  nr_vector_init(children, 8, NULL, NULL);
 }
 
 nr_segment_t* nr_segment_children_get_prev(nr_segment_children_t* children,
@@ -22,21 +16,22 @@ nr_segment_t* nr_segment_children_get_prev(nr_segment_children_t* children,
   nr_segment_t* prev;
   nr_segment_t* cur;
   size_t i;
+  size_t used;
 
-  if (nrunlikely(NULL == children || NULL == children->children
-                 || NULL == child)) {
+  used = nr_vector_size(children);
+  if (nrunlikely(0 == used)) {
     return NULL;
   }
 
   /* If there are 1 or fewer children, there cannot be a child previous to the
    * one given */
-  if (1 >= children->used) {
+  if (1 >= used) {
     return NULL;
   }
 
-  for (i = 1; i < children->used; i++) {
-    prev = children->children[i - 1];
-    cur = children->children[i];
+  for (i = 1; i < used; i++) {
+    prev = nr_vector_get(children, i - 1);
+    cur = nr_vector_get(children, i);
 
     if (cur == child) {
       return prev;
@@ -52,21 +47,22 @@ nr_segment_t* nr_segment_children_get_next(nr_segment_children_t* children,
   nr_segment_t* cur;
   nr_segment_t* next;
   size_t i;
+  size_t used;
 
-  if (nrunlikely(NULL == children || NULL == children->children
-                 || NULL == child)) {
+  used = nr_vector_size(children);
+  if (nrunlikely(0 == used)) {
     return NULL;
   }
 
   /* If there are 1 or fewer children, there cannot be a child after the
    * one given */
-  if (1 >= children->used) {
+  if (1 >= used) {
     return NULL;
   }
 
-  for (i = 0; i < (children->used - 1); i++) {
-    cur = children->children[i];
-    next = children->children[i + 1];
+  for (i = 0; i < (used - 1); i++) {
+    cur = nr_vector_get(children, i);
+    next = nr_vector_get(children, i + 1);
 
     if (cur == child) {
       return next;
@@ -78,50 +74,33 @@ nr_segment_t* nr_segment_children_get_next(nr_segment_children_t* children,
 }
 
 void nr_segment_children_destroy_fields(nr_segment_children_t* children) {
-  if (NULL == children) {
-    return;
-  }
-  children->capacity = 0;
-  children->used = 0;
-  nr_free(children->children);
+  nr_vector_deinit(children);
 }
 
 void nr_segment_children_add(nr_segment_children_t* children,
                              nr_segment_t* child) {
-  if (nrunlikely(NULL == children || NULL == children->children
-                 || NULL == child)) {
+  if (nrunlikely(NULL == child)) {
     return;
   }
 
-  while (children->used >= children->capacity) {
-    size_t new_capacity = children->capacity * 2;
-    children->children = nr_reallocarray(children->children, new_capacity,
-                                         sizeof(nr_segment_t*));
-    children->capacity = new_capacity;
-  }
-
-  children->children[children->used] = child;
-  children->used += 1;
+  nr_vector_push_back(children, child);
 }
 
 bool nr_segment_children_remove(nr_segment_children_t* children,
                                 nr_segment_t* child) {
   size_t i;
+  size_t used;
 
-  if (nrunlikely(NULL == children || NULL == children->children
-                 || NULL == child)) {
+  if (nrunlikely(NULL == child)) {
     return false;
   }
 
-  for (i = 0; i < children->used; i++) {
-    if (children->children[i] == child) {
-      if (i + 1 == children->used) {
-        children->children[i] = NULL;
-      } else {
-        nr_memmove(&(children->children[i]), &(children->children[i + 1]),
-                   sizeof(nr_segment_t*) * (children->used - i - 1));
-      }
-      children->used -= 1;
+  used = nr_vector_size(children);
+  for (i = 0; i < used; i++) {
+    if (nr_vector_get(children, i) == child) {
+      nr_segment_t* removed;
+
+      nr_vector_remove(children, i, (void**)&removed);
       return true;
     }
   }
@@ -176,7 +155,12 @@ void nr_segment_destroy_fields(nr_segment_t* segment) {
   }
 
   nr_free(segment->id);
+  nr_vector_destroy(&segment->metrics);
   nro_delete(segment->user_attributes);
   nr_segment_destroy_typed_attributes(segment->type,
                                       &segment->typed_attributes);
+}
+
+void nr_segment_metric_destroy_fields(nr_segment_metric_t* sm) {
+  nr_free(sm->name);
 }

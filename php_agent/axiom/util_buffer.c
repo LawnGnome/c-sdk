@@ -257,3 +257,11 @@ nr_status_t nr_buffer_read_uint32_t_le(nrbuf_t* bufp, uint32_t* val) {
 
   return NR_SUCCESS;
 }
+
+char nr_buffer_peek_end(nrbuf_t* bufp) {
+  if (NULL == bufp || NULL == bufp->buf || 0 == bufp->avail) {
+    return 0;
+  }
+
+  return bufp->buf[bufp->avail-1];
+}

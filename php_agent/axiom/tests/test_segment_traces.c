@@ -6,13 +6,64 @@
 #include "nr_segment.h"
 #include "nr_segment_private.h"
 #include "nr_segment_traces.h"
+#include "nr_span_event_private.h"
 #include "util_memory.h"
 #include "util_minmax_heap.h"
+#include "util_set.h"
 
 #include "tlib_main.h"
 
 #define test_buffer_contents(...) \
   test_buffer_contents_fn(__VA_ARGS__, __FILE__, __LINE__)
+
+#define SPAN_EVENT_COMPARE(evt, expect_name, expect_category, expect_parent,  \
+                           expect_start, expect_duration)                     \
+  tlib_pass_if_not_null(expect_name, evt);                                    \
+  tlib_pass_if_str_equal("name", nr_span_event_get_name(evt), expect_name);   \
+  tlib_pass_if_time_equal("category", (evt)->type, expect_category);          \
+  tlib_pass_if_true("parent", nr_span_event_get_parent(evt) == expect_parent, \
+                    "%p=%p", nr_span_event_get_parent(evt), expect_parent);   \
+  tlib_pass_if_time_equal("start", (evt)->timestamp, expect_start);           \
+  tlib_pass_if_time_equal("duration", (evt)->duration, expect_duration);
+
+#define SPAN_EVENT_COMPARE_DATASTORE(span_event, expected_host,                \
+                                     expected_db_name, expected_statement,     \
+                                     expected_address)                         \
+  tlib_pass_if_str_equal("host", expected_host,                                \
+                         nr_span_event_get_datastore(                          \
+                             span_event, NR_SPAN_DATASTORE_PEER_HOSTNAME));    \
+  tlib_pass_if_str_equal("address", expected_address,                          \
+                         nr_span_event_get_datastore(                          \
+                             span_event, NR_SPAN_DATASTORE_PEER_ADDRESS));     \
+  tlib_pass_if_str_equal(                                                      \
+      "database name", expected_db_name,                                       \
+      nr_span_event_get_datastore(span_event, NR_SPAN_DATASTORE_DB_INSTANCE)); \
+  tlib_pass_if_str_equal("Statement", expected_statement,                      \
+                         nr_span_event_get_datastore(                          \
+                             span_event, NR_SPAN_DATASTORE_DB_STATEMENT));     \
+  tlib_pass_if_true(                                                           \
+      "category", NR_SPAN_DATASTORE == nr_span_event_get_category(span_event), \
+      "%d==%d", NR_SPAN_DATASTORE, nr_span_event_get_category(span_event));
+
+#define SPAN_EVENT_COMPARE_EXTERNAL(span_event, expected_url, expected_method, \
+                                    expected_component)                        \
+  tlib_pass_if_str_equal(                                                      \
+      "url", expected_url,                                                     \
+      nr_span_event_get_external(span_event, NR_SPAN_EXTERNAL_URL));           \
+  tlib_pass_if_str_equal(                                                      \
+      "method", expected_method,                                               \
+      nr_span_event_get_external(span_event, NR_SPAN_EXTERNAL_METHOD));        \
+  tlib_pass_if_str_equal(                                                      \
+      "component", expected_component,                                         \
+      nr_span_event_get_external(span_event, NR_SPAN_EXTERNAL_COMPONENT));     \
+                                                                               \
+  tlib_pass_if_true(                                                           \
+      "category", NR_SPAN_HTTP == nr_span_event_get_category(span_event),      \
+      "%d==%d", NR_SPAN_HTTP, nr_span_event_get_category(span_event));
+
+static void nr_vector_span_event_dtor(void* element, void* userdata NRUNUSED) {
+  nr_span_event_destroy((nr_span_event_t**)&element);
+}
 
 static void test_buffer_contents_fn(const char* testname,
                                     nrbuf_t* buf,
@@ -56,22 +107,25 @@ static void test_json_print_bad_parameters(void) {
   /*
    * Test : Bad parameters
    */
-  rv = nr_segment_traces_json_print_segments(NULL, NULL, NULL, NULL);
+  rv = nr_segment_traces_json_print_segments(NULL, NULL, NULL, NULL, NULL, NULL,
+                                             NULL);
   tlib_pass_if_true("Return value must be -1 when input params are NULL",
                     -1 == rv, "rv=%d", rv);
 
-  rv = nr_segment_traces_json_print_segments(NULL, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(NULL, NULL, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Return value must be -1 when input buff is NULL", -1 == rv,
                     "rv=%d", rv);
 
-  rv = nr_segment_traces_json_print_segments(buf, NULL, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, NULL, NULL, NULL, NULL, &root,
+                                             segment_names);
   tlib_pass_if_true("Return value must be -1 when input txn is NULL", -1 == rv,
                     "rv=%d", rv);
 
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, NULL);
+  rv = nr_segment_traces_json_print_segments(buf, NULL, NULL, NULL, &txn, &root,
+                                             NULL);
   tlib_pass_if_true("Return value must be -1 when input pool is NULL", -1 == rv,
                     "rv=%d", rv);
-
 
   /* Clean up */
   nr_string_pool_destroy(&segment_names);
@@ -81,14 +135,19 @@ static void test_json_print_bad_parameters(void) {
 static void test_json_print_segments_root_only(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+
   nr_segment_t root = {.type = NR_SEGMENT_CUSTOM,
                        .txn = &txn,
                        .start_time = 1000,
                        .stop_time = 10000};
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -102,24 +161,37 @@ static void test_json_print_segments_root_only(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Printing JSON for a single root segment must succeed",
                     0 == rv, "rv=%d", rv);
   test_buffer_contents("success", buf, "[0,9,\"`0\",{},[]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 1);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
 
   /* Clean up */
   nr_string_pool_destroy(&txn.trace_strings);
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_bad_segments(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_child;
 
   nr_segment_t root = {.type = NR_SEGMENT_CUSTOM,
                        .txn = &txn,
@@ -131,6 +203,7 @@ static void test_json_print_segments_bad_segments(void) {
                         .stop_time = 2000};
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -156,51 +229,93 @@ static void test_json_print_segments_bad_segments(void) {
   /*
    * Test : Segment with bad stamps
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true(
       "Printing JSON for a segment that has equal start and stop must fail",
       -1 == rv, "rv=%d", rv);
+
+  tlib_pass_if_uint_equal("not all span events created",
+                          nr_vector_size(span_events), 1);
+
   nr_buffer_reset(buf);
+  nr_vector_destroy(&span_events);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
 
   /*
    * Test : Segment stop before segment start
    */
   child.start_time = 4000;
   child.stop_time = 2000;
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true(
       "Printing JSON for a segment that has out of order start and stop must "
       "fail",
       -1 == rv, "rv=%d", rv);
+
+  tlib_pass_if_uint_equal("not all span events created",
+                          nr_vector_size(span_events), 1);
+
   nr_buffer_reset(buf);
+  nr_vector_destroy(&span_events);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
 
   /*
    * Test : Segment start before transaction start
    */
   child.start_time = 500;
   child.stop_time = 4000;
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true(
       "Printing JSON for a segment whose start is before the transaction start "
       "must succeed",
       0 == rv, "rv=%d", rv);
   test_buffer_contents("start before txn start", buf,
                        "[0,9,\"`0\",{},[[0,3,\"`1\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_child, "Mongo/alpha", NR_SPAN_GENERIC, evt_root, 500,
+                     3500);
+
   nr_buffer_reset(buf);
+  nr_vector_destroy(&span_events);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
 
   /*
    * Test : Segment start and stop before transaction start
    */
   child.start_time = 500;
   child.stop_time = 600;
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true(
       "Printing JSON for a segment whose start and stop are before the "
       "transaction start must succeed",
       0 == rv, "rv=%d", rv);
   test_buffer_contents("start before txn start", buf,
                        "[0,9,\"`0\",{},[[0,0,\"`1\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_child, "Mongo/alpha", NR_SPAN_GENERIC, evt_root, 500,
+                     100);
+
   nr_buffer_reset(buf);
+  nr_vector_destroy(&span_events);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
 
   /*
    * Test : Segment with unknown name
@@ -208,12 +323,23 @@ static void test_json_print_segments_bad_segments(void) {
   child.start_time = 2000;
   child.stop_time = 4000;
   child.name = 0;
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true(
       "Printing JSON for a segment with an unknown name must succeed", 0 == rv,
       "rv=%d", rv);
   test_buffer_contents("unknown name", buf,
                        "[0,9,\"`0\",{},[[1,3,\"`2\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_child, "<unknown>", NR_SPAN_GENERIC, evt_root, 2000,
+                     2000);
 
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
@@ -226,19 +352,25 @@ static void test_json_print_segments_bad_segments(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segment_with_data(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_child;
 
   nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
   nr_segment_t child = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -266,12 +398,24 @@ static void test_json_print_segment_with_data(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Printing JSON for a segment with data must succeed",
                     0 == rv, "rv=%d", rv);
   test_buffer_contents("node with data", buf,
                        "[0,9,\"`0\",{},"
                        "[[1,3,\"`1\",{\"uri\":\"domain.com\"},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_child, "External/domain.com/all", NR_SPAN_GENERIC,
+                     evt_root, 2000, 2000);
+
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
   nr_segment_destroy_fields(&root);
@@ -283,18 +427,25 @@ static void test_json_print_segment_with_data(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_two_nodes(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_child;
+
   nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
   nr_segment_t child = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -320,10 +471,21 @@ static void test_json_print_segments_two_nodes(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Printing JSON for a root+child pair must succeed", 0 == rv,
                     "rv=%d", rv);
   test_buffer_contents("success", buf, "[0,9,\"`0\",{},[[1,3,\"`1\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_child, "Mongo/alpha", NR_SPAN_GENERIC, evt_root, 2000,
+                     2000);
 
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
@@ -336,14 +498,21 @@ static void test_json_print_segments_two_nodes(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_hanoi(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_c;
 
   // clang-format off
   nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
@@ -353,6 +522,7 @@ static void test_json_print_segments_hanoi(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -384,12 +554,26 @@ static void test_json_print_segments_hanoi(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Printing JSON for a cascade of four segments must succeed",
                     0 == rv, "rv=%d", rv);
   test_buffer_contents("towers of hanoi", buf,
                        "[0,9,\"`0\",{},[[1,6,\"`1\",{},[[2,5,\"`2\",{},[[3,4,"
                        "\"`3\",{},[]]]]]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 4);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 3);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_GENERIC, evt_a, 3000, 3000);
+  SPAN_EVENT_COMPARE(evt_c, "C", NR_SPAN_GENERIC, evt_b, 4000, 1000);
 
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
@@ -406,14 +590,21 @@ static void test_json_print_segments_hanoi(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_three_siblings(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_c;
 
   // clang-format off
   nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
@@ -423,6 +614,7 @@ static void test_json_print_segments_three_siblings(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -433,6 +625,7 @@ static void test_json_print_segments_three_siblings(void) {
   /* Create a collection of mock segments */
 
   /*
+   *      -- root --
    *  --A--  --B--  --C--
    */
 
@@ -450,12 +643,26 @@ static void test_json_print_segments_three_siblings(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Printing JSON for a rooted set of triplets must succeed",
                     0 == rv, "rv=%d", rv);
   test_buffer_contents("sequential nodes", buf,
                        "[0,9,\"`0\",{},[[1,2,\"`1\",{},[]],[3,4,\"`2\",{},[]],["
                        "5,6,\"`3\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 4);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 3);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 1000);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_GENERIC, evt_root, 4000, 1000);
+  SPAN_EVENT_COMPARE(evt_c, "C", NR_SPAN_GENERIC, evt_root, 6000, 1000);
 
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
@@ -469,14 +676,138 @@ static void test_json_print_segments_three_siblings(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
+}
+
+static void test_json_print_segments_datastore_external(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_c;
+  nr_span_event_t* evt_d;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
+  nr_segment_t C = {.txn = &txn, .start_time = 5000, .stop_time = 6000};
+  nr_segment_t D = {.txn = &txn, .start_time = 6000, .stop_time = 7000};
+  // clang-format on
+
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.segment_count = 4;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+
+  /* Create a collection of mock segments */
+
+  /*    ------root-------
+   *     ------A------
+   *    --B-- --C-- --D--
+   */
+
+  nr_segment_children_init(&root.children);
+  nr_segment_children_init(&A.children);
+
+  nr_segment_add_child(&root, &A);
+  nr_segment_add_child(&A, &B);
+  nr_segment_add_child(&A, &C);
+  nr_segment_add_child(&A, &D);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+  B.name = nr_string_add(txn.trace_strings, "B");
+  C.name = nr_string_add(txn.trace_strings, "C");
+  D.name = nr_string_add(txn.trace_strings, "D");
+
+  B.type = NR_SEGMENT_DATASTORE;
+  B.typed_attributes.datastore.sql_obfuscated = nr_strdup("SELECT");
+  B.typed_attributes.datastore.instance.host = nr_strdup("localhost");
+  B.typed_attributes.datastore.instance.database_name = nr_strdup("db");
+  B.typed_attributes.datastore.instance.port_path_or_id = nr_strdup("3308");
+
+  C.type = NR_SEGMENT_EXTERNAL;
+  C.typed_attributes.external.uri = nr_strdup("example.com");
+  C.typed_attributes.external.library = nr_strdup("curl");
+  C.typed_attributes.external.procedure = nr_strdup("GET");
+
+  D.type = NR_SEGMENT_DATASTORE;
+  D.typed_attributes.datastore.sql = nr_strdup("SELECT pass");
+  D.typed_attributes.datastore.sql_obfuscated = nr_strdup("SELECT xxxx");
+  D.typed_attributes.datastore.instance.host = nr_strdup("localhost");
+  D.typed_attributes.datastore.instance.database_name = nr_strdup("db");
+
+  /*
+   * Test : Normal operation
+   */
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
+  tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
+  test_buffer_contents("two kids", buf,
+                       "[0,9,\"`0\",{},[[1,6,\"`1\",{},[[2,3,\"`2\",{},[]],[4,"
+                       "5,\"`3\",{},[]],[5,6,\"`4\",{},[]]]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 5);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_d = (nr_span_event_t*)nr_vector_get(span_events, 4);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_DATASTORE, evt_a, 3000, 1000);
+  SPAN_EVENT_COMPARE_DATASTORE(evt_b, "localhost", "db", "SELECT",
+                               "localhost:3308");
+  SPAN_EVENT_COMPARE(evt_c, "C", NR_SPAN_HTTP, evt_a, 5000, 1000);
+  SPAN_EVENT_COMPARE_EXTERNAL(evt_c, "example.com", "GET", "curl");
+  SPAN_EVENT_COMPARE(evt_d, "D", NR_SPAN_DATASTORE, evt_a, 6000, 1000);
+  SPAN_EVENT_COMPARE_DATASTORE(evt_d, "localhost", "db", "SELECT pass",
+                               "localhost:unknown");
+
+  /* Clean up */
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_children_destroy_fields(&A.children);
+
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+  nr_segment_destroy_fields(&C);
+  nr_segment_destroy_fields(&D);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_two_generations(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_c;
 
   // clang-format off
   nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
@@ -486,6 +817,7 @@ static void test_json_print_segments_two_generations(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -515,11 +847,25 @@ static void test_json_print_segments_two_generations(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
   test_buffer_contents("two kids", buf,
                        "[0,9,\"`0\",{},[[1,6,\"`1\",{},[[2,3,\"`2\",{},[]],[4,"
                        "5,\"`3\",{},[]]]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 4);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 3);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_GENERIC, evt_a, 3000, 1000);
+  SPAN_EVENT_COMPARE(evt_c, "C", NR_SPAN_GENERIC, evt_a, 5000, 1000);
 
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
@@ -535,14 +881,20 @@ static void test_json_print_segments_two_generations(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_async_basic(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_main;
+  nr_span_event_t* evt_loop;
 
   /*
    * Basic test: main context lasts the same timespan as ROOT, and spawns one
@@ -566,6 +918,7 @@ static void test_json_print_segments_async_basic(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -590,7 +943,8 @@ static void test_json_print_segments_async_basic(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("Printing JSON for a basic async scenario must succeed",
                     0 == rv, "rv=%d", rv);
   test_buffer_contents("basic", buf,
@@ -606,6 +960,17 @@ static void test_json_print_segments_async_basic(void) {
                        "]"
                        "]");
 
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 3);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_main = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_loop = (nr_span_event_t*)nr_vector_get(span_events, 2);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_main, "main", NR_SPAN_GENERIC, evt_root, 1000, 9000);
+  SPAN_EVENT_COMPARE(evt_loop, "loop", NR_SPAN_GENERIC, evt_main, 2000, 2000);
+
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
   nr_segment_destroy_fields(&root);
@@ -619,14 +984,22 @@ static void test_json_print_segments_async_basic(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_async_multi_child(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_main;
+  nr_span_event_t* evt_a_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_a_b;
 
   /*
    * Multiple children test: main context lasts the same timespan as ROOT, and
@@ -648,6 +1021,7 @@ static void test_json_print_segments_async_multi_child(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -680,7 +1054,8 @@ static void test_json_print_segments_async_multi_child(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
   test_buffer_contents(
       "Printing JSON for a three-child async scenario must succeed", buf,
@@ -698,6 +1073,21 @@ static void test_json_print_segments_async_multi_child(void) {
       "]"
       "]");
 
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 5);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_main = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_a_a = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_a_b = (nr_span_event_t*)nr_vector_get(span_events, 4);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_main, "main", NR_SPAN_GENERIC, evt_root, 1000, 9000);
+  SPAN_EVENT_COMPARE(evt_a_a, "a", NR_SPAN_GENERIC, evt_main, 2000, 2000);
+  SPAN_EVENT_COMPARE(evt_b, "b", NR_SPAN_GENERIC, evt_main, 4000, 2000);
+  SPAN_EVENT_COMPARE(evt_a_b, "a", NR_SPAN_GENERIC, evt_main, 7000, 1000);
+
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
   nr_segment_destroy_fields(&root);
@@ -713,14 +1103,24 @@ static void test_json_print_segments_async_multi_child(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_async_multi_context(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_main;
+  nr_span_event_t* evt_a_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_a_b;
+  nr_span_event_t* evt_c;
+  nr_span_event_t* evt_d;
 
   /*
    * Multiple contexts test: main context lasts the same timespan as ROOT, and
@@ -745,10 +1145,11 @@ static void test_json_print_segments_async_multi_context(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
-  txn.segment_count = 5;
+  txn.segment_count = 7;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
   txn.async_duration = 1;
@@ -785,7 +1186,8 @@ static void test_json_print_segments_async_multi_context(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
   test_buffer_contents("multiple contexts", buf,
                        "["
@@ -804,6 +1206,25 @@ static void test_json_print_segments_async_multi_context(void) {
                        "]"
                        "]");
 
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 7);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_main = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_a_a = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_a_b = (nr_span_event_t*)nr_vector_get(span_events, 4);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 5);
+  evt_d = (nr_span_event_t*)nr_vector_get(span_events, 6);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_main, "main", NR_SPAN_GENERIC, evt_root, 1000, 9000);
+  SPAN_EVENT_COMPARE(evt_a_a, "a", NR_SPAN_GENERIC, evt_main, 2000, 2000);
+  SPAN_EVENT_COMPARE(evt_b, "b", NR_SPAN_GENERIC, evt_main, 4000, 2000);
+  SPAN_EVENT_COMPARE(evt_a_b, "a", NR_SPAN_GENERIC, evt_main, 7000, 1000);
+  SPAN_EVENT_COMPARE(evt_c, "c", NR_SPAN_GENERIC, evt_main, 3000, 2000);
+  SPAN_EVENT_COMPARE(evt_d, "d", NR_SPAN_GENERIC, evt_main, 9000, 1000);
+
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
   nr_segment_destroy_fields(&root);
@@ -821,14 +1242,26 @@ static void test_json_print_segments_async_multi_context(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_async_context_nesting(void) {
   int rv;
   nrbuf_t* buf;
+  nr_vector_t* span_events;
   nrpool_t* segment_names;
 
   nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_main;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_b;
+  nr_span_event_t* evt_c;
+  nr_span_event_t* evt_d;
+  nr_span_event_t* evt_e;
+  nr_span_event_t* evt_f;
+  nr_span_event_t* evt_g;
 
   /*
    * Context nesting test: contexts spawned from different main thread
@@ -864,6 +1297,7 @@ static void test_json_print_segments_async_context_nesting(void) {
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
@@ -912,7 +1346,8 @@ static void test_json_print_segments_async_context_nesting(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
   tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
   test_buffer_contents("context nesting", buf,
                        "["
@@ -942,6 +1377,29 @@ static void test_json_print_segments_async_context_nesting(void) {
                        "]"
                        "]");
 
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 9);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_main = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_d = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_e = (nr_span_event_t*)nr_vector_get(span_events, 4);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 5);
+  evt_f = (nr_span_event_t*)nr_vector_get(span_events, 6);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 7);
+  evt_g = (nr_span_event_t*)nr_vector_get(span_events, 8);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_main, "main", NR_SPAN_GENERIC, evt_root, 1000, 9000);
+  SPAN_EVENT_COMPARE(evt_a, "a", NR_SPAN_GENERIC, evt_main, 2000, 2000);
+  SPAN_EVENT_COMPARE(evt_b, "b", NR_SPAN_GENERIC, evt_main, 4000, 3000);
+  SPAN_EVENT_COMPARE(evt_c, "c", NR_SPAN_GENERIC, evt_b, 6000, 1000);
+  SPAN_EVENT_COMPARE(evt_d, "d", NR_SPAN_GENERIC, evt_a, 3000, 7000);
+  SPAN_EVENT_COMPARE(evt_e, "e", NR_SPAN_GENERIC, evt_d, 5000, 2000);
+  SPAN_EVENT_COMPARE(evt_f, "f", NR_SPAN_GENERIC, evt_b, 5000, 2000);
+  SPAN_EVENT_COMPARE(evt_g, "g", NR_SPAN_GENERIC, evt_main, 7200, 800);
+
   /* Clean up */
   nr_segment_children_destroy_fields(&root.children);
   nr_segment_destroy_fields(&root);
@@ -964,6 +1422,7 @@ static void test_json_print_segments_async_context_nesting(void) {
   nr_string_pool_destroy(&segment_names);
 
   nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_json_print_segments_async_with_data(void) {
@@ -994,7 +1453,7 @@ static void test_json_print_segments_async_with_data(void) {
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
-  txn.segment_count = 5;
+  txn.segment_count = 3;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
   txn.async_duration = 1;
@@ -1019,7 +1478,8 @@ static void test_json_print_segments_async_with_data(void) {
   /*
    * Test : Normal operation
    */
-  rv = nr_segment_traces_json_print_segments(buf, &txn, &root, segment_names);
+  rv = nr_segment_traces_json_print_segments(buf, NULL, NULL, NULL, &txn, &root,
+                                             segment_names);
   tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
   test_buffer_contents(
       "basic", buf,
@@ -1047,70 +1507,750 @@ static void test_json_print_segments_async_with_data(void) {
 
   nr_buffer_destroy(&buf);
 }
-static void test_segment_trace_tree_to_heap(void) {
-  nr_segment_t mini = {.start_time = 100, .stop_time = 200};
-  nr_segment_t midi = {.start_time = 100, .stop_time = 300};
-  nr_segment_t maxi = {.start_time = 100, .stop_time = 400};
+
+static void test_json_print_segments_with_sampling(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {0};
+  nr_set_t* set;
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_b;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
+  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  // clang-format on
+
+  set = nr_set_create();
+  nr_set_insert(set, (void*)&root);
+  nr_set_insert(set, (void*)&B);
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(8, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.segment_count = 4;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+
+  /* Create a collection of mock segments */
+
+  /*    ------root-------
+   *       ----A----
+   *       ----B----
+   *         --C--
+   */
+
+  nr_segment_children_init(&root.children);
+  nr_segment_children_init(&A.children);
+  nr_segment_children_init(&B.children);
+
+  nr_segment_add_child(&root, &A);
+  nr_segment_add_child(&A, &B);
+  nr_segment_add_child(&B, &C);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+  B.name = nr_string_add(txn.trace_strings, "B");
+  C.name = nr_string_add(txn.trace_strings, "C");
 
   /*
-   * Test : Normal operation.  Insert three segments into a
-   * two-slot heap and affirm that the expected pair are
-   * the min and max members of the heap.  It's an
-   * indirect way of testing that nr_segment_compare()
-   * is working, but I want to affirm all the right pieces
-   * are in place for a heap of segments.
+   * Test : Normal operation
    */
-  nr_minmax_heap_t* heap = nr_segment_traces_heap_create(2);
+  rv = nr_segment_traces_json_print_segments(buf, span_events, set, set, &txn,
+                                             &root, segment_names);
+  tlib_pass_if_true("Printing JSON for a sampled tree of segments must succeed",
+                    0 == rv, "rv=%d", rv);
+  test_buffer_contents("Free samples", buf,
+                       "[0,9,\"`0\",{},[[2,5,\"`1\",{},[]]]]");
 
-  nr_minmax_heap_insert(heap, (void*)&mini);
-  nr_minmax_heap_insert(heap, (void*)&midi);
-  nr_minmax_heap_insert(heap, (void*)&maxi);
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
 
-  tlib_pass_if_ptr_equal(
-      "After inserting the midi-value segment, it must be the min value in the "
-      "heap",
-      nr_minmax_heap_peek_min(heap), &midi);
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_b = (nr_span_event_t*)nr_vector_get(span_events, 1);
 
-  tlib_pass_if_ptr_equal(
-      "After inserting the max-value segment, it must be the max value in the "
-      "heap",
-      nr_minmax_heap_peek_max(heap), &maxi);
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_GENERIC, evt_root, 3000, 3000);
 
-  nr_minmax_heap_destroy(&heap);
+  /* Clean up */
+  nr_set_destroy(&set);
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_children_destroy_fields(&A.children);
+  nr_segment_children_destroy_fields(&B.children);
+
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+  nr_segment_destroy_fields(&C);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
+}
+
+static void test_json_print_segments_with_sampling_cousin_parent(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {0};
+  nr_set_t* set;
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_c;
+  nr_span_event_t* evt_d;
+  nr_span_event_t* evt_f;
+  nr_span_event_t* evt_g;
+  nr_span_event_t* evt_i;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 15000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
+  nr_segment_t C = {.txn = &txn, .start_time = 2000, .stop_time = 6000};
+  nr_segment_t D = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t E = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t F = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
+  nr_segment_t G = {.txn = &txn, .start_time = 6000, .stop_time = 6500};
+  nr_segment_t H = {.txn = &txn, .start_time = 2000, .stop_time = 14000};
+  nr_segment_t I = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
+  nr_segment_t J = {.txn = &txn, .start_time = 4000, .stop_time = 14000};
+  nr_segment_t K = {.txn = &txn, .start_time = 3000, .stop_time = 12000};
+  // clang-format on
+
+  set = nr_set_create();
+  nr_set_insert(set, (void*)&root);
+  nr_set_insert(set, (void*)&C);
+  nr_set_insert(set, (void*)&D);
+  nr_set_insert(set, (void*)&F);
+  nr_set_insert(set, (void*)&G);
+  nr_set_insert(set, (void*)&I);
+
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(8, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.segment_count = 11;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+
+  // clang-format off
+  /*
+   * The mock tree looks like this:
+   *
+   *
+   *            --------------------*(0,14)root---------------------
+   *               /                   |                          \
+   *         --(1,6)A--           --*(1,6)D--            --------(1,13)H--------
+   *          /        \           /        \            /        |         \
+   *      -(2,5)B- -*(1,5)C-   -(1,4)E- -*(4,6)F-   -*(1,3)I-  -(3,13)J- -(2,11)K-
+   *                   |                   /            |
+   *                   |               -*(5,5)G-        ^
+   *                   |                                |
+   *                   +---------------->---------------+
+   *
+   *  Key:
+   *  Sampled - *
+   *
+   *  One would think that root would be I's parent. Because of prefix
+   *  traversal, C is I's parent. This is expected because the provided
+   *  tree was invalid.
+   */
+  // clang-format on
+
+  nr_segment_children_init(&root.children);
+  nr_segment_children_init(&A.children);
+  nr_segment_children_init(&B.children);
+  nr_segment_children_init(&C.children);
+  nr_segment_children_init(&D.children);
+  nr_segment_children_init(&E.children);
+  nr_segment_children_init(&F.children);
+  nr_segment_children_init(&G.children);
+  nr_segment_children_init(&H.children);
+  nr_segment_children_init(&I.children);
+  nr_segment_children_init(&J.children);
+  nr_segment_children_init(&K.children);
+
+  nr_segment_add_child(&root, &A);
+  nr_segment_add_child(&A, &B);
+  nr_segment_add_child(&B, &C);
+  nr_segment_add_child(&root, &D);
+  nr_segment_add_child(&D, &E);
+  nr_segment_add_child(&D, &F);
+  nr_segment_add_child(&F, &G);
+  nr_segment_add_child(&D, &F);
+  nr_segment_add_child(&root, &H);
+  nr_segment_add_child(&H, &I);
+  nr_segment_add_child(&H, &J);
+  nr_segment_add_child(&H, &K);
+  nr_segment_add_child(&C, &I);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+  B.name = nr_string_add(txn.trace_strings, "B");
+  C.name = nr_string_add(txn.trace_strings, "C");
+  D.name = nr_string_add(txn.trace_strings, "D");
+  E.name = nr_string_add(txn.trace_strings, "E");
+  F.name = nr_string_add(txn.trace_strings, "F");
+  G.name = nr_string_add(txn.trace_strings, "G");
+  H.name = nr_string_add(txn.trace_strings, "H");
+  I.name = nr_string_add(txn.trace_strings, "I");
+  J.name = nr_string_add(txn.trace_strings, "J");
+  K.name = nr_string_add(txn.trace_strings, "K");
+
+  /*
+   * Test : Normal operation
+   */
+  rv = nr_segment_traces_json_print_segments(buf, span_events, set, set, &txn,
+                                             &root, segment_names);
+  tlib_pass_if_true(
+      "Printing JSON for a sampled cousin parent tree of segments must succeed",
+      0 == rv, "rv=%d", rv);
+  test_buffer_contents("Cousin Parent", buf,
+                       "[0,14,\"`0\",{},[[1,5,\"`1\",{},[[1,3,\"`2\",{},[]]]],["
+                       "1,6,\"`3\",{},[[4,6,\"`4\",{},[[5,5,\"`5\",{},[]]]]]]]"
+                       "]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 6);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_i = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_d = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_f = (nr_span_event_t*)nr_vector_get(span_events, 4);
+  evt_g = (nr_span_event_t*)nr_vector_get(span_events, 5);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     14000);
+  SPAN_EVENT_COMPARE(evt_c, "C", NR_SPAN_GENERIC, evt_root, 2000, 4000);
+  SPAN_EVENT_COMPARE(evt_i, "I", NR_SPAN_GENERIC, evt_c, 2000, 2000);
+  SPAN_EVENT_COMPARE(evt_d, "D", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_f, "F", NR_SPAN_GENERIC, evt_d, 5000, 2000);
+  SPAN_EVENT_COMPARE(evt_g, "G", NR_SPAN_GENERIC, evt_f, 6000, 500);
+
+  /* Clean up */
+  nr_set_destroy(&set);
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_children_destroy_fields(&A.children);
+  nr_segment_children_destroy_fields(&B.children);
+  nr_segment_children_destroy_fields(&C.children);
+  nr_segment_children_destroy_fields(&D.children);
+  nr_segment_children_destroy_fields(&E.children);
+  nr_segment_children_destroy_fields(&F.children);
+  nr_segment_children_destroy_fields(&G.children);
+  nr_segment_children_destroy_fields(&H.children);
+  nr_segment_children_destroy_fields(&I.children);
+  nr_segment_children_destroy_fields(&J.children);
+  nr_segment_children_destroy_fields(&K.children);
+
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+  nr_segment_destroy_fields(&C);
+  nr_segment_destroy_fields(&D);
+  nr_segment_destroy_fields(&E);
+  nr_segment_destroy_fields(&F);
+  nr_segment_destroy_fields(&G);
+  nr_segment_destroy_fields(&H);
+  nr_segment_destroy_fields(&I);
+  nr_segment_destroy_fields(&J);
+  nr_segment_destroy_fields(&K);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
+}
+
+static void test_json_print_segments_with_sampling_inner_loop(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {0};
+  nr_set_t* trace_set;
+  nr_set_t* span_set;
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_d;
+  nr_span_event_t* evt_f;
+  nr_span_event_t* evt_g;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
+  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t D = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t E = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t F = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
+  nr_segment_t G = {.txn = &txn, .start_time = 6000, .stop_time = 6500};
+  // clang-format on
+
+  trace_set = nr_set_create();
+  nr_set_insert(trace_set, (void*)&root);
+  nr_set_insert(trace_set, (void*)&C);
+  nr_set_insert(trace_set, (void*)&E);
+  nr_set_insert(trace_set, (void*)&G);
+
+  span_set = nr_set_create();
+  nr_set_insert(span_set, (void*)&root);
+  nr_set_insert(span_set, (void*)&A);
+  nr_set_insert(span_set, (void*)&D);
+  nr_set_insert(span_set, (void*)&F);
+  nr_set_insert(span_set, (void*)&G);
+
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(8, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.segment_count = 7;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+
+  // clang-format off
+  /*
+   * The mock tree looks like this:
+   *
+   *
+   *   +--------->---------+
+   *   |                   |
+   *   |          ----+*(0,9)root------
+   *   |           /                  \
+   *   |      -+(1,6)A--           -+(1,6)D--
+   *   ^      /        \           /        \
+   *   |  -(2,5)B- -*(3,4)C-  -*(1,4)E-  -+(4,6)F-
+   *   |                         |         /
+   *   |                         |     +*(5,5)G-
+   *   +-----------<-------------+
+   *
+   *  Key:
+   *  Sampled trace - *
+   *  Sampled spans - +
+   *
+   */
+  // clang-format on
+
+  nr_segment_children_init(&root.children);
+  nr_segment_children_init(&A.children);
+  nr_segment_children_init(&B.children);
+  nr_segment_children_init(&C.children);
+  nr_segment_children_init(&D.children);
+  nr_segment_children_init(&E.children);
+  nr_segment_children_init(&F.children);
+  nr_segment_children_init(&G.children);
+
+  nr_segment_add_child(&root, &A);
+  nr_segment_add_child(&A, &B);
+  nr_segment_add_child(&B, &C);
+  nr_segment_add_child(&root, &D);
+  nr_segment_add_child(&D, &E);
+  nr_segment_add_child(&D, &F);
+  nr_segment_add_child(&F, &G);
+  nr_segment_add_child(&D, &F);
+  nr_segment_add_child(&E, &root);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+  B.name = nr_string_add(txn.trace_strings, "B");
+  C.name = nr_string_add(txn.trace_strings, "C");
+  D.name = nr_string_add(txn.trace_strings, "D");
+  E.name = nr_string_add(txn.trace_strings, "E");
+  F.name = nr_string_add(txn.trace_strings, "F");
+  G.name = nr_string_add(txn.trace_strings, "G");
+
+  /*
+   * Test : Normal operation
+   */
+  rv = nr_segment_traces_json_print_segments(
+      buf, span_events, trace_set, span_set, &txn, &root, segment_names);
+  tlib_pass_if_true("Printing JSON for a sampled tree of segments must succeed",
+                    0 == rv, "rv=%d", rv);
+  test_buffer_contents("Inner Loop", buf,
+                       "[0,9,\"`0\",{},[[3,4,\"`1\",{},[]],[1,4,\"`2\",{},[]],["
+                       "5,5,\"`3\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 5);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_d = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_f = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_g = (nr_span_event_t*)nr_vector_get(span_events, 4);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_d, "D", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_f, "F", NR_SPAN_GENERIC, evt_d, 5000, 2000);
+  SPAN_EVENT_COMPARE(evt_g, "G", NR_SPAN_GENERIC, evt_f, 6000, 500);
+
+  /* Clean up */
+  nr_set_destroy(&trace_set);
+  nr_set_destroy(&span_set);
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_children_destroy_fields(&A.children);
+  nr_segment_children_destroy_fields(&B.children);
+  nr_segment_children_destroy_fields(&C.children);
+  nr_segment_children_destroy_fields(&D.children);
+  nr_segment_children_destroy_fields(&E.children);
+  nr_segment_children_destroy_fields(&F.children);
+  nr_segment_children_destroy_fields(&G.children);
+
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+  nr_segment_destroy_fields(&C);
+  nr_segment_destroy_fields(&D);
+  nr_segment_destroy_fields(&E);
+  nr_segment_destroy_fields(&F);
+  nr_segment_destroy_fields(&G);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
+}
+
+static void test_json_print_segments_with_sampling_genghis_khan(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {0};
+  nr_set_t* set;
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_c;
+  nr_span_event_t* evt_e;
+  nr_span_event_t* evt_f;
+  nr_span_event_t* evt_g;
+  nr_span_event_t* evt_h;
+  nr_span_event_t* evt_i;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
+  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t D = {.txn = &txn, .start_time = 2000, .stop_time = 8000};
+  nr_segment_t E = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t F = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
+  nr_segment_t G = {.txn = &txn, .start_time = 1000, .stop_time = 9000};
+  nr_segment_t H = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
+  nr_segment_t I = {.txn = &txn, .start_time = 1000, .stop_time = 7000};
+  // clang-format on
+
+  set = nr_set_create();
+  nr_set_insert(set, (void*)&root);
+  nr_set_insert(set, (void*)&A);
+  nr_set_insert(set, (void*)&C);
+  nr_set_insert(set, (void*)&E);
+  nr_set_insert(set, (void*)&F);
+  nr_set_insert(set, (void*)&G);
+  nr_set_insert(set, (void*)&H);
+  nr_set_insert(set, (void*)&I);
+
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(8, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.segment_count = 9;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+
+  // clang-format off
+  /*
+   * The mock tree looks like this:
+   *    -----------------------------------*(0,9)root------------------------------------
+   *     /         |         |        |         |         |         |         |        \
+   * -*(1,6)A- -(2,5)B- -*(3,4)C- -(1,7)D- -*(1,4)E- -*(4,6)F- -*(0,8)G- -*(2,3)H- -*(0,6)I-
+   *
+   *  Key:
+   *  Sampled - *
+   *
+   */
+  // clang-format on
+
+  nr_segment_children_init(&root.children);
+  nr_segment_children_init(&A.children);
+  nr_segment_children_init(&B.children);
+  nr_segment_children_init(&C.children);
+  nr_segment_children_init(&D.children);
+  nr_segment_children_init(&E.children);
+  nr_segment_children_init(&F.children);
+  nr_segment_children_init(&G.children);
+  nr_segment_children_init(&H.children);
+  nr_segment_children_init(&I.children);
+
+  nr_segment_add_child(&root, &A);
+  nr_segment_add_child(&root, &B);
+  nr_segment_add_child(&root, &C);
+  nr_segment_add_child(&root, &D);
+  nr_segment_add_child(&root, &E);
+  nr_segment_add_child(&root, &F);
+  nr_segment_add_child(&root, &G);
+  nr_segment_add_child(&root, &H);
+  nr_segment_add_child(&root, &I);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+  B.name = nr_string_add(txn.trace_strings, "B");
+  C.name = nr_string_add(txn.trace_strings, "C");
+  D.name = nr_string_add(txn.trace_strings, "D");
+  E.name = nr_string_add(txn.trace_strings, "E");
+  F.name = nr_string_add(txn.trace_strings, "F");
+  G.name = nr_string_add(txn.trace_strings, "G");
+  H.name = nr_string_add(txn.trace_strings, "H");
+  I.name = nr_string_add(txn.trace_strings, "I");
+
+  /*
+   * Test : Normal operation
+   */
+  rv = nr_segment_traces_json_print_segments(buf, span_events, set, set, &txn,
+                                             &root, segment_names);
+  tlib_pass_if_true(
+      "Printing JSON for a genghis khan sampled tree of segments must succeed",
+      0 == rv, "rv=%d", rv);
+  test_buffer_contents("genghis khan", buf,
+                       "[0,9,\"`0\",{},[[1,6,\"`1\",{},[]],[3,4,\"`2\",{},[]],["
+                       "1,4,\"`3\",{},[]],[4,6,\"`4\",{},[]],[0,8,\"`5\",{},[]]"
+                       ",[2,3,\"`6\",{},[]],[0,6,\"`7\",{},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 8);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+  evt_c = (nr_span_event_t*)nr_vector_get(span_events, 2);
+  evt_e = (nr_span_event_t*)nr_vector_get(span_events, 3);
+  evt_f = (nr_span_event_t*)nr_vector_get(span_events, 4);
+  evt_g = (nr_span_event_t*)nr_vector_get(span_events, 5);
+  evt_h = (nr_span_event_t*)nr_vector_get(span_events, 6);
+  evt_i = (nr_span_event_t*)nr_vector_get(span_events, 7);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE(evt_c, "C", NR_SPAN_GENERIC, evt_root, 4000, 1000);
+  SPAN_EVENT_COMPARE(evt_e, "E", NR_SPAN_GENERIC, evt_root, 2000, 3000);
+  SPAN_EVENT_COMPARE(evt_f, "F", NR_SPAN_GENERIC, evt_root, 5000, 2000);
+  SPAN_EVENT_COMPARE(evt_g, "G", NR_SPAN_GENERIC, evt_root, 1000, 8000);
+  SPAN_EVENT_COMPARE(evt_h, "H", NR_SPAN_GENERIC, evt_root, 3000, 1000);
+  SPAN_EVENT_COMPARE(evt_i, "I", NR_SPAN_GENERIC, evt_root, 1000, 6000);
+
+  /* Clean up */
+  nr_set_destroy(&set);
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_children_destroy_fields(&A.children);
+  nr_segment_children_destroy_fields(&B.children);
+  nr_segment_children_destroy_fields(&C.children);
+  nr_segment_children_destroy_fields(&D.children);
+  nr_segment_children_destroy_fields(&E.children);
+  nr_segment_children_destroy_fields(&F.children);
+  nr_segment_children_destroy_fields(&G.children);
+  nr_segment_children_destroy_fields(&H.children);
+  nr_segment_children_destroy_fields(&I.children);
+
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+  nr_segment_destroy_fields(&C);
+  nr_segment_destroy_fields(&D);
+  nr_segment_destroy_fields(&E);
+  nr_segment_destroy_fields(&F);
+  nr_segment_destroy_fields(&G);
+  nr_segment_destroy_fields(&H);
+  nr_segment_destroy_fields(&I);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
 }
 
 static void test_trace_create_data_bad_parameters(void) {
   nrtxn_t txn = {0};
-  char* out;
+  uintptr_t i;
+  nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
+  nr_segment_tree_result_t result = {.trace_json = NULL};
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  // clang-format on
+
   nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
   nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");
   nrobj_t* intrinsics = nro_create_from_json("[\"intrinsics\"]");
 
+  metadata.out = &result;
+  metadata.trace_set = nr_set_create();
+
   /*
    * Test : Bad parameters
    */
-  out = nr_segment_traces_create_data(
-      NULL, 2 * NR_TIME_DIVISOR, agent_attributes, user_attributes, intrinsics);
+  nr_segment_traces_create_data(NULL, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, false);
   tlib_pass_if_null(
-      "A NULL transaction pointer must not succeed in creating a trace", out);
+      "A NULL transaction pointer must not succeed in creating a trace",
+      metadata.out->trace_json);
 
-  out = nr_segment_traces_create_data(
-      &txn, 2 * NR_TIME_DIVISOR, agent_attributes, user_attributes, intrinsics);
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, false);
   tlib_pass_if_null(
-      "A zero-sized transaction must not succeed in creating a trace", out);
+      "A zero-sized transaction must not succeed in creating a trace",
+      metadata.out->trace_json);
 
   txn.segment_count = 1;
-  out = nr_segment_traces_create_data(&txn, 0, agent_attributes,
-                                      user_attributes, intrinsics);
+  txn.segment_root = &root;
+
+  nr_segment_traces_create_data(&txn, 0, &metadata, agent_attributes,
+                                user_attributes, intrinsics, true, false);
   tlib_pass_if_null(
-      "A zero-duration transaction must not succeed in creating a trace", out);
+      "A zero-duration transaction must not succeed in creating a trace",
+      metadata.out->trace_json);
 
+  /* Insert initial values. */
+  for (i = 0; i < NR_TXN_MAX_NODES + 1; i++) {
+    nr_set_insert(metadata.trace_set, (const void*)i);
+  }
 
-  txn.segment_count = 2001;
-    out = nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, agent_attributes,
-                                        user_attributes, intrinsics);
-    tlib_pass_if_null(
-        "A transaction with more than 2000 segments must not succeed in creating a trace", out);
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, false);
+  tlib_pass_if_null(
+      "A transaction with more than NR_TXN_MAX_NODES segments must not succeed "
+      "in creating "
+      "a trace",
+      metadata.out->trace_json);
+
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, NULL,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, false);
+
+  nr_set_destroy(&metadata.trace_set);
+  nro_delete(agent_attributes);
+  nro_delete(user_attributes);
+  nro_delete(intrinsics);
+}
+
+static void test_trace_create_trace_spans(void) {
+  nrtxn_t txn = {0};
+  nr_segment_tree_sampling_metadata_t metadata = {0};
+  nr_segment_tree_result_t result = {0};
+
+  nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
+  nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");
+  nrobj_t* intrinsics = nro_create_from_json("[\"intrinsics\"]");
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
+  // clang-format on
+
+  metadata.out = &result;
+
+  /* Mock up a transaction */
+  txn.segment_count = 2;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+  txn.name = nr_strdup("WebTransaction/*");
+
+  /* Mock up a tree of segments */
+  /* Create a collection of mock segments */
+  nr_segment_children_init(&root.children);
+  nr_segment_add_child(&root, &A);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+
+  /*
+   * Test : Create none of span events and traces
+   */
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                false, false);
+
+  tlib_pass_if_null("Trace must not be created", metadata.out->trace_json);
+  tlib_pass_if_null("Span events must not be created",
+                    metadata.out->span_events);
+
+  nr_realfree((void**)&metadata.out->trace_json);
+  nr_vector_destroy(&metadata.out->span_events);
+
+  /*
+   * Test : Create both span events and traces
+   */
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, true);
+
+  tlib_pass_if_not_null("Both traces and span events must be created",
+                        metadata.out->trace_json);
+  tlib_pass_if_not_null("Both traces and span events must be created",
+                        metadata.out->span_events);
+
+  nr_realfree((void**)&metadata.out->trace_json);
+  nr_vector_destroy(&metadata.out->span_events);
+
+  /*
+   * Test : Create only traces
+   */
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, false);
+
+  tlib_pass_if_not_null("Create only traces", metadata.out->trace_json);
+  tlib_pass_if_null("Create only traces", metadata.out->span_events);
+
+  nr_realfree((void**)&metadata.out->trace_json);
+  nr_vector_destroy(&metadata.out->span_events);
+
+  /*
+   * Test : Create only span events
+   */
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                false, true);
+
+  tlib_pass_if_null("Create only span events", metadata.out->trace_json);
+  tlib_pass_if_not_null("Create only span events", metadata.out->span_events);
+
+  nr_realfree((void**)&metadata.out->trace_json);
+  nr_vector_destroy(&metadata.out->span_events);
+
+  /* Clean up */
+  nr_free(txn.name);
+  nr_string_pool_destroy(&txn.trace_strings);
+
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+  nr_segment_destroy_fields(&A);
 
   nro_delete(agent_attributes);
   nro_delete(user_attributes);
@@ -1119,17 +2259,25 @@ static void test_trace_create_data_bad_parameters(void) {
 
 static void test_trace_create_data(void) {
   nrtxn_t txn = {0};
-  char* out;
+  nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
+  nr_segment_tree_result_t result = {.trace_json = NULL};
+
   nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
   nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");
   nrobj_t* intrinsics = nro_create_from_json("[\"intrinsics\"]");
   nrobj_t* obj;
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+  nr_span_event_t* evt_b;
 
   // clang-format off
   nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
   nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
   nr_segment_t B = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
   // clang-format on
+
+  metadata.out = &result;
 
   /* Mock up a transaction */
   txn.segment_count = 3;
@@ -1155,12 +2303,13 @@ static void test_trace_create_data(void) {
   /*
    * Test : Normal operation
    */
-
-  out = nr_segment_traces_create_data(
-      &txn, 2 * NR_TIME_DIVISOR, agent_attributes, user_attributes, intrinsics);
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, true);
 
   tlib_pass_if_str_equal(
-      "A multi-node transaction must succeed in creating a trace", out,
+      "A multi-node transaction must succeed in creating a trace",
+      metadata.out->trace_json,
       "[[0,{},{},[0,2000,\"ROOT\",{},[[0,9,\"`0\",{},[[1,2,"
       "\"`1\",{},[]],[3,4,\"`2\",{},[]]]]]],"
       "{\"agentAttributes\":[\"agent_attributes\"],"
@@ -1168,13 +2317,25 @@ static void test_trace_create_data(void) {
       "\"intrinsics\":[\"intrinsics\"]}],"
       "[\"WebTransaction\\/*\",\"A\",\"B\"]]");
 
-  obj = nro_create_from_json(out);
+  obj = nro_create_from_json(metadata.out->trace_json);
   tlib_pass_if_not_null(
       "A multi-node transaction must succeed in creating valid json", obj);
 
+  tlib_pass_if_uint_equal("span event size",
+                          nr_vector_size(metadata.out->span_events), 3);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(metadata.out->span_events, 0);
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  evt_a = (nr_span_event_t*)nr_vector_get(metadata.out->span_events, 1);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_GENERIC, evt_root, 2000, 1000);
+  evt_b = (nr_span_event_t*)nr_vector_get(metadata.out->span_events, 2);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_GENERIC, evt_root, 4000, 1000);
+
   /* Clean up */
   nro_delete(obj);
-  nr_free(out);
+  nr_free(metadata.out->trace_json);
+  nr_vector_destroy(&metadata.out->span_events);
   nr_free(txn.name);
 
   nr_segment_children_destroy_fields(&root.children);
@@ -1189,23 +2350,136 @@ static void test_trace_create_data(void) {
   nro_delete(intrinsics);
 }
 
+static void test_trace_create_data_with_sampling(void) {
+  nrtxn_t txn = {0};
+  nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
+  nr_segment_tree_result_t result = {.trace_json = NULL};
+
+  nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
+  nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");
+  nrobj_t* intrinsics = nro_create_from_json("[\"intrinsics\"]");
+  nrobj_t* obj;
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_b;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
+  nr_segment_t B = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  // clang-format on
+
+  metadata.out = &result;
+  metadata.trace_set = nr_set_create();
+  nr_set_insert(metadata.trace_set, (void*)&root);
+  nr_set_insert(metadata.trace_set, (void*)&A);
+  metadata.span_set = nr_set_create();
+  nr_set_insert(metadata.span_set, (void*)&root);
+  nr_set_insert(metadata.span_set, (void*)&B);
+
+  /* Mock up a transaction */
+  txn.segment_count = 3;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+  txn.name = nr_strdup("WebTransaction/*");
+
+  /* Mock up a tree of segments */
+  /* Create a collection of mock segments */
+
+  /*    -----+*root-------
+   *      --*A-- --+B--
+   *
+   *  Key:
+   *  Sampled trace - *
+   *  Sampled spans - +
+   */
+
+  nr_segment_children_init(&root.children);
+  nr_segment_add_child(&root, &A);
+  nr_segment_add_child(&root, &B);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+  B.name = nr_string_add(txn.trace_strings, "B");
+
+  /*
+   * Test : Normal operation
+   */
+  nr_segment_traces_create_data(&txn, 2 * NR_TIME_DIVISOR, &metadata,
+                                agent_attributes, user_attributes, intrinsics,
+                                true, true);
+
+  tlib_pass_if_str_equal(
+      "A transaction with sampling must succeed in creating a trace",
+      metadata.out->trace_json,
+      "[[0,{},{},[0,2000,\"ROOT\",{},[[0,9,\"`0\",{},[[1,2,"
+      "\"`1\",{},[]]]]]],"
+      "{\"agentAttributes\":[\"agent_attributes\"],"
+      "\"userAttributes\":[\"user_attributes\"],"
+      "\"intrinsics\":[\"intrinsics\"]}],"
+      "[\"WebTransaction\\/*\",\"A\"]]");
+
+  obj = nro_create_from_json(metadata.out->trace_json);
+  tlib_pass_if_not_null(
+      "A transaction with sampling must succeed in creating valid json", obj);
+
+  tlib_pass_if_uint_equal("span event size",
+                          nr_vector_size(metadata.out->span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(metadata.out->span_events, 0);
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  evt_b = (nr_span_event_t*)nr_vector_get(metadata.out->span_events, 1);
+  SPAN_EVENT_COMPARE(evt_b, "B", NR_SPAN_GENERIC, evt_root, 4000, 1000);
+
+  /* Clean up */
+  nro_delete(obj);
+  nr_free(metadata.out->trace_json);
+  nr_vector_destroy(&metadata.out->span_events);
+  nr_free(txn.name);
+
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+
+  nro_delete(agent_attributes);
+  nro_delete(user_attributes);
+  nro_delete(intrinsics);
+  nr_set_destroy(&metadata.span_set);
+  nr_set_destroy(&metadata.trace_set);
+}
+
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = 0};
 
 void test_main(void* p NRUNUSED) {
   test_json_print_bad_parameters();
   test_json_print_segments_root_only();
   test_json_print_segments_bad_segments();
+
   test_json_print_segment_with_data();
   test_json_print_segments_two_nodes();
   test_json_print_segments_hanoi();
   test_json_print_segments_three_siblings();
   test_json_print_segments_two_generations();
+
+  test_json_print_segments_datastore_external();
+
   test_json_print_segments_async_basic();
   test_json_print_segments_async_multi_child();
   test_json_print_segments_async_multi_context();
   test_json_print_segments_async_context_nesting();
   test_json_print_segments_async_with_data();
-  test_segment_trace_tree_to_heap();
+
+  test_json_print_segments_with_sampling();
+  test_json_print_segments_with_sampling_cousin_parent();
+  test_json_print_segments_with_sampling_inner_loop();
+  test_json_print_segments_with_sampling_genghis_khan();
+
   test_trace_create_data_bad_parameters();
   test_trace_create_data();
+  test_trace_create_data_with_sampling();
+
+  test_trace_create_trace_spans();
 }

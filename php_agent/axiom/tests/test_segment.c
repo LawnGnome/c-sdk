@@ -16,22 +16,42 @@
 #define NR_TEST_LIST_CAPACITY 10
 typedef struct _nr_test_list_t {
   size_t capacity;
+
   int used;
   nr_segment_t* elements[NR_TEST_LIST_CAPACITY];
+
+  nr_segment_post_iter_t post_callback;
+  int post_used;
+  nr_segment_t* post_elements[NR_TEST_LIST_CAPACITY];
 } nr_test_list_t;
 
-static bool test_iterator_callback(nr_segment_t* segment, void* userdata) {
+static void test_iterator_post_callback(nr_segment_t* segment,
+                                        nr_test_list_t* list) {
+  tlib_pass_if_not_null("post iterator must receive a valid segment", segment);
+  tlib_pass_if_not_null("post iterator must receive a valid userdata", list);
+
+  list->post_elements[list->post_used] = segment;
+  list->post_used += 1;
+}
+
+static nr_segment_iter_return_t test_iterator_callback(nr_segment_t* segment,
+                                                       void* userdata) {
   nr_test_list_t* list;
 
   if (nrunlikely(NULL == segment || NULL == userdata)) {
-    return false;
+    return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
   }
 
   list = (nr_test_list_t*)userdata;
   list->elements[list->used] = segment;
   list->used = list->used + 1;
 
-  return true;
+  if (list->post_callback) {
+    return ((nr_segment_iter_return_t){.post_callback = list->post_callback,
+                                       .userdata = userdata});
+  }
+
+  return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
 }
 
 static void test_segment_new_txn_with_segment_root(void) {
@@ -47,7 +67,7 @@ static void test_segment_new_txn_with_segment_root(void) {
 
   tlib_pass_if_not_null(
       "A new transaction's segment root must have room for children",
-      txn->segment_root->children.children);
+      txn->segment_root->children.elements);
 
   tlib_pass_if_int_equal("A new transaction must have a segment count of 1",
                          txn->segment_count, 1);
@@ -334,6 +354,61 @@ static void test_add_child(void) {
                      nr_segment_add_child(NULL, &segment), "Expected false");
 }
 
+static void test_add_metric(void) {
+  nr_segment_t segment
+      = {.type = NR_SEGMENT_CUSTOM, .parent = NULL, .metrics = NULL};
+  nr_vector_t* vec;
+
+  /*
+   * Test : Bad parameters.
+   */
+  tlib_pass_if_bool_equal("Adding a metric to a NULL segment must not succeed",
+                          false,
+                          nr_segment_add_metric(NULL, "Dead Disco", false));
+  tlib_pass_if_bool_equal(
+      "Adding a NULL metric name to a segment must not succeed", false,
+      nr_segment_add_metric(&segment, NULL, false));
+
+  /*
+   * Test : Normal operation.
+   */
+  tlib_pass_if_bool_equal(
+      "Adding a scoped metric to a segment must succeed", true,
+      nr_segment_add_metric(&segment, "Help I'm Alive", true));
+  tlib_pass_if_not_null(
+      "Adding a metric to a segment without an initialised segment vector must "
+      "create a vector to store the segments",
+      segment.metrics);
+  tlib_pass_if_size_t_equal("Adding a metric to a segment must save the metric",
+                            1, nr_vector_size(segment.metrics));
+  tlib_pass_if_str_equal(
+      "Adding a metric to a segment must save the name", "Help I'm Alive",
+      ((nr_segment_metric_t*)nr_vector_get(segment.metrics, 0))->name);
+  tlib_pass_if_bool_equal(
+      "Adding a metric to a segment must save the scoping flag", true,
+      ((nr_segment_metric_t*)nr_vector_get(segment.metrics, 0))->scoped);
+
+  vec = segment.metrics;
+
+  tlib_pass_if_bool_equal(
+      "Adding an unscoped metric to a segment must succeed", true,
+      nr_segment_add_metric(&segment, "Gimme Sympathy", false));
+  tlib_pass_if_ptr_equal(
+      "Adding a metric to a segment with an initialised segment vector must "
+      "use the same vector",
+      vec, segment.metrics);
+  tlib_pass_if_size_t_equal("Adding a metric to a segment must save the metric",
+                            2, nr_vector_size(segment.metrics));
+  tlib_pass_if_str_equal(
+      "Adding a metric to a segment must save the name", "Gimme Sympathy",
+      ((nr_segment_metric_t*)nr_vector_get(segment.metrics, 1))->name);
+  tlib_pass_if_bool_equal(
+      "Adding a metric to a segment must save the scoping flag", false,
+      ((nr_segment_metric_t*)nr_vector_get(segment.metrics, 1))->scoped);
+
+  nr_vector_destroy(&segment.metrics);
+}
+
 static void test_set_parent_to_same(void) {
   nr_segment_t mother = {.type = NR_SEGMENT_CUSTOM, .parent = NULL};
 
@@ -452,12 +527,12 @@ static void test_set_non_null_parent(void) {
       "Setting a well-formed segment with a new parent means the old parent "
       "must "
       "have a new first child",
-      mother.children.children[0], &segment);
+      nr_vector_get(&mother.children, 0), &segment);
 
   tlib_fail_if_ptr_equal(
       "Setting a well-formed segment with a new parent means the segment must "
       "not be a child of its old parent",
-      mother.children.children[0], &thing_one);
+      nr_vector_get(&mother.children, 0), &thing_one);
 
   /* Clean up */
   nr_segment_children_destroy_fields(&mother.children);
@@ -875,6 +950,73 @@ static void test_segment_iterate_with_amputation(void) {
   nr_segment_children_destroy_fields(&grown_child_1.children);
 }
 
+static void test_segment_iterate_with_post_callback(void) {
+  int i;
+  nr_test_list_t list
+      = {.capacity = NR_TEST_LIST_CAPACITY,
+         .used = 0,
+         .post_callback = (nr_segment_post_iter_t)test_iterator_post_callback,
+         .post_used = 0};
+
+  /* Declare eight segments; give them .name values in post-order */
+  nr_segment_t grandmother = {.type = NR_SEGMENT_CUSTOM, .name = 7};
+
+  nr_segment_t grown_child_1 = {.type = NR_SEGMENT_CUSTOM, .name = 1};
+  nr_segment_t grown_child_2 = {.type = NR_SEGMENT_CUSTOM, .name = 5};
+  nr_segment_t grown_child_3 = {.type = NR_SEGMENT_CUSTOM, .name = 6};
+
+  nr_segment_t child_1 = {.type = NR_SEGMENT_CUSTOM, .name = 0};
+  nr_segment_t child_2 = {.type = NR_SEGMENT_CUSTOM, .name = 2};
+  nr_segment_t child_3 = {.type = NR_SEGMENT_CUSTOM, .name = 3};
+  nr_segment_t child_4 = {.type = NR_SEGMENT_CUSTOM, .name = 4};
+
+  /* Build a mock tree of segments */
+  nr_segment_children_init(&grandmother.children);
+  nr_segment_add_child(&grandmother, &grown_child_1);
+  nr_segment_add_child(&grandmother, &grown_child_2);
+  nr_segment_add_child(&grandmother, &grown_child_3);
+
+  nr_segment_children_init(&grown_child_1.children);
+  nr_segment_add_child(&grown_child_1, &child_1);
+
+  nr_segment_children_init(&grown_child_2.children);
+  nr_segment_add_child(&grown_child_2, &child_2);
+  nr_segment_add_child(&grown_child_2, &child_3);
+  nr_segment_add_child(&grown_child_2, &child_4);
+
+  /*
+   * The mock tree looks like this:
+   *
+   *               --------(7)grandmother---------
+   *                /             |              \
+   *    (1)grown_child_1   (5)grown_child_2    (6)grown_child_3
+   *       /                /      |      \
+   * (0)child_1    (2)child_2  (3)child_3  (4)child_4
+   *
+   *
+   * In post-order, that's: 0 1 2 3 4 5 6 7
+   */
+
+  nr_segment_iterate(&grandmother, (nr_segment_iter_t)test_iterator_callback,
+                     &list);
+
+  tlib_pass_if_uint64_t_equal("The subsequent list has eight elements", 8,
+                              list.used);
+  tlib_pass_if_uint64_t_equal("The post callback was invoked eight times", 8,
+                              list.post_used);
+
+  for (i = 0; i < list.post_used; i++) {
+    tlib_pass_if_int_equal(
+        "A tree must be traversed post-order by post-callbacks",
+        list.post_elements[i]->name, i);
+  }
+
+  /* Clean up */
+  nr_segment_children_destroy_fields(&grandmother.children);
+  nr_segment_children_destroy_fields(&grown_child_1.children);
+  nr_segment_children_destroy_fields(&grown_child_2.children);
+}
+
 static void test_segment_destroy(void) {
   nr_segment_t* bachelor_1 = nr_zalloc(sizeof(nr_segment_t));
   nr_segment_t* bachelor_2 = nr_zalloc(sizeof(nr_segment_t));
@@ -1009,6 +1151,256 @@ static void test_segment_destroy_tree(void) {
   nr_segment_destroy(grandmother);
 }
 
+static void test_segment_tree_to_heap(void) {
+  nr_minmax_heap_t* heap;
+  nr_segment_tree_to_heap_metadata_t heaps = {.trace_heap = NULL, .span_heap = NULL};
+
+  nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* mini = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* midi = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* maxi = nr_zalloc(sizeof(nr_segment_t));
+
+  root->start_time = 100;
+  root->stop_time = 10000;
+
+  mini->start_time = 100;
+  mini->stop_time = 200;
+
+  midi->start_time = 100;
+  midi->stop_time = 300;
+
+  maxi->start_time = 100;
+  maxi->stop_time = 400;
+
+  /* Build a mock tree of segments */
+  nr_segment_children_init(&root->children);
+  nr_segment_add_child(root, mini);
+  nr_segment_add_child(root, midi);
+  nr_segment_add_child(root, maxi);
+
+  /*
+   * Test : Normal operation.  Insert multiple segments directly into a
+   * two-slot heap and affirm that the expected pair are the min and
+   * max members of the heap.  It's an indirect way of testing that
+   * the supplied comparator is working, but I want to affirm all the
+   * right pieces are in place for a heap of segments.
+   */
+  heap = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
+
+  nr_minmax_heap_insert(heap, (void*)mini);
+  nr_minmax_heap_insert(heap, (void*)midi);
+  nr_minmax_heap_insert(heap, (void*)maxi);
+  nr_minmax_heap_insert(heap, (void*)root);
+
+  tlib_pass_if_ptr_equal(
+      "After inserting the maxi segment, it must be the min value in the "
+      "heap",
+      nr_minmax_heap_peek_min(heap), maxi);
+
+  tlib_pass_if_ptr_equal(
+      "After inserting the root segment, it must be the max value in the "
+      "heap",
+      nr_minmax_heap_peek_max(heap), root);
+  nr_minmax_heap_destroy(&heap);
+
+  /*
+   * Bad input
+   */
+
+  // Test : No heaps should not blow up
+  nr_segment_tree_to_heap(root, NULL);
+
+  // Test : No root should not blow up
+  nr_segment_tree_to_heap(NULL, &heaps);
+
+  /*
+   * Test : Normal operation.  Iterate over a tree and make a heap.
+   */
+  heaps.trace_heap = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
+  heaps.span_heap = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
+  nr_segment_tree_to_heap(root, &heaps);
+
+  tlib_pass_if_ptr_equal(
+      "After inserting the maxi segment, it must be the min value in the "
+      "trace heap",
+      nr_minmax_heap_peek_min(heaps.trace_heap), maxi);
+  tlib_pass_if_ptr_equal(
+          "After inserting the maxi segment, it must be the min value in the "
+          "span heap",
+          nr_minmax_heap_peek_min(heaps.span_heap), maxi);
+
+  tlib_pass_if_ptr_equal(
+      "After inserting the root segment, it must be the max value in the "
+      "trace heap",
+      nr_minmax_heap_peek_max(heaps.trace_heap), root);
+  tlib_pass_if_ptr_equal(
+          "After inserting the root segment, it must be the max value in the "
+          "span heap",
+          nr_minmax_heap_peek_max(heaps.span_heap), root);
+
+  /* Clean up */
+  nr_minmax_heap_destroy(&heap);
+  nr_minmax_heap_destroy(&heaps.trace_heap);
+  nr_minmax_heap_destroy(&heaps.span_heap);
+  nr_segment_destroy(root);
+}
+
+static void test_segment_set(void) {
+  nr_set_t* set;
+
+  nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* mini = nr_zalloc(sizeof(nr_segment_t));
+
+  /* Build a mock tree of segments */
+  nr_segment_children_init(&root->children);
+  nr_segment_add_child(root, mini);
+
+  /* Prepare a set for population */
+  set = nr_set_create();
+
+  nr_set_insert(set, root);
+  nr_set_insert(set, mini);
+
+  tlib_pass_if_true("The root segment is a member of the set",
+                    nr_set_contains(set, root), "Expected true");
+  tlib_pass_if_true("The mini segment is a member of the set",
+                    nr_set_contains(set, mini), "Expected true");
+
+  nr_set_destroy(&set);
+  nr_segment_destroy(root);
+}
+
+static void test_segment_heap_to_set(void) {
+  nr_set_t* set;
+  nr_segment_tree_to_heap_metadata_t heaps = {.trace_heap = NULL, .span_heap = NULL};
+
+  nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* mini = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* midi = nr_zalloc(sizeof(nr_segment_t));
+  nr_segment_t* maxi = nr_zalloc(sizeof(nr_segment_t));
+
+  root->start_time = 100;
+  root->stop_time = 10000;
+
+  mini->start_time = 100;
+  mini->stop_time = 200;
+
+  midi->start_time = 100;
+  midi->stop_time = 300;
+
+  maxi->start_time = 100;
+  maxi->stop_time = 400;
+
+  /* Build a mock tree of segments */
+  nr_segment_children_init(&root->children);
+  nr_segment_add_child(root, mini);
+  nr_segment_add_child(root, midi);
+  nr_segment_add_child(root, maxi);
+
+  /* Build a heap */
+  heaps.trace_heap = nr_segment_heap_create(4, nr_segment_wrapped_duration_comparator);
+  nr_segment_tree_to_heap(root, &heaps);
+
+  /* Prepare a set for population */
+  set = nr_set_create();
+
+  /* Test : Bad parameters */
+  nr_segment_heap_to_set(heaps.trace_heap, NULL);
+  nr_segment_heap_to_set(NULL, set);
+  tlib_pass_if_true("Converting a NULL heap to a set must yield an empty set",
+                    nr_set_size(set) == 0, "Expected true");
+  nr_set_destroy(&set);
+
+  /* Test : Normal operation. */
+  set = nr_set_create();
+  nr_segment_heap_to_set(heaps.trace_heap, set);
+
+  tlib_pass_if_not_null(
+      "Converting a well-formed heap to a set must yield a non-empty set", set);
+
+  /* Affirm membership */
+  tlib_pass_if_true("The longest segment is a member of the set",
+                    nr_set_contains(set, root), "Expected true");
+  tlib_pass_if_true("The second-longest segment is a member of the set",
+                    nr_set_contains(set, maxi), "Expected true");
+  tlib_pass_if_true("The third-longest segment is a member of the set",
+                    nr_set_contains(set, midi), "Expected true");
+  tlib_pass_if_true("The shortest segment is a member of the set",
+                    nr_set_contains(set, mini), "Expected true");
+  nr_set_destroy(&set);
+
+  /* Clean up */
+  nr_minmax_heap_destroy(&heaps.trace_heap);
+  nr_segment_destroy(root);
+}
+
+static void test_segment_set_parent_cycle(void) {
+  // clang-format off
+  nr_segment_t root = {.start_time = 1000, .stop_time = 10000};
+  nr_segment_t A = {.start_time = 2000, .stop_time = 7000};
+  nr_segment_t B = {.start_time = 3000, .stop_time = 6000};
+  nr_segment_t C = {.start_time = 4000, .stop_time = 5000};
+  nr_segment_t D = {.start_time = 5000, .stop_time = 7000};
+  nr_segment_t E = {.start_time = 6000, .stop_time = 8000};
+
+  /*
+   * The mock tree looks like this:
+   *
+   *              ---------root--------
+   *               /                  \
+   *           ---A---              ---D---
+   *          /       \             /
+   *      ---B---   ---C---     ---E---
+   *
+   */
+  // clang-format on
+
+  nr_segment_children_init(&root.children);
+  nr_segment_children_init(&A.children);
+  nr_segment_children_init(&B.children);
+  nr_segment_children_init(&C.children);
+  nr_segment_children_init(&D.children);
+  nr_segment_children_init(&E.children);
+
+  tlib_pass_if_true("root -> A", nr_segment_set_parent(&A, &root), "expected true");
+  tlib_pass_if_true("A -> B", nr_segment_set_parent(&B, &A), "expected true");
+  tlib_pass_if_true("A -> C", nr_segment_set_parent(&C, &A), "expected true");
+  tlib_pass_if_true("root -> D", nr_segment_set_parent(&D, &root), "expected true");
+  tlib_pass_if_true("D -> E", nr_segment_set_parent(&E, &D), "expected true");
+
+  tlib_pass_if_false("Cycle must not succeed E->Root",
+                     nr_segment_set_parent(&root, &E), "expected false");
+  tlib_pass_if_null("Root should not have a parent", root.parent);
+
+  tlib_pass_if_false("Cycle must not succeed B->A",
+                     nr_segment_set_parent(&A, &B), "expected false");
+  tlib_pass_if_ptr_equal("A should still be B's Parent", B.parent, &A);
+
+  tlib_pass_if_false("Cycle must not succeed C->A",
+                     nr_segment_set_parent(&A, &C), "expected false");
+  tlib_pass_if_ptr_equal("A should still be C's parent", C.parent, &A);
+
+  tlib_pass_if_false("Cycle must not succeed C->Root",
+                     nr_segment_set_parent(&root, &C), "expected false");
+  tlib_pass_if_null("Root should not have a parent", root.parent);
+
+  /* Clean up */
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_children_destroy_fields(&A.children);
+  nr_segment_children_destroy_fields(&B.children);
+  nr_segment_children_destroy_fields(&C.children);
+  nr_segment_children_destroy_fields(&D.children);
+  nr_segment_children_destroy_fields(&E.children);
+
+  nr_segment_destroy_fields(&A);
+  nr_segment_destroy_fields(&B);
+  nr_segment_destroy_fields(&C);
+  nr_segment_destroy_fields(&D);
+  nr_segment_destroy_fields(&E);
+}
+
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = 0};
 
 void test_main(void* p NRUNUSED) {
@@ -1017,6 +1409,7 @@ void test_main(void* p NRUNUSED) {
   test_segment_start_async();
   test_set_name();
   test_add_child();
+  test_add_metric();
   test_set_parent_to_same();
   test_set_null_parent();
   test_set_non_null_parent();
@@ -1029,6 +1422,11 @@ void test_main(void* p NRUNUSED) {
   test_segment_iterate_cycle_one();
   test_segment_iterate_cycle_two();
   test_segment_iterate_with_amputation();
+  test_segment_iterate_with_post_callback();
   test_segment_destroy();
   test_segment_destroy_tree();
+  test_segment_tree_to_heap();
+  test_segment_set();
+  test_segment_heap_to_set();
+  test_segment_set_parent_cycle();
 }
