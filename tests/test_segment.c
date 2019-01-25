@@ -24,12 +24,8 @@ static void test_segment_set_parent(void** state) {
   assert_false(newrelic_set_segment_parent(NULL, b));
   assert_false(newrelic_set_segment_parent(a, a));
 
-  assert_true(newrelic_set_segment_parent(a, b));
-  assert_ptr_equal(b->segment, a->segment->parent);
-  assert_ptr_equal(a->segment, nr_vector_get(&b->segment->children, 0));
-
-  assert_true(newrelic_set_segment_parent(a, root));
-  assert_true(newrelic_set_segment_parent(b, a));
+  /* no cycle is possible */
+  assert_false(newrelic_set_segment_parent(a, b));
 
   newrelic_end_segment(txn, &b);
   newrelic_end_segment(txn, &a);
