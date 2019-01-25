@@ -4,16 +4,23 @@
 
 ### New Features ###
 
-- Custom events can now be sent using the new Custom Events API.  Events
-  are created via the `newrelic_create_custom_event` function, and attributes
-  may be added to custom events via the `newrelic_custom_event_add_*` family
-  of functions.  See GUIDE.md for usage information.
-
 ### Bug Fixes ###
 
 ### End of Life Notices ###
 
 ### Upgrade Notices ###
+
+## 0.1.1 ##
+
+### New Features ###
+
+- Custom events can now be sent using the new Custom Events API.  Events
+  are created via the `newrelic_create_custom_event` function, and attributes
+  may be added to custom events via the `newrelic_custom_event_add_*` family
+  of functions.  See GUIDE.md for usage information.
+
+- Custom metrics can now be sent using the new Custom Metrics API.
+  See GUIDE.md for usage information.
 
 ## 0.1.0 ##
 
@@ -24,9 +31,6 @@
 
 - Segments now support manual timing via the new
   `newrelic_set_segment_timing()` function.
-
-- Custom metrics can now be sent using the new Custom Metrics API.
-  See GUIDE.md for usage information.
 
 ### Upgrade Notices ###
 
