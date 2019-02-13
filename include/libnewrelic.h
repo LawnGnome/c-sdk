@@ -68,9 +68,9 @@ typedef uint64_t newrelic_time_us_t;
 
 /*!
  * @brief Log levels.  An enumeration of the possible log levels for an agent
- * configuration, or newrelic_config_t.
+ * configuration, or newrelic_app_config_t.
  *
- * @see struct _newrelic_config_t
+ * @see struct _newrelic_app_config_t
  */
 typedef enum _newrelic_loglevel_t {
   NEWRELIC_LOG_INFO,

@@ -8,7 +8,7 @@ ignored; instead the `CONFIG` block is relevant.
 ## `CONFIG`
 
 The `CONFIG` comment block must contain valid C code that manipulates a
-`newrelic_config_t* cfg` data structure. Here's an example:
+`newrelic_app_config_t* cfg` data structure. Here's an example:
 
 ```c
 /*CONFIG

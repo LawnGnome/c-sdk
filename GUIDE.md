@@ -28,7 +28,7 @@ int main (void) {
   int priority = 50;
   newrelic_app_t *app = 0;
   newrelic_txn_t *txn = 0;
-  newrelic_config_t *config = 0;
+  newrelic_app_config_t *config = 0;
   newrelic_segment_t *segment1, *segment2;
 
   newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
