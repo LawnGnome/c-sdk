@@ -10,6 +10,20 @@
 
 ### Upgrade Notices ###
 
+- Application configuration is now completely separate from global
+  configuration.
+
+  In practice, this means that uses of `newrelic_config_t` and calls to
+  `newrelic_new_config()` should be replaced with `newrelic_app_config_t` and
+  `newrelic_new_app_config()`, respectively.
+
+  Logging and daemon socket configuration should now be done by invoking
+  `newrelic_configure_log()` and `newrelic_init()`, respectively.
+  `newrelic_init()` _must_ be invoked before the first application is created,
+  otherwise default values will be used.
+
+- `newrelic_loglevel_t` constant names are now prefixed with `NEWRELIC_`.
+
 ## 0.1.1 ##
 
 ### New Features ###

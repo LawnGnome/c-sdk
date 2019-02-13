@@ -357,8 +357,46 @@ typedef struct _newrelic_external_segment_params_t {
   char* library;
 } newrelic_external_segment_params_t;
 
+/*!
+ * @brief Configure the C agent's logging system.
+ *
+ * If the logging system was previously initialised (either by a prior call to
+ * newrelic_configure_log() or implicitly by a call to newrelic_init() or
+ * newrelic_create_app()), then invoking this function will close the previous
+ * log file.
+ *
+ * @param [in] filename The path to the file to write logs to. If this is the
+ * literal string "stdout" or "stderr", then logs will be written to standard
+ * output or standard error, respectively.
+ * @param [in] level The lowest level of log message that will be output.
+ * @return true on success; false otherwise.
+ */
 bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level);
 
+/*!
+ * @brief Initialise the C agent with non-default settings.
+ *
+ * Generally, this function only needs to be called explicitly if the daemon
+ * socket location needs to be customised. By default, the C agent will use the
+ * value in the NEW_RELIC_DAEMON_SOCKET environment variable, or
+ * "/tmp/.newrelic.sock" if that environment variable is unset.
+ *
+ * If an explicit call to this function is required, it must occur before the
+ * first call to newrelic_create_app().
+ *
+ * Subsequent calls to this function after a successful call to newrelic_init()
+ * or newrelic_create_app() will fail.
+ *
+ * @param [in] daemon_socket The path to the daemon socket. On Linux, if this
+ * starts with a literal '@', then this is treated as the name of an abstract
+ * domain socket instead of a filesystem path. If this is NULL, then the
+ * default behaviour described above will be used.
+ * @param [in] time_limit_ms The amount of time, in milliseconds, that the C
+ * agent will wait for a response from the daemon before considering
+ * initialisation to have failed. If this is 0, then a default value will be
+ * used.
+ * @return true on success; false otherwise.
+ */
 bool newrelic_init(const char* daemon_socket, int time_limit_ms);
 
 /*!

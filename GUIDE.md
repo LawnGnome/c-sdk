@@ -31,10 +31,9 @@ int main (void) {
   newrelic_config_t *config = 0;
   newrelic_segment_t *segment1, *segment2;
 
+  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
+
   config = newrelic_new_config("Your Application Name", "<LICENSE_KEY_HERE>");
-  strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
-  strcpy(config->log_filename, "./c_agent.log");
-  config->log_level = LOG_INFO;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
@@ -427,8 +426,6 @@ The C Agent's memory use is proportional to the amount of data sent. The libc
 calls `malloc` and `free` are used extensively. The dominant memory cost is
 user-provided data, including custom attributes, events, and metric names.
 
-### Elevated privileges (sudo)
-By default the logs will be saved in "/var/log/newrelic/c_agent.log" and needs
-elevated privileges to execute properly. To avoid running the application with
-these privileges have the log files saved in a location that can be written to
-by the current user.
+### Logging
+By default, logs are output to standard error. You may change this by calling
+`newrelic_configure_log()`.

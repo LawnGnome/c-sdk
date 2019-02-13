@@ -1,12 +1,48 @@
+/*!
+ * @file global.h
+ *
+ * @brief Internal functions used to support global (per-process)
+ * configuration, setup, and teardown of the C agent.
+ */
 #ifndef LIBNEWRELIC_GLOBAL_H
 #define LIBNEWRELIC_GLOBAL_H
 
+/*!
+ * @brief Actually initialise the C agent.
+ *
+ * @param [in] daemon_socket The path to the daemon socket.
+ * @param [in] time_limit_ms The time, in milliseconds, to wait for the daemon
+ * connection to be established.
+ * @return true on success; false otherwise.
+ */
 bool newrelic_do_init(const char* daemon_socket, int time_limit_ms);
 
+/*!
+ * @brief Ensure that the C agent has been initialised.
+ *
+ * If the C agent has not previously been initialised, this is equivalent to a
+ * call to newrelic_init(NULL, 0).
+ *
+ * @return true on success; false otherwise.
+ */
 bool newrelic_ensure_init(void);
 
+/*!
+ * @brief Resolve the daemon socket path based on user input and the
+ * environment.
+ *
+ * @param [in] user_path The path given by the user, if any.
+ * @return The resolved path per the rules described in the documentation for
+ * newrelic_init().
+ */
 const char* newrelic_resolve_daemon_socket(const char* user_path);
 
+/*!
+ * @brief Shut down the C agent.
+ *
+ * In the normal course of events, this is handled by an atexit() handler
+ * installed by newrelic_do_init().
+ */
 void newrelic_shutdown(void);
 
 #endif /* LIBNEWRELIC_GLOBAL_H */
