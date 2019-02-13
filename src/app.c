@@ -18,7 +18,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_app_config_t* given_config,
     return NULL;
   }
 
-  if (0 >= nr_strlen(given_config->app_name)) {
+  if (nr_strempty(given_config->app_name)) {
     nrl_error(NRL_INSTRUMENT, "app name is required");
     return NULL;
   }
