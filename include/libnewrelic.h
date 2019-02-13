@@ -377,9 +377,9 @@ bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level);
  * @brief Initialise the C agent with non-default settings.
  *
  * Generally, this function only needs to be called explicitly if the daemon
- * socket location needs to be customised. By default, the C agent will use the
- * value in the NEW_RELIC_DAEMON_SOCKET environment variable, or
- * "/tmp/.newrelic.sock" if that environment variable is unset.
+ * socket location needs to be customised. By default, "/tmp/.newrelic.sock" is
+ * used, which matches the default socket location used by newrelic-daemon if
+ * one isn't given.
  *
  * If an explicit call to this function is required, it must occur before the
  * first call to newrelic_create_app().

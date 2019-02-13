@@ -50,6 +50,8 @@ int main(int argc __attribute__((__unused__)),
 
   newrelic_configure_log(SAFE_GETENV("NEW_RELIC_LOG_FILE", "./c_agent.log"),
                          NEWRELIC_LOG_VERBOSE);
+  newrelic_init(SAFE_GETENV("NEW_RELIC_DAEMON_SOCKET", "/tmp/.newrelic.sock"),
+                0);
 
   cfg = newrelic_new_app_config(NEW_RELIC_DAEMON_TESTNAME,
                                 SAFE_GETENV("NEW_RELIC_LICENSE_KEY", ""));

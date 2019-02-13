@@ -28,16 +28,6 @@ bool newrelic_do_init(const char* daemon_socket, int time_limit_ms);
 bool newrelic_ensure_init(void);
 
 /*!
- * @brief Resolve the daemon socket path based on user input and the
- * environment.
- *
- * @param [in] user_path The path given by the user, if any.
- * @return The resolved path per the rules described in the documentation for
- * newrelic_init().
- */
-const char* newrelic_resolve_daemon_socket(const char* user_path);
-
-/*!
  * @brief Shut down the C agent.
  *
  * In the normal course of events, this is handled by an atexit() handler

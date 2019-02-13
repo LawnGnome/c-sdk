@@ -62,7 +62,7 @@ bool newrelic_do_init(const char* daemon_socket, int time_limit_ms) {
     }
   }
 
-  path = newrelic_resolve_daemon_socket(daemon_socket);
+  path = daemon_socket ? daemon_socket : "/tmp/.newrelic.sock";
 
   if (NR_SUCCESS != nr_agent_initialize_daemon_connection_parameters(path, 0)) {
     nrl_error(NRL_API, "failed to initialise daemon connection to %s", path);
@@ -92,21 +92,6 @@ bool newrelic_ensure_init(void) {
 
   // Attempt to init with default parameters.
   return newrelic_do_init(NULL, 0);
-}
-
-const char* newrelic_resolve_daemon_socket(const char* user_path) {
-  const char* resolved_path;
-
-  if (user_path) {
-    return user_path;
-  }
-
-  resolved_path = getenv("NEW_RELIC_DAEMON_SOCKET");
-  if (resolved_path) {
-    return resolved_path;
-  }
-
-  return "/tmp/.newrelic.sock";
 }
 
 void newrelic_shutdown(void) {
