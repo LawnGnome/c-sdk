@@ -9,12 +9,12 @@
 
 #include <stdlib.h>
 
-static bool newrelic_log_configured = false;
+bool newrelic_log_configured = false;
 
 bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level) {
   /* Map newrelic_loglevel_t ENUM to char* */
   static const char* level_array[] = {"info", "debug", "error", "verbose"};
-  const size_t max_level = sizeof(level_array) / sizeof(const char*);
+  static const size_t max_level = sizeof(level_array) / sizeof(const char*);
 
   if (NULL == filename) {
     nrl_error(NRL_API, "filename cannot be NULL");
@@ -98,4 +98,5 @@ void newrelic_shutdown(void) {
   nr_agent_close_daemon_connection();
   nr_applist_destroy(&nr_agent_applist);
   nrl_close_log_file();
+  newrelic_log_configured = false;
 }

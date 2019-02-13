@@ -113,6 +113,7 @@ TESTS := \
 	test_get_default_options \
 	test_get_stack_trace_as_json \
 	test_get_transaction_options \
+	test_global \
 	test_notice_error \
 	test_segment \
 	test_start_transaction \

@@ -35,4 +35,9 @@ bool newrelic_ensure_init(void);
  */
 void newrelic_shutdown(void);
 
+/*!
+ * Whether the log system has been initialised.
+ */
+extern bool newrelic_log_configured;
+
 #endif /* LIBNEWRELIC_GLOBAL_H */
