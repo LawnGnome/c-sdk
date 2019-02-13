@@ -70,6 +70,12 @@ To compile and run the unit tests:
 make run_tests
 ```
 
+Or, just to compile them:
+
+```sh
+make tests
+```
+
 ### Ad hoc tests
 
 A number of ad hoc tests have been provided. More information can be found in
