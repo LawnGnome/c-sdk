@@ -20,7 +20,7 @@ class NewRelicError : public std::runtime_error {
 class Config {
  public:
   Config(const std::string& appname, const std::string& licence)
-      : config(newrelic_new_config(appname.c_str(), licence.c_str())) {
+      : config(newrelic_new_app_config(appname.c_str(), licence.c_str())) {
     if (nullptr == config) {
       throw NewRelicError("unable to create configuration");
     }
@@ -28,7 +28,7 @@ class Config {
 
   ~Config() { std::free(config); }
 
-  newrelic_config_t* config;
+  newrelic_app_config_t* config;
 };
 
 class Application {

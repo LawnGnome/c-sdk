@@ -21,6 +21,7 @@ OBJS := \
 	datastore.o \
 	error.o \
 	external.o \
+	global.o \
 	segment.o \
 	stack.o \
 	transaction.o \

@@ -19,7 +19,8 @@ extern "C" {
    "and NEW_RELIC_LICENSE_KEY.")
 
 /* Common function declarations */
-bool customize_config(newrelic_config_t** config_ptr);
+bool customize_config(newrelic_app_config_t** config_ptr);
+bool example_init(void);
 char* get_app_name(void);
 char* get_license_key(void);
 

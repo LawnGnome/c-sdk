@@ -73,10 +73,10 @@ typedef uint64_t newrelic_time_us_t;
  * @see struct _newrelic_config_t
  */
 typedef enum _newrelic_loglevel_t {
-  LOG_INFO,
-  LOG_DEBUG,
-  LOG_ERROR,
-  LOG_VERBOSE
+  NEWRELIC_LOG_INFO,
+  NEWRELIC_LOG_DEBUG,
+  NEWRELIC_LOG_ERROR,
+  NEWRELIC_LOG_VERBOSE
 } newrelic_loglevel_t;
 
 /*!
@@ -189,13 +189,25 @@ typedef struct _newrelic_datastore_segment_config_t {
 
 } newrelic_datastore_segment_config_t;
 
+typedef struct _newrelic_process_config_t {
+  /*! Optional.  Specifies the underlying communication mechanism for the
+   *  agent daemon.   The default is to use a UNIX-domain socket located at
+   *  /tmp/.newrelic.sock. If you want to use UNIX domain sockets then this
+   *  value must begin with a "/". Setting this to an integer value in the
+   *  range 1-65534 will instruct the daemon to listen on a normal TCP socket
+   *  on the port specified. On Linux, an abstract socket can be created by
+   *  prefixing the socket name with '@'.
+   */
+  char daemon_socket[512];
+} newrelic_process_config_t;
+
 /*!
  * @brief Agent configuration used to describe application name, license key, as
- * well as daemon, logging, transaction tracer and datastore configuration.
+ * well as optional transaction tracer and datastore configuration.
  *
- * @see newrelic_new_config().
+ * @see newrelic_new_app_config().
  */
-typedef struct _newrelic_config_t {
+typedef struct _newrelic_app_config_t {
   /*! Specifies the name of the application to which data shall be reported.
    */
   char app_name[255];
@@ -209,16 +221,6 @@ typedef struct _newrelic_config_t {
    */
   char redirect_collector[100];
 
-  /*! Optional.  Specifies the underlying communication mechanism for the
-   *  agent daemon.   The default is to use a UNIX-domain socket located at
-   *  /tmp/.newrelic.sock. If you want to use UNIX domain sockets then this
-   *  value must begin with a "/". Setting this to an integer value in the
-   *  range 1-65534 will instruct the daemon to listen on a normal TCP socket
-   *  on the port specified. On Linux, an abstract socket can be created by
-   *  prefixing the socket name with '@'.
-   */
-  char daemon_socket[512];
-
   /*! Optional. Specifies the file to be used for agent logs.  If no filename
    *  is provided, no logging shall occur.
    */
@@ -228,8 +230,8 @@ typedef struct _newrelic_config_t {
    * to change this from the default value except under the guidance of
    * technical support.
    *
-   * Must be one of the following values: LOG_ERROR, LOG_INFO (default),
-   * LOG_DEBUG, LOG_VERBOSE.
+   * Must be one of the following values: NEWRELIC_LOG_ERROR, NEWRELIC_LOG_INFO
+   * (default), NEWRELIC_LOG_DEBUG, NEWRELIC_LOG_VERBOSE.
    */
   newrelic_loglevel_t log_level;
 
@@ -246,7 +248,7 @@ typedef struct _newrelic_config_t {
    */
   newrelic_datastore_segment_config_t datastore_tracer;
 
-} newrelic_config_t;
+} newrelic_app_config_t;
 
 /*!
  * @brief Segment configuration used to instrument calls to databases and object
@@ -355,11 +357,15 @@ typedef struct _newrelic_external_segment_params_t {
   char* library;
 } newrelic_external_segment_params_t;
 
+bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level);
+
+bool newrelic_init(const char* daemon_socket, int time_limit_ms);
+
 /*!
- * @brief Create a populated agent configuration.
+ * @brief Create a populated application configuration.
  *
  * Given an application name and license key, this method returns an agent
- * configuration. Specifically, it returns a pointer to a newrelic_config_t
+ * configuration. Specifically, it returns a pointer to a newrelic_app_config_t
  * with initialized app_name and license_key fields along with default values
  * for the remaining fields. The caller should free the agent configuration
  * after the application has been created.
@@ -367,11 +373,11 @@ typedef struct _newrelic_external_segment_params_t {
  * @param [in] app_name The name of the application.
  * @param [in] license_key A valid license key supplied by New Relic.
  *
- * @return An agent configuration populated with app_name and license_key; all
- * other fields are initialized to their defaults.
+ * @return An application configuration populated with app_name and
+ * license_key; all other fields are initialized to their defaults.
  */
-newrelic_config_t* newrelic_new_config(const char* app_name,
-                                       const char* license_key);
+newrelic_app_config_t* newrelic_new_app_config(const char* app_name,
+                                               const char* license_key);
 
 /*!
  * @brief Create an application.
@@ -381,7 +387,8 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
  * the caller should destroy the application with the supplied
  * newrelic_destroy_app() when finished.
  *
- * @param [in] config An agent configuration created by newrelic_create_app().
+ * @param [in] config An application configuration created by
+ * newrelic_new_app_config().
  * @param [in] timeout_ms Specifies the maximum time to wait for a connection to
  * be established; a value of 0 causes the method to make only one attempt at
  * connecting to the daemon.
@@ -389,7 +396,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
  * @return A pointer to an allocated application, or NULL on error; any errors
  * resulting from a badly-formed agent configuration are logged.
  */
-newrelic_app_t* newrelic_create_app(const newrelic_config_t* config,
+newrelic_app_t* newrelic_create_app(const newrelic_app_config_t* config,
                                     unsigned short timeout_ms);
 
 /*!

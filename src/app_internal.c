@@ -10,42 +10,7 @@
 #include "util_logging.h"
 #include "util_sleep.h"
 
-nrapplist_t* newrelic_init(const char* daemon_socket) {
-  nrapplist_t* context;
-  asm("");
-
-  if (NULL == daemon_socket) {
-    nrl_error(NRL_INSTRUMENT, "daemon socket is NULL");
-    return NULL;
-  }
-
-  context = nr_applist_create();
-
-  if (NULL == context) {
-    nrl_error(NRL_INSTRUMENT, "failed to initialize newrelic");
-    return NULL;
-  }
-
-  if (NR_FAILURE
-      == nr_agent_initialize_daemon_connection_parameters(daemon_socket, 0)) {
-    nrl_error(NRL_INSTRUMENT, "failed to initialize daemon connection");
-    nr_applist_destroy(&context);
-    return NULL;
-  }
-
-  if (!nr_agent_try_daemon_connect(10)) {
-    nrl_error(NRL_INSTRUMENT, "failed to connect to the daemon");
-    nr_applist_destroy(&context);
-    return NULL;
-  }
-
-  nrl_info(NRL_INSTRUMENT, "newrelic initialized");
-
-  return context;
-}
-
 nr_status_t newrelic_connect_app(newrelic_app_t* app,
-                                 nrapplist_t* context,
                                  unsigned short timeout_ms) {
   nrapp_t* nrapp;
   const int retry_sleep_ms = 50;
@@ -53,8 +18,8 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
   nrtime_t delta_time;
   nrtime_t timeout_time = timeout_ms * NR_TIME_DIVISOR_MS;
 
-  if ((NULL == app) || (NULL == context)) {
-    nrl_error(NRL_INSTRUMENT, "invalid application or context");
+  if (NULL == app) {
+    nrl_error(NRL_INSTRUMENT, "invalid application");
     return NR_FAILURE;
   }
 
@@ -63,13 +28,10 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
     return NR_FAILURE;
   }
 
-  /* Setting this global is necessary for transaction naming to work. */
-  nr_agent_applist = context;
-
   /* Query the daemon until a successful connection is made or timeout occurs.*/
   start_time = nr_get_time();
   while (true) {
-    nrapp = nr_agent_find_or_add_app(context, app->app_info, NULL);
+    nrapp = nr_agent_find_or_add_app(nr_agent_applist, app->app_info, NULL);
 
     delta_time = nr_time_duration(start_time, nr_get_time());
     if (NULL != nrapp || (delta_time >= timeout_time)) {

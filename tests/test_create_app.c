@@ -8,43 +8,44 @@
 
 #include "libnewrelic.h"
 #include "app.h"
+#include "global.h"
 #include "test.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
 
-nrapplist_t* __wrap_newrelic_init(const char* daemon_socket);
+bool __wrap_newrelic_ensure_init(const char* daemon_socket, int time_limit_ms);
 
 nr_status_t __wrap_newrelic_connect_app(newrelic_app_t* app,
-                                        nrapplist_t* context,
                                         unsigned short timeout_ms);
 
-nrapplist_t* __wrap_newrelic_init(const char* daemon_socket NRUNUSED) {
-  return (nrapplist_t*)mock();
+bool __wrap_newrelic_ensure_init(const char* daemon_socket NRUNUSED,
+                                 int time_limit_ms NRUNUSED) {
+  return (bool)mock();
 }
 
 nr_status_t __wrap_newrelic_connect_app(newrelic_app_t* app NRUNUSED,
-                                        nrapplist_t* context NRUNUSED,
                                         unsigned short timeout_ms NRUNUSED) {
   return (nr_status_t)mock();
 }
 
 static int setup(void** state) {
-  newrelic_config_t* config;
-  config = (newrelic_config_t*)nr_zalloc(sizeof(newrelic_config_t));
+  newrelic_app_config_t* config;
+  config = (newrelic_app_config_t*)nr_zalloc(sizeof(newrelic_app_config_t));
   *state = config;
   return 0;  // tells cmocka setup completed, 0==OK
 }
 
 static int teardown(void** state) {
-  newrelic_config_t* config;
-  config = (newrelic_config_t*)*state;
+  newrelic_app_config_t* config;
+  config = (newrelic_app_config_t*)*state;
   free(config);
+  newrelic_shutdown();
   return 0;  // tells cmocka teardown completed, 0==OK
 }
 
 static void test_create_app_null_config(void** state NRUNUSED) {
-  newrelic_config_t* config;
+  newrelic_app_config_t* config;
   newrelic_app_t* app;
   config = NULL;
   app = NULL;
@@ -53,9 +54,9 @@ static void test_create_app_null_config(void** state NRUNUSED) {
 }
 
 static void test_create_app_empty_appname(void** state NRUNUSED) {
-  newrelic_config_t* config;
+  newrelic_app_config_t* config;
   newrelic_app_t* app;
-  config = (newrelic_config_t*)*state;
+  config = (newrelic_app_config_t*)*state;
   app = NULL;
 
   nr_strxcpy(config->app_name, "", nr_strlen(""));
@@ -65,9 +66,9 @@ static void test_create_app_empty_appname(void** state NRUNUSED) {
 }
 
 static void test_create_app_license_key_lengths(void** state NRUNUSED) {
-  newrelic_config_t* config;
+  newrelic_app_config_t* config;
   newrelic_app_t* app;
-  config = (newrelic_config_t*)*state;
+  config = (newrelic_app_config_t*)*state;
 
   app = NULL;
   nr_strxcpy(config->app_name, "valid app name", nr_strlen("valid app name"));
@@ -86,14 +87,11 @@ static void test_create_app_license_key_lengths(void** state NRUNUSED) {
 
 static void test_create_app_newrelic_connect_app_returns_failure(
     void** state NRUNUSED) {
-  newrelic_config_t* config;
-  newrelic_app_t* appForMock;
+  newrelic_app_config_t* config;
   newrelic_app_t* app;
-  config = (newrelic_config_t*)*state;
+  config = (newrelic_app_config_t*)*state;
 
-  appForMock = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
-
-  will_return(__wrap_newrelic_init, appForMock);
+  will_return(__wrap_newrelic_ensure_init, true);
   will_return(__wrap_newrelic_connect_app, NR_FAILURE);
 
   nr_strxcpy(config->app_name, "valid app name", nr_strlen("valid app name"));
@@ -105,12 +103,12 @@ static void test_create_app_newrelic_connect_app_returns_failure(
   assert_null(app);
 }
 
-static void test_create_app_newrelic_init_returns_null(void** state NRUNUSED) {
-  newrelic_config_t* config;
+static void test_create_app_newrelic_init_fails(void** state NRUNUSED) {
+  newrelic_app_config_t* config;
   newrelic_app_t* app;
-  config = (newrelic_config_t*)*state;
+  config = (newrelic_app_config_t*)*state;
 
-  will_return(__wrap_newrelic_init, NULL);
+  will_return(__wrap_newrelic_ensure_init, false);
   app = NULL;
   nr_strxcpy(config->app_name, "valid app name", nr_strlen("valid app name"));
 
@@ -123,8 +121,7 @@ static void test_create_app_newrelic_init_returns_null(void** state NRUNUSED) {
 
 static void test_create_app_newrelic_app_correctly_populated(
     void** state NRUNUSED) {
-  newrelic_config_t* config;
-  newrelic_app_t* appForMock;
+  newrelic_app_config_t* config;
   newrelic_app_t* app;
   newrelic_transaction_tracer_config_t tt_config = {
       .enabled = false,
@@ -132,11 +129,9 @@ static void test_create_app_newrelic_app_correctly_populated(
       .duration_us = 42,
   };
 
-  config = (newrelic_config_t*)*state;
+  config = (newrelic_app_config_t*)*state;
 
-  appForMock = (newrelic_app_t*)nr_zalloc(sizeof(newrelic_app_t));
-
-  will_return(__wrap_newrelic_init, appForMock);
+  will_return(__wrap_newrelic_ensure_init, true);
   will_return(__wrap_newrelic_connect_app, NR_SUCCESS);
 
   nr_strxcpy(config->app_name, "valid app name", nr_strlen("valid app name"));
@@ -165,7 +160,7 @@ int main(void) {
       cmocka_unit_test(test_create_app_empty_appname),
       cmocka_unit_test(test_create_app_license_key_lengths),
       cmocka_unit_test(test_create_app_newrelic_connect_app_returns_failure),
-      cmocka_unit_test(test_create_app_newrelic_init_returns_null),
+      cmocka_unit_test(test_create_app_newrelic_init_fails),
       cmocka_unit_test(test_create_app_newrelic_app_correctly_populated),
   };
 

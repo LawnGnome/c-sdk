@@ -14,19 +14,14 @@
  * @brief Customize an agent configuration
  *
  * @param [in] config_ptr The address of an agent configuration created using
- * newrelic_create_config().
+ * newrelic_new_app_config().
  *
  * @return false if config_ptr or *config_ptr are NULL; true otherwise.
  */
-bool customize_config(newrelic_config_t** config_ptr) {
+bool customize_config(newrelic_app_config_t** config_ptr) {
   if (NULL != config_ptr && NULL != *config_ptr) {
-    newrelic_config_t* config = *config_ptr;
-
-    strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
-    strcpy(config->log_filename, "./c_agent.log");
-    config->log_level = LOG_INFO;
-
     char* collector = getenv("NEW_RELIC_HOST");
+    newrelic_app_config_t* config = *config_ptr;
 
     if (NULL != collector) {
       strcpy(config->redirect_collector, collector);
@@ -37,6 +32,15 @@ bool customize_config(newrelic_config_t** config_ptr) {
     return true;
   }
   return false;
+}
+
+bool example_init(void) {
+  if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
+    printf("Error configuring logging.\n");
+    return false;
+  }
+
+  return newrelic_init(NULL, 0);
 }
 
 /*!

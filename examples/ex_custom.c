@@ -7,9 +7,11 @@
 int main(void) {
   newrelic_app_t* app = 0;
   newrelic_txn_t* txn = 0;
-  newrelic_config_t* config = 0;
+  newrelic_app_config_t* config = 0;
   newrelic_custom_event_t* custom_event = 0;
   newrelic_segment_t* seg = 0;
+
+  example_init();
 
   char* app_name = get_app_name();
   if (NULL == app_name)
@@ -19,7 +21,7 @@ int main(void) {
   if (NULL == license_key)
     return -1;
 
-  config = newrelic_new_config(app_name, license_key);
+  config = newrelic_new_app_config(app_name, license_key);
 
   customize_config(&config);
 
@@ -49,7 +51,6 @@ int main(void) {
   newrelic_custom_event_add_attribute_string(custom_event, "keyd", "A string");
 
   newrelic_record_custom_event(txn, &custom_event);
-
 
   /* End the one and only segment */
   newrelic_end_segment(txn, &seg);

@@ -15,7 +15,7 @@
 
 /*
  * Purpose: Test that affirms the transaction options returned without a
- *          newrelic_config_t are the same as the default options.
+ *          newrelic_app_config_t are the same as the default options.
  */
 static void test_get_transaction_options_default(void** state NRUNUSED) {
   nrtxnopt_t* actual = newrelic_get_transaction_options(NULL);
@@ -35,7 +35,8 @@ static void test_get_transaction_options_default(void** state NRUNUSED) {
 static void test_get_transaction_options_tt_disabled(void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.enabled = false;
 
@@ -60,7 +61,8 @@ static void test_get_transaction_options_tt_threshold_apdex(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_APDEX_FAILING;
 
@@ -86,7 +88,8 @@ static void test_get_transaction_options_tt_threshold_duration(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   config->transaction_tracer.duration_us = 10;
@@ -114,7 +117,8 @@ static void test_get_transaction_options_datastore_reporting_recordsql_none(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_OFF;
 
@@ -139,7 +143,8 @@ static void test_get_transaction_options_datastore_reporting_recordsql_raw(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_RAW;
 
@@ -164,7 +169,8 @@ static void test_get_transaction_options_datastore_reporting_recordsql_invalid(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.record_sql = 1000;
 
@@ -190,7 +196,8 @@ static void test_get_transaction_options_datastore_reporting_enabled(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.enabled = false;
 
@@ -216,7 +223,8 @@ static void test_get_transaction_options_datastore_reporting_threshold(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.threshold_us = 10;
 
@@ -241,7 +249,8 @@ static void test_get_transaction_options_datastore_segment_instance_reporting(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->datastore_tracer.instance_reporting = false;
 
@@ -267,7 +276,8 @@ test_get_transaction_options_datastore_segment_database_name_reporting(
     void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
-  newrelic_config_t* config = newrelic_new_config("app name", LICENSE_KEY);
+  newrelic_app_config_t* config
+      = newrelic_new_app_config("app name", LICENSE_KEY);
 
   config->datastore_tracer.database_name_reporting = false;
 

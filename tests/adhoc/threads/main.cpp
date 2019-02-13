@@ -76,6 +76,8 @@ static po::variables_map parseOptions(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
   po::variables_map vm(parseOptions(argc, argv));
 
+  newrelic_configure_log("stdout", NEWRELIC_LOG_VERBOSE);
+
   // Set up the agent configuration.
   Config config(vm["appname"].as<std::string>(),
                 vm.count("licence") ? vm["licence"].as<std::string>()
@@ -84,9 +86,6 @@ int main(int argc, char* argv[]) {
   std::strncpy(config.config->redirect_collector,
                vm["host"].as<std::string>().c_str(), 255);
   config.config->redirect_collector[254] = '\0';
-
-  config.config->log_level = LOG_VERBOSE;
-  std::strcpy(config.config->log_filename, "stdout");
 
   // Wait up to five seconds for the application to connect.
   Application app(config, 5000);
