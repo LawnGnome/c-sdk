@@ -345,7 +345,7 @@ New Relic Insights.  To send an event, start a transaction and use the
 `newrelic_create_custom_event` and `newrelic_record_custom_event` functions
 
 ```c
-    // txn is a newrelic_txn_t*, create via newrelic_start_web_transaction
+    // txn is a newrelic_txn_t*, created via newrelic_start_web_transaction
     // see above examples for more information
 
     newrelic_custom_event_t* custom_event=0;
