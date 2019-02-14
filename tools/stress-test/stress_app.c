@@ -12,14 +12,14 @@
 
 newrelic_app_t* newrelic_get_app(void) {
   newrelic_app_t* app = 0;
-  newrelic_config_t* config = 0;
+  newrelic_app_config_t* config = 0;
+
+  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
+
   /* Staging account 432507 */
-  config = newrelic_new_config("C-Agent Test App",
-                               "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
-  strcpy(config->daemon_socket, "/tmp/.newrelic.sock");
+  config = newrelic_new_app_config("C-Agent Test App",
+                                   "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");
-  strcpy(config->log_filename, "./c_agent.log");
-  config->log_level = LOG_INFO;
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);

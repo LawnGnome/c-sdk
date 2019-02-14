@@ -76,6 +76,10 @@ static: libnewrelic.a
 run_tests: vendor libnewrelic.a
 	$(MAKE) -C tests run_tests CFLAGS="$(C_AGENT_CFLAGS) -Wno-bad-function-cast" LDFLAGS="$(C_AGENT_LDFLAGS)"
 
+.PHONY: tests
+tests: vendor libnewrelic.a
+	$(MAKE) -C tests tests CFLAGS="$(C_AGENT_CFLAGS) -Wno-bad-function-cast" LDFLAGS="$(C_AGENT_LDFLAGS)"
+
 .PHONY: vendor
 vendor:
 	$(MAKE) -C vendor

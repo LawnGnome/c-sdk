@@ -39,6 +39,7 @@ nrtxnopt_t* newrelic_get_default_options(void);
  * @return A newly allocated nrtxnopt_t struct, which must be released with
  * nr_free() when no longer required.
  */
-nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config);
+nrtxnopt_t* newrelic_get_transaction_options(
+    const newrelic_app_config_t* config);
 
 #endif /* LIBNEWRELIC_CONFIG_H */

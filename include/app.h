@@ -19,29 +19,16 @@ typedef struct _nr_app_and_info_t {
   nr_app_info_t* app_info;
 
   /*! C Agent configuration options. */
-  newrelic_config_t* config;
+  newrelic_app_config_t* config;
 
-  /*! The list of applications. */
-  nrapplist_t* context;
-
+  /*! The application lock. */
   nrthread_mutex_t lock;
 } nr_app_and_info_t;
-
-/*!
- * @brief Initialize a New Relic application by trying to connect to the daemon.
- *
- * @param [in] daemon_socket A string representing the underlying communication
- * mechanism for the agent daemon, e.g. "/tmp/.newrelic.sock".
- *
- * @return A list of applications.
- */
-nrapplist_t* newrelic_init(const char* daemon_socket);
 
 /*!
  * @brief Connect application to New Relic.
  *
  * @param [in] app An application.
- * @param [in] context A list of applications.
  * @param [in] timeout_ms The amount of time, in milliseconds, for the
  * application to wait on the daemon to connect to New Relic.
  *
@@ -50,7 +37,6 @@ nrapplist_t* newrelic_init(const char* daemon_socket);
  * logged if connection fails.
  */
 nr_status_t newrelic_connect_app(newrelic_app_t* app,
-                                 nrapplist_t* context,
                                  unsigned short timeout_ms);
 
 #endif /* LIBNEWRELIC_APP_H */

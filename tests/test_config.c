@@ -18,26 +18,26 @@ static void test_config_setup(void** state NRUNUSED) {
 }
 
 static void test_config_null_app_name(void** state NRUNUSED) {
-  newrelic_config_t* config;
-  config = newrelic_new_config(NULL, LICENSE_KEY);
+  newrelic_app_config_t* config;
+  config = newrelic_new_app_config(NULL, LICENSE_KEY);
   assert_null(config);
 }
 
 static void test_config_null_license_key(void** state NRUNUSED) {
-  newrelic_config_t* config;
-  config = newrelic_new_config("Test App", NULL);
+  newrelic_app_config_t* config;
+  config = newrelic_new_app_config("Test App", NULL);
   assert_null(config);
 }
 
 static void test_config_short_license_key(void** state NRUNUSED) {
-  newrelic_config_t* config;
-  config = newrelic_new_config("Test App", TOO_SHORT_LICENSE_KEY);
+  newrelic_app_config_t* config;
+  config = newrelic_new_app_config("Test App", TOO_SHORT_LICENSE_KEY);
   assert_null(config);
 }
 
 static void test_config_long_license_key(void** state NRUNUSED) {
-  newrelic_config_t* config;
-  config = newrelic_new_config(
+  newrelic_app_config_t* config;
+  config = newrelic_new_app_config(
       "Test App",
       "This is the license key that never ends, yes it goes on and on my "
       "friends.  Some people, starting licensing it not knowing what it was, "
@@ -46,8 +46,8 @@ static void test_config_long_license_key(void** state NRUNUSED) {
 }
 
 static void test_config_justright_license_key(void** state NRUNUSED) {
-  newrelic_config_t* config;
-  config = newrelic_new_config("Test App", LICENSE_KEY);
+  newrelic_app_config_t* config;
+  config = newrelic_new_app_config("Test App", LICENSE_KEY);
   assert_non_null(config);
 
   /* Test non-zero defaults. */

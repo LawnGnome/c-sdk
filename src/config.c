@@ -18,9 +18,9 @@ nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting) {
   return NR_SQL_OBFUSCATED;
 }
 
-newrelic_config_t* newrelic_new_config(const char* app_name,
-                                       const char* license_key) {
-  newrelic_config_t* config;
+newrelic_app_config_t* newrelic_new_app_config(const char* app_name,
+                                               const char* license_key) {
+  newrelic_app_config_t* config;
 
   if (NULL == app_name) {
     nrl_error(NRL_INSTRUMENT, "app name is required");
@@ -32,7 +32,7 @@ newrelic_config_t* newrelic_new_config(const char* app_name,
     return NULL;
   }
 
-  config = (newrelic_config_t*)nr_zalloc(sizeof(newrelic_config_t));
+  config = (newrelic_app_config_t*)nr_zalloc(sizeof(newrelic_app_config_t));
   nr_strxcpy(config->app_name, app_name, nr_strlen(app_name));
   nr_strxcpy(config->license_key, license_key, nr_strlen(license_key));
 
@@ -85,7 +85,8 @@ nrtxnopt_t* newrelic_get_default_options(void) {
   return opt;
 }
 
-nrtxnopt_t* newrelic_get_transaction_options(const newrelic_config_t* config) {
+nrtxnopt_t* newrelic_get_transaction_options(
+    const newrelic_app_config_t* config) {
   nrtxnopt_t* opt = newrelic_get_default_options();
 
   if (NULL != config) {

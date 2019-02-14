@@ -20,7 +20,7 @@ extern void run(newrelic_app_t* app);
   void run_nonweb_transaction(newrelic_app_t* app __attribute__((__unused__)), \
                               newrelic_txn_t* txn)
 
-#define RUN_WEB_TXN(M_txnname)                                              \
+#define RUN_WEB_TXN(M_txnname)                                                \
   void run_web_transaction(newrelic_app_t* app __attribute__((__unused__),  \
                            newrelic_txn_t* txn);                            \
   void run(newrelic_app_t* app) {                                           \
@@ -46,16 +46,16 @@ extern void run(newrelic_app_t* app);
 int main(int argc __attribute__((__unused__)),
          char* argv[] __attribute__((__unused__))) {
   newrelic_app_t* app;
-  newrelic_config_t* cfg;
+  newrelic_app_config_t* cfg;
 
-  cfg = newrelic_new_config(NEW_RELIC_DAEMON_TESTNAME,
-                            SAFE_GETENV("NEW_RELIC_LICENSE_KEY", ""));
+  newrelic_configure_log(SAFE_GETENV("NEW_RELIC_LOG_FILE", "./c_agent.log"),
+                         NEWRELIC_LOG_VERBOSE);
+  newrelic_init(SAFE_GETENV("NEW_RELIC_DAEMON_SOCKET", "/tmp/.newrelic.sock"),
+                0);
+
+  cfg = newrelic_new_app_config(NEW_RELIC_DAEMON_TESTNAME,
+                                SAFE_GETENV("NEW_RELIC_LICENSE_KEY", ""));
   assert(cfg);
-
-  strcpy(cfg->daemon_socket,
-         SAFE_GETENV("NEW_RELIC_DAEMON_SOCKET", "/tmp/.newrelic.sock"));
-  strcpy(cfg->log_filename, SAFE_GETENV("NEW_RELIC_LOG_FILE", "./c_agent.log"));
-  cfg->log_level = LOG_VERBOSE;
 
   NEW_RELIC_CONFIG
 
