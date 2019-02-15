@@ -31,7 +31,7 @@ static nrl_subsys_names_t subsys_names[] = {{"autorum", NRL_AUTORUM},
                                             {"shutdown", NRL_SHUTDOWN},
                                             {"memory", NRL_MEMORY},
                                             {"string", NRL_STRING},
-                                            {"node", NRL_NODE},
+                                            {"segment", NRL_SEGMENT},
                                             {"threads", NRL_THREADS},
                                             {"api", NRL_API},
                                             {"ipc", NRL_IPC},
@@ -75,12 +75,15 @@ static int logfile_fd = -1;
 const uint32_t* const nrl_level_mask_ptr = nrl_level_mask;
 
 nr_status_t nrl_set_log_file(const char* filename) {
-  if (-1 != logfile_fd) {
+  if ((0 == filename) || (0 == filename[0])) {
     return NR_FAILURE;
   }
 
-  if ((0 == filename) || (0 == filename[0])) {
-    return NR_FAILURE;
+  /*
+   * Close an existing log file, if one is open.
+   */
+  if (-1 != logfile_fd) {
+    nr_close(logfile_fd);
   }
 
   if (0 == nr_strcmp("stdout", filename)) {

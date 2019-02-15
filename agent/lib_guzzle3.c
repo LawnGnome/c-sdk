@@ -25,6 +25,7 @@
 #include "fw_support.h"
 #include "lib_guzzle_common.h"
 #include "nr_header.h"
+#include "nr_segment_external.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
@@ -180,14 +181,16 @@ static void nr_guzzle3_request_state_transfer(zval* request TSRMLS_DC) {
  */
 static void nr_guzzle3_request_state_complete(zval* request TSRMLS_DC) {
   nrtime_t duration = 0.0;
-  nr_node_external_params_t external_params = {.library = "Guzzle 3"};
+  nrtxntime_t start;
+  nrtxntime_t stop;
+  char* async_context;
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params = {.library = "Guzzle 3"};
   zval* response = NULL;
   zval* time = NULL;
   zval* url = NULL;
 
-  if (NR_FAILURE
-      == nr_guzzle_obj_find_and_remove(request,
-                                       &external_params.start TSRMLS_CC)) {
+  if (NR_FAILURE == nr_guzzle_obj_find_and_remove(request, &start TSRMLS_CC)) {
     nrl_verbosedebug(NRL_INSTRUMENT,
                      "Guzzle 3: Request object entered STATE_COMPLETE without "
                      "being tracked");
@@ -217,8 +220,8 @@ static void nr_guzzle3_request_state_complete(zval* request TSRMLS_DC) {
     goto leave;
   }
   duration = (nrtime_t)(Z_DVAL_P(time) * NR_TIME_DIVISOR);
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
-  external_params.stop.when = external_params.start.when + duration;
+  nr_txn_set_time(NRPRG(txn), &stop);
+  stop.when = start.when + duration;
 
   /*
    * We also need the URL to create a useful metric.
@@ -227,8 +230,7 @@ static void nr_guzzle3_request_state_complete(zval* request TSRMLS_DC) {
   if (!nr_php_is_zval_valid_string(url)) {
     goto leave;
   }
-  external_params.url = Z_STRVAL_P(url);
-  external_params.urllen = (size_t)Z_STRLEN_P(url);
+  external_params.uri = nr_strndup(Z_STRVAL_P(url), Z_STRLEN_P(url));
 
   /*
    * Grab the X-NewRelic-App-Data response header, if there is one. We don't
@@ -247,17 +249,20 @@ static void nr_guzzle3_request_state_complete(zval* request TSRMLS_DC) {
   /*
    * Create the async context, in case there was parallelism.
    */
-  external_params.async_context
-      = nr_guzzle_create_async_context_name("Guzzle 3", request);
+  async_context = nr_guzzle_create_async_context_name("Guzzle 3", request);
 
   /*
-   * Whew! Let's create an external node already.
+   * Whew! Let's create an external segment already.
    */
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
+  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
+  segment->start_time = nr_txn_time_abs_to_rel(NRPRG(txn), start.when);
+  segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop.when);
+  nr_segment_external_end(segment, &external_params);
 
 leave:
-  nr_free(external_params.async_context);
   nr_free(external_params.encoded_response_header);
+  nr_free(external_params.uri);
+  nr_free(async_context);
   nr_php_zval_free(&response);
   nr_php_zval_free(&time);
   nr_php_zval_free(&url);

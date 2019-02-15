@@ -124,34 +124,35 @@ static void test_encode_span_events(void) {
   nr_distributed_trace_set_txn_id(txn.distributed_trace, "txnid");
 
 #ifdef NR_CAGENT
+  txn.abs_start_time = 1000;
   txn.nodes_used = 8;
   /*
    * Create segments.
    */
   txn.segment_root = nr_segment_start(&txn, NULL, NULL);
-  txn.segment_root->start_time = 1000;
-  txn.segment_root->stop_time = 10000;
+  txn.segment_root->start_time = 0;
+  txn.segment_root->stop_time = 9000;
   txn.segment_root->name = txn.root.name;
 
   seg_a = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_a, txn.segment_root);
   nr_segment_end(seg_a);
-  seg_a->start_time = 1000;
-  seg_a->stop_time = 10000;
+  seg_a->start_time = 0;
+  seg_a->stop_time = 9000;
   seg_a->name = nr_string_add(txn.trace_strings, "A");
 
   seg_b = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_b, seg_a);
   nr_segment_end(seg_b);
-  seg_b->start_time = 2000;
-  seg_b->stop_time = 8000;
+  seg_b->start_time = 1000;
+  seg_b->stop_time = 7000;
   seg_b->name = nr_string_add(txn.trace_strings, "B");
 
   seg_c = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_c, seg_b);
   nr_segment_end(seg_c);
-  seg_c->start_time = 3000;
-  seg_c->stop_time = 7000;
+  seg_c->start_time = 2000;
+  seg_c->stop_time = 6000;
   seg_c->name = nr_string_add(txn.trace_strings, "C");
   seg_c->type = NR_SEGMENT_DATASTORE;
   seg_c->typed_attributes.datastore.component = nr_strdup("MySql");
@@ -165,8 +166,8 @@ static void test_encode_span_events(void) {
   seg_d = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_d, seg_c);
   nr_segment_end(seg_d);
-  seg_d->start_time = 4000;
-  seg_d->stop_time = 5000;
+  seg_d->start_time = 3000;
+  seg_d->stop_time = 4000;
   seg_d->name = nr_string_add(txn.trace_strings, "D");
   seg_d->type = NR_SEGMENT_DATASTORE;
   seg_d->typed_attributes.datastore.component = nr_strdup("Mongo");
@@ -179,8 +180,8 @@ static void test_encode_span_events(void) {
   seg_e = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_e, seg_c);
   nr_segment_end(seg_e);
-  seg_e->start_time = 5000;
-  seg_e->stop_time = 10000;
+  seg_e->start_time = 4000;
+  seg_e->stop_time = 9000;
   seg_e->name = nr_string_add(txn.trace_strings, "E");
   seg_e->type = NR_SEGMENT_DATASTORE;
   seg_e->typed_attributes.datastore.instance.port_path_or_id
@@ -192,8 +193,8 @@ static void test_encode_span_events(void) {
   seg_f = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_f, seg_e);
   nr_segment_end(seg_f);
-  seg_f->start_time = 6000;
-  seg_f->stop_time = 11000;
+  seg_f->start_time = 5000;
+  seg_f->stop_time = 10000;
   seg_f->name = nr_string_add(txn.trace_strings, "F");
   seg_f->type = NR_SEGMENT_EXTERNAL;
   seg_f->typed_attributes.external.uri = nr_strdup("myservice.com");
@@ -202,8 +203,8 @@ static void test_encode_span_events(void) {
   seg_g = nr_segment_start(&txn, NULL, NULL);
   nr_segment_set_parent(seg_g, seg_f);
   nr_segment_end(seg_g);
-  seg_g->start_time = 7000;
-  seg_g->stop_time = 11000;
+  seg_g->start_time = 6000;
+  seg_g->stop_time = 10000;
   seg_g->name = nr_string_add(txn.trace_strings, "G");
   seg_g->type = NR_SEGMENT_EXTERNAL;
   seg_g->typed_attributes.external.procedure = nr_strdup("POST");
@@ -870,6 +871,7 @@ static void test_encode_metrics(void) {
   int did_pass;
 
   nr_memset(&txn, 0, sizeof(txn));
+  txn.status.recording = 1;
   txn.name = nr_strdup("my_txn_name");
   txn.scoped_metrics = nrm_table_create(10);
   txn.unscoped_metrics = nrm_table_create(10);
@@ -887,9 +889,10 @@ static void test_encode_metrics(void) {
                 4.816326 * NR_TIME_DIVISOR);
 
 #ifdef NR_CAGENT
+  txn.abs_start_time = 1000;
   txn.segment_root = nr_segment_start(&txn, NULL, NULL);
-  txn.segment_root->start_time = 1000;
-  txn.segment_root->stop_time = 10000;
+  txn.segment_root->start_time = 0;
+  txn.segment_root->stop_time = 9000;
 #endif
 
   fb = nr_txndata_encode(&txn);
@@ -1105,6 +1108,7 @@ static void test_encode_error_events(void) {
   int did_pass;
 
   nr_memset(&txn, 0, sizeof(txn));
+  txn.status.recording = 1;
   txn.error = nr_error_create(123, "msg", "cls", "[\"stacktrace json\"]",
                               857281 * NR_TIME_DIVISOR_MS);
   txn.options.error_events_enabled = 1;
@@ -1112,8 +1116,9 @@ static void test_encode_error_events(void) {
   nr_txn_set_guid(&txn, "abcd");
 
 #ifdef NR_CAGENT
+  txn.abs_start_time = 415 * NR_TIME_DIVISOR;
   txn.segment_root = nr_segment_start(&txn, NULL, NULL);
-  txn.segment_root->start_time = 415 * NR_TIME_DIVISOR;
+  txn.segment_root->start_time = 0;
   txn.segment_root->stop_time
       = txn.segment_root->start_time + 543 * NR_TIME_DIVISOR_MS;
 #else
@@ -1268,6 +1273,7 @@ static void test_encode_trace(void) {
 #endif /* NR_CAGENT */
 
   nr_memset(&txn, 0, sizeof(txn));
+  txn.status.recording = 1;
   txn.options.tt_threshold = duration - 1;
   txn.status.has_inbound_record_tt = 0;
   txn.status.has_outbound_record_tt = 0;
@@ -1298,6 +1304,7 @@ static void test_encode_trace(void) {
   segment_name = nr_string_add(txn.trace_strings, "the_node");
 
 #ifdef NR_CAGENT
+  txn.abs_start_time = 1 * NR_TIME_DIVISOR;
   txn.nodes_used = 1;
 
   txn.segment_root = nr_segment_start(&txn, NULL, NULL);
@@ -1308,9 +1315,9 @@ static void test_encode_trace(void) {
   txn.segment_root->name = root_name;
   segment->name = segment_name;
 
-  txn.segment_root->start_time = 1 * NR_TIME_DIVISOR;
-  segment->start_time = 2 * NR_TIME_DIVISOR;
-  segment->stop_time = 3 * NR_TIME_DIVISOR;
+  txn.segment_root->start_time = 0;
+  segment->start_time = 1 * NR_TIME_DIVISOR;
+  segment->stop_time = 2 * NR_TIME_DIVISOR;
   txn.segment_root->stop_time = duration + txn.segment_root->start_time;
 #else  /* NR_CAGENT */
   txn.nodes_used = 1;
@@ -1399,6 +1406,7 @@ static void test_encode_txn_event(void) {
 
   nr_memset(&txn, 0, sizeof(txn));
 
+  txn.status.recording = 1;
   txn.status.background = 0;
   txn.status.ignore_apdex = 0;
   txn.options.analytics_events_enabled = 1;
@@ -1410,8 +1418,9 @@ static void test_encode_txn_event(void) {
   txn.type = 0;
 
 #ifdef NR_CAGENT
+  txn.abs_start_time = 123 * NR_TIME_DIVISOR;
   txn.segment_root = nr_segment_start(&txn, NULL, NULL);
-  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
+  txn.segment_root->start_time = 0;
   txn.segment_root->stop_time
       = txn.segment_root->start_time + 987 * NR_TIME_DIVISOR_MS;
 #else

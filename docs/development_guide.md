@@ -186,6 +186,7 @@ Here are the non-exhaustive capabilities of the Makefile:
 |`make daemon_cover`|Go code coverage|
 |`make daemon_bench`|run daemon performance tests|
 |`make daemon_integration`|run the Go tests with the addition of **collector_integration_test.go**|
+|`make coverage`| Create a code coverage report based on the unit tests and integration tests. [More information](#code-coverage)|
 
 For more detail on the targets and variables the Makefile supports, see the
 [make reference](make.md).
@@ -266,6 +267,30 @@ There may also be **php.ini** setting(s) that are required. To test instrumentat
 ```
 valgrind --leak-check=full /opt/nr/lamp/bin/php-5.6-no-zts <file>
 ```
+### Code Coverage
+
+#### Setup
+You will need python and gcovr to generate the html report. Once you have 
+installed python you can `pip install gcovr`.
+
+#### Generating Reports
+The makefile includes options for creating code coverage reports. The command: `make coverage` will 
+compile with the coverage flags, run unit test and integration tests. The recipe will then create 
+a summary coverage report named `coverage-report.html` as well as additional html files for each code 
+file in the project. These files will contain contents of code files with annotations that summarize 
+code coverage. 
+
+Code coverage reports can also be generated with manual tests. The steps are as follows:
+1. Compile with the code coverage flags `make ENABLE_COVERAGE=1`
+1. Run your manual tests 
+1. Create the coverage report
+    * Create a detailed html report `make html-report`
+
+Creating a coverage report can be generated for tests run on a single file:
+1. Compile with the code coverage flags `make ENABLE_COVERAGE=1`
+1. Run the single test
+1. Create the coverage report
+    * Create a detailed html report `make html-report`
 
 ## Pull requests
 ### Pull request builder

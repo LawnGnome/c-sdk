@@ -58,6 +58,7 @@ TEST_BINARIES = \
 	tests/test_agent \
 	tests/test_api_datastore \
 	tests/test_api_distributed_trace \
+	tests/test_api_internal \
 	tests/test_call \
 	tests/test_datastore \
 	tests/test_fw_drupal \

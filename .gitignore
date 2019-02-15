@@ -125,3 +125,7 @@ pkg/
 # byproducts of jetbrains
 #
 .idea/*
+
+agent/configure.ac
+
+coverage-report*

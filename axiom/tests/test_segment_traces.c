@@ -96,11 +96,11 @@ static void test_json_print_bad_parameters(void) {
   nrbuf_t* buf;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_t root = {.type = NR_SEGMENT_CUSTOM,
                        .txn = &txn,
-                       .start_time = 1000,
-                       .stop_time = 10000};
+                       .start_time = 0,
+                       .stop_time = 9000};
   buf = nr_buffer_create(4096, 4096);
   segment_names = nr_string_pool_create();
 
@@ -137,21 +137,18 @@ static void test_json_print_segments_root_only(void) {
   nrbuf_t* buf;
   nr_vector_t* span_events;
   nrpool_t* segment_names;
-
-  nrtxn_t txn = {0};
-
   nr_span_event_t* evt_root;
 
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_t root = {.type = NR_SEGMENT_CUSTOM,
                        .txn = &txn,
-                       .start_time = 1000,
-                       .stop_time = 10000};
+                       .start_time = 0,
+                       .stop_time = 9000};
   buf = nr_buffer_create(4096, 4096);
   span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
-  txn.segment_count = 2;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
 
@@ -188,26 +185,24 @@ static void test_json_print_segments_bad_segments(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
-
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_child;
 
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_t root = {.type = NR_SEGMENT_CUSTOM,
                        .txn = &txn,
-                       .start_time = 1000,
-                       .stop_time = 10000};
+                       .start_time = 0,
+                       .stop_time = 9000};
   nr_segment_t child = {.type = NR_SEGMENT_CUSTOM,
                         .txn = &txn,
-                        .start_time = 2000,
-                        .stop_time = 2000};
+                        .start_time = 1000,
+                        .stop_time = 1000};
 
   buf = nr_buffer_create(4096, 4096);
   span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
   segment_names = nr_string_pool_create();
 
   /* Mock up the transaction */
-  txn.segment_count = 2;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
 
@@ -227,7 +222,7 @@ static void test_json_print_segments_bad_segments(void) {
   child.name = nr_string_add(txn.trace_strings, "Mongo/alpha");
 
   /*
-   * Test : Segment with bad stamps
+   * Test : Segment stop equal to segment start
    */
   rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
                                              &root, segment_names);
@@ -262,66 +257,10 @@ static void test_json_print_segments_bad_segments(void) {
   span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
 
   /*
-   * Test : Segment start before transaction start
-   */
-  child.start_time = 500;
-  child.stop_time = 4000;
-  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
-                                             &root, segment_names);
-  tlib_pass_if_true(
-      "Printing JSON for a segment whose start is before the transaction start "
-      "must succeed",
-      0 == rv, "rv=%d", rv);
-  test_buffer_contents("start before txn start", buf,
-                       "[0,9,\"`0\",{},[[0,3,\"`1\",{},[]]]]");
-
-  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
-
-  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
-  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
-
-  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
-                     9000);
-  SPAN_EVENT_COMPARE(evt_child, "Mongo/alpha", NR_SPAN_GENERIC, evt_root, 500,
-                     3500);
-
-  nr_buffer_reset(buf);
-  nr_vector_destroy(&span_events);
-  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
-
-  /*
-   * Test : Segment start and stop before transaction start
-   */
-  child.start_time = 500;
-  child.stop_time = 600;
-  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
-                                             &root, segment_names);
-  tlib_pass_if_true(
-      "Printing JSON for a segment whose start and stop are before the "
-      "transaction start must succeed",
-      0 == rv, "rv=%d", rv);
-  test_buffer_contents("start before txn start", buf,
-                       "[0,9,\"`0\",{},[[0,0,\"`1\",{},[]]]]");
-
-  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
-
-  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
-  evt_child = (nr_span_event_t*)nr_vector_get(span_events, 1);
-
-  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
-                     9000);
-  SPAN_EVENT_COMPARE(evt_child, "Mongo/alpha", NR_SPAN_GENERIC, evt_root, 500,
-                     100);
-
-  nr_buffer_reset(buf);
-  nr_vector_destroy(&span_events);
-  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
-
-  /*
    * Test : Segment with unknown name
    */
-  child.start_time = 2000;
-  child.stop_time = 4000;
+  child.start_time = 1000;
+  child.stop_time = 3000;
   child.name = 0;
   rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
                                              &root, segment_names);
@@ -329,7 +268,7 @@ static void test_json_print_segments_bad_segments(void) {
       "Printing JSON for a segment with an unknown name must succeed", 0 == rv,
       "rv=%d", rv);
   test_buffer_contents("unknown name", buf,
-                       "[0,9,\"`0\",{},[[1,3,\"`2\",{},[]]]]");
+                       "[0,9,\"`0\",{},[[1,3,\"`1\",{},[]]]]");
 
   tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
 
@@ -361,13 +300,12 @@ static void test_json_print_segment_with_data(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
-
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_child;
 
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t child = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
+  nrtxn_t txn = {.abs_start_time = 1000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t child = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
 
   buf = nr_buffer_create(4096, 4096);
   span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
@@ -436,13 +374,12 @@ static void test_json_print_segments_two_nodes(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
-
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_child;
 
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t child = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
+  nrtxn_t txn = {.abs_start_time = 1000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t child = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
 
   buf = nr_buffer_create(4096, 4096);
   span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
@@ -507,7 +444,7 @@ static void test_json_print_segments_hanoi(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_a;
@@ -515,10 +452,10 @@ static void test_json_print_segments_hanoi(void) {
   nr_span_event_t* evt_c;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
-  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t C = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -599,7 +536,7 @@ static void test_json_print_segments_three_siblings(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_a;
@@ -607,10 +544,10 @@ static void test_json_print_segments_three_siblings(void) {
   nr_span_event_t* evt_c;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
-  nr_segment_t B = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
-  nr_segment_t C = {.txn = &txn, .start_time = 6000, .stop_time = 7000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 2000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
+  nr_segment_t C = {.txn = &txn, .start_time = 5000, .stop_time = 6000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -679,7 +616,7 @@ static void test_json_print_segments_three_siblings(void) {
   nr_vector_destroy(&span_events);
 }
 
-static void test_json_print_segments_datastore_external(void) {
+static void test_json_print_segments_datastore_params(void) {
   int rv;
   nrbuf_t* buf;
   nr_vector_t* span_events;
@@ -689,16 +626,194 @@ static void test_json_print_segments_datastore_external(void) {
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_a;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  // clang-format on
+
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.abs_start_time = 1000;
+  txn.segment_count = 2;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+
+  /* Create a collection of mock segments */
+
+  /*    ------root-------
+   *     ------A------
+   */
+
+  nr_segment_children_init(&root.children);
+
+  nr_segment_add_child(&root, &A);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+
+  A.type = NR_SEGMENT_DATASTORE;
+  A.user_attributes = nro_new_hash();
+  A.typed_attributes.datastore.sql_obfuscated = nr_strdup("SELECT");
+  A.typed_attributes.datastore.instance.host = nr_strdup("localhost");
+  A.typed_attributes.datastore.instance.database_name = nr_strdup("db");
+  A.typed_attributes.datastore.instance.port_path_or_id = nr_strdup("3308");
+  A.typed_attributes.datastore.backtrace_json = nr_strdup("[\"a\",\"b\"]");
+  A.typed_attributes.datastore.explain_plan_json = nr_strdup("[\"c\",\"d\"]");
+  A.typed_attributes.datastore.input_query_json = nr_strdup("[\"e\",\"f\"]");
+
+  /*
+   * Test : Normal operation
+   */
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
+  tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
+  test_buffer_contents("datastore params", buf,
+                       "[0,9,\"`0\",{},[[1,6,\"`1\",{"
+                       "\"host\":\"localhost\","
+                       "\"database_name\":\"db\","
+                       "\"port_path_or_id\":\"3308\","
+                       "\"backtrace\":[\"a\",\"b\"],"
+                       "\"explain_plan\":[\"c\",\"d\"],"
+                       "\"sql_obfuscated\":\"SELECT\","
+                       "\"input_query\":[\"e\",\"f\"]"
+                       "},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_DATASTORE, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE_DATASTORE(evt_a, "localhost", "db", "SELECT",
+                               "localhost:3308");
+
+  /* Clean up */
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_destroy_fields(&A);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
+}
+
+static void test_json_print_segments_external_async_user_attrs(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {0};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
+
+  // clang-format off
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  // clang-format on
+
+  buf = nr_buffer_create(4096, 4096);
+  span_events = nr_vector_create(9, nr_vector_span_event_dtor, NULL);
+  segment_names = nr_string_pool_create();
+
+  /* Mock up the transaction */
+  txn.abs_start_time = 1000;
+  txn.segment_count = 2;
+  txn.segment_root = &root;
+  txn.trace_strings = nr_string_pool_create();
+  txn.async_duration = 1;
+
+  /* Create a collection of mock segments */
+
+  /*    ------root-------
+   *     ------A------
+   */
+
+  nr_segment_children_init(&root.children);
+
+  nr_segment_add_child(&root, &A);
+
+  root.name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+  A.name = nr_string_add(txn.trace_strings, "A");
+
+  A.type = NR_SEGMENT_EXTERNAL;
+  A.user_attributes = nro_new_hash();
+  nro_set_hash_string(A.user_attributes, "foo", "bar");
+  A.async_context = nr_string_add(txn.trace_strings, "async");
+  A.typed_attributes.external.uri = nr_strdup("example.com");
+  A.typed_attributes.external.library = nr_strdup("curl");
+  A.typed_attributes.external.procedure = nr_strdup("GET");
+  A.typed_attributes.external.transaction_guid = nr_strdup("guid");
+
+  /*
+   * Test : Normal operation
+   */
+  rv = nr_segment_traces_json_print_segments(buf, span_events, NULL, NULL, &txn,
+                                             &root, segment_names);
+  tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
+  test_buffer_contents("datastore params", buf,
+                       "[0,9,\"`0\",{},[[1,6,\"`1\",{"
+                       "\"uri\":\"example.com\","
+                       "\"library\":\"curl\","
+                       "\"procedure\":\"GET\","
+                       "\"transaction_guid\":\"guid\","
+                       "\"async_context\":\"`2\","
+                       "\"foo\":\"bar\""
+                       "},[]]]]");
+
+  tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 2);
+
+  evt_root = (nr_span_event_t*)nr_vector_get(span_events, 0);
+  evt_a = (nr_span_event_t*)nr_vector_get(span_events, 1);
+
+  SPAN_EVENT_COMPARE(evt_root, "WebTransaction/*", NR_SPAN_GENERIC, NULL, 1000,
+                     9000);
+  SPAN_EVENT_COMPARE(evt_a, "A", NR_SPAN_HTTP, evt_root, 2000, 5000);
+  SPAN_EVENT_COMPARE_EXTERNAL(evt_a, "example.com", "GET", "curl");
+
+  /* Clean up */
+  nr_segment_children_destroy_fields(&root.children);
+  nr_segment_destroy_fields(&root);
+
+  nr_segment_destroy_fields(&A);
+
+  nr_string_pool_destroy(&txn.trace_strings);
+  nr_string_pool_destroy(&segment_names);
+
+  nr_buffer_destroy(&buf);
+  nr_vector_destroy(&span_events);
+}
+
+static void test_json_print_segments_datastore_external(void) {
+  int rv;
+  nrbuf_t* buf;
+  nr_vector_t* span_events;
+  nrpool_t* segment_names;
+
+  nrtxn_t txn = {.abs_start_time = 1000};
+
+  nr_span_event_t* evt_root;
+  nr_span_event_t* evt_a;
   nr_span_event_t* evt_b;
   nr_span_event_t* evt_c;
   nr_span_event_t* evt_d;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
-  nr_segment_t C = {.txn = &txn, .start_time = 5000, .stop_time = 6000};
-  nr_segment_t D = {.txn = &txn, .start_time = 6000, .stop_time = 7000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
+  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t D = {.txn = &txn, .start_time = 5000, .stop_time = 6000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -732,19 +847,22 @@ static void test_json_print_segments_datastore_external(void) {
   D.name = nr_string_add(txn.trace_strings, "D");
 
   B.type = NR_SEGMENT_DATASTORE;
+  B.user_attributes = nro_new_hash();
   B.typed_attributes.datastore.sql_obfuscated = nr_strdup("SELECT");
   B.typed_attributes.datastore.instance.host = nr_strdup("localhost");
   B.typed_attributes.datastore.instance.database_name = nr_strdup("db");
   B.typed_attributes.datastore.instance.port_path_or_id = nr_strdup("3308");
 
   C.type = NR_SEGMENT_EXTERNAL;
+  C.user_attributes = nro_new_hash();
   C.typed_attributes.external.uri = nr_strdup("example.com");
   C.typed_attributes.external.library = nr_strdup("curl");
   C.typed_attributes.external.procedure = nr_strdup("GET");
+  C.typed_attributes.external.transaction_guid = nr_strdup("guid");
 
   D.type = NR_SEGMENT_DATASTORE;
+  D.user_attributes = nro_new_hash();
   D.typed_attributes.datastore.sql = nr_strdup("SELECT pass");
-  D.typed_attributes.datastore.sql_obfuscated = nr_strdup("SELECT xxxx");
   D.typed_attributes.datastore.instance.host = nr_strdup("localhost");
   D.typed_attributes.datastore.instance.database_name = nr_strdup("db");
 
@@ -755,8 +873,21 @@ static void test_json_print_segments_datastore_external(void) {
                                              &root, segment_names);
   tlib_pass_if_true("success", 0 == rv, "rv=%d", rv);
   test_buffer_contents("two kids", buf,
-                       "[0,9,\"`0\",{},[[1,6,\"`1\",{},[[2,3,\"`2\",{},[]],[4,"
-                       "5,\"`3\",{},[]],[5,6,\"`4\",{},[]]]]]]");
+                       "[0,9,\"`0\",{},[[1,6,\"`1\",{},["
+                       "[2,3,\"`2\",{"
+                       "\"host\":\"localhost\","
+                       "\"database_name\":\"db\","
+                       "\"port_path_or_id\":\"3308\","
+                       "\"sql_obfuscated\":\"SELECT\"},[]],"
+                       "[4,5,\"`3\",{"
+                       "\"uri\":\"example.com\","
+                       "\"library\":\"curl\","
+                       "\"procedure\":\"GET\","
+                       "\"transaction_guid\":\"guid\"},[]],"
+                       "[5,6,\"`4\","
+                       "{\"host\":\"localhost\","
+                       "\"database_name\":\"db\","
+                       "\"sql\":\"SELECT pass\"},[]]]]]]");
 
   tlib_pass_if_uint_equal("span event size", nr_vector_size(span_events), 5);
 
@@ -802,7 +933,7 @@ static void test_json_print_segments_two_generations(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_a;
@@ -810,10 +941,10 @@ static void test_json_print_segments_two_generations(void) {
   nr_span_event_t* evt_c;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
-  nr_segment_t C = {.txn = &txn, .start_time = 5000, .stop_time = 6000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
+  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -890,7 +1021,7 @@ static void test_json_print_segments_async_basic(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_main;
@@ -912,9 +1043,9 @@ static void test_json_print_segments_async_basic(void) {
    */
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t main_segment = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t loop_segment = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t main_segment = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t loop_segment = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -993,7 +1124,7 @@ static void test_json_print_segments_async_multi_child(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_main;
@@ -1013,11 +1144,11 @@ static void test_json_print_segments_async_multi_child(void) {
    */
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t main_segment = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t a_a = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
-  nr_segment_t b = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
-  nr_segment_t a_b = {.txn = &txn, .start_time = 7000, .stop_time = 8000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t main_segment = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t a_a = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
+  nr_segment_t b = {.txn = &txn, .start_time = 3000, .stop_time = 5000};
+  nr_segment_t a_b = {.txn = &txn, .start_time = 6000, .stop_time = 7000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -1112,7 +1243,7 @@ static void test_json_print_segments_async_multi_context(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_main;
@@ -1135,13 +1266,13 @@ static void test_json_print_segments_async_multi_context(void) {
    */
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t main_segment = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t a_a = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
-  nr_segment_t b = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
-  nr_segment_t a_b = {.txn = &txn, .start_time = 7000, .stop_time = 8000};
-  nr_segment_t c = {.txn = &txn, .start_time = 3000, .stop_time = 5000};
-  nr_segment_t d = {.txn = &txn, .start_time = 9000, .stop_time = 10000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t main_segment = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t a_a = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
+  nr_segment_t b = {.txn = &txn, .start_time = 3000, .stop_time = 5000};
+  nr_segment_t a_b = {.txn = &txn, .start_time = 6000, .stop_time = 7000};
+  nr_segment_t c = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
+  nr_segment_t d = {.txn = &txn, .start_time = 8000, .stop_time = 9000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -1251,7 +1382,7 @@ static void test_json_print_segments_async_context_nesting(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_main;
@@ -1279,21 +1410,21 @@ static void test_json_print_segments_async_context_nesting(void) {
    */
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t main_segment = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t a = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
-  nr_segment_t b = {.txn = &txn, .start_time = 4000, .stop_time = 7000};
-  nr_segment_t g = {.txn = &txn, .start_time = 7200, .stop_time = 8000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t main_segment = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t a = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
+  nr_segment_t b = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
+  nr_segment_t g = {.txn = &txn, .start_time = 6200, .stop_time = 7000};
 
   /* b begets f and c, in that order */
-  nr_segment_t f = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
-  nr_segment_t c = {.txn = &txn, .start_time = 6000, .stop_time = 7000};
+  nr_segment_t f = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
+  nr_segment_t c = {.txn = &txn, .start_time = 5000, .stop_time = 6000};
 
   /* a begets d */
-  nr_segment_t d = {.txn = &txn, .start_time = 3000, .stop_time = 10000};
+  nr_segment_t d = {.txn = &txn, .start_time = 2000, .stop_time = 9000};
 
   /* d begets e */
-  nr_segment_t e = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
+  nr_segment_t e = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -1431,7 +1562,7 @@ static void test_json_print_segments_async_with_data(void) {
   nrobj_t* hash;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
   /*
    * Data hash testing: ensure that we never overwrite a data hash, and also
@@ -1444,9 +1575,9 @@ static void test_json_print_segments_async_with_data(void) {
    */
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t main_segment = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t loop = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t main_segment = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t loop = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
   // clang-format on
 
   buf = nr_buffer_create(4096, 4096);
@@ -1514,17 +1645,17 @@ static void test_json_print_segments_with_sampling(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_set_t* set;
 
   nr_span_event_t* evt_root;
   nr_span_event_t* evt_b;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
-  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t C = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
   // clang-format on
 
   set = nr_set_create();
@@ -1604,7 +1735,7 @@ static void test_json_print_segments_with_sampling_cousin_parent(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_set_t* set;
 
   nr_span_event_t* evt_root;
@@ -1615,18 +1746,18 @@ static void test_json_print_segments_with_sampling_cousin_parent(void) {
   nr_span_event_t* evt_i;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 15000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
-  nr_segment_t C = {.txn = &txn, .start_time = 2000, .stop_time = 6000};
-  nr_segment_t D = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t E = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
-  nr_segment_t F = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
-  nr_segment_t G = {.txn = &txn, .start_time = 6000, .stop_time = 6500};
-  nr_segment_t H = {.txn = &txn, .start_time = 2000, .stop_time = 14000};
-  nr_segment_t I = {.txn = &txn, .start_time = 2000, .stop_time = 4000};
-  nr_segment_t J = {.txn = &txn, .start_time = 4000, .stop_time = 14000};
-  nr_segment_t K = {.txn = &txn, .start_time = 3000, .stop_time = 12000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 14000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t C = {.txn = &txn, .start_time = 1000, .stop_time = 5000};
+  nr_segment_t D = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t E = {.txn = &txn, .start_time = 1000, .stop_time = 4000};
+  nr_segment_t F = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
+  nr_segment_t G = {.txn = &txn, .start_time = 5000, .stop_time = 5500};
+  nr_segment_t H = {.txn = &txn, .start_time = 1000, .stop_time = 13000};
+  nr_segment_t I = {.txn = &txn, .start_time = 1000, .stop_time = 3000};
+  nr_segment_t J = {.txn = &txn, .start_time = 3000, .stop_time = 13000};
+  nr_segment_t K = {.txn = &txn, .start_time = 2000, .stop_time = 11000};
   // clang-format on
 
   set = nr_set_create();
@@ -1782,7 +1913,7 @@ static void test_json_print_segments_with_sampling_inner_loop(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_set_t* trace_set;
   nr_set_t* span_set;
 
@@ -1793,14 +1924,14 @@ static void test_json_print_segments_with_sampling_inner_loop(void) {
   nr_span_event_t* evt_g;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
-  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
-  nr_segment_t D = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t E = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
-  nr_segment_t F = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
-  nr_segment_t G = {.txn = &txn, .start_time = 6000, .stop_time = 6500};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t C = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
+  nr_segment_t D = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t E = {.txn = &txn, .start_time = 1000, .stop_time = 4000};
+  nr_segment_t F = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
+  nr_segment_t G = {.txn = &txn, .start_time = 5000, .stop_time = 5500};
   // clang-format on
 
   trace_set = nr_set_create();
@@ -1937,7 +2068,7 @@ static void test_json_print_segments_with_sampling_genghis_khan(void) {
   nr_vector_t* span_events;
   nrpool_t* segment_names;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_set_t* set;
 
   nr_span_event_t* evt_root;
@@ -1950,16 +2081,16 @@ static void test_json_print_segments_with_sampling_genghis_khan(void) {
   nr_span_event_t* evt_i;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 7000};
-  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 6000};
-  nr_segment_t C = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
-  nr_segment_t D = {.txn = &txn, .start_time = 2000, .stop_time = 8000};
-  nr_segment_t E = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
-  nr_segment_t F = {.txn = &txn, .start_time = 5000, .stop_time = 7000};
-  nr_segment_t G = {.txn = &txn, .start_time = 1000, .stop_time = 9000};
-  nr_segment_t H = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
-  nr_segment_t I = {.txn = &txn, .start_time = 1000, .stop_time = 7000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 6000};
+  nr_segment_t B = {.txn = &txn, .start_time = 2000, .stop_time = 5000};
+  nr_segment_t C = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
+  nr_segment_t D = {.txn = &txn, .start_time = 1000, .stop_time = 7000};
+  nr_segment_t E = {.txn = &txn, .start_time = 1000, .stop_time = 4000};
+  nr_segment_t F = {.txn = &txn, .start_time = 4000, .stop_time = 6000};
+  nr_segment_t G = {.txn = &txn, .start_time = 0,    .stop_time = 8000};
+  nr_segment_t H = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
+  nr_segment_t I = {.txn = &txn, .start_time = 0,    .stop_time = 6000};
   // clang-format on
 
   set = nr_set_create();
@@ -2093,13 +2224,13 @@ static void test_json_print_segments_with_sampling_genghis_khan(void) {
 }
 
 static void test_trace_create_data_bad_parameters(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   uintptr_t i;
   nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
   nr_segment_tree_result_t result = {.trace_json = NULL};
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
   // clang-format on
 
   nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
@@ -2160,7 +2291,7 @@ static void test_trace_create_data_bad_parameters(void) {
 }
 
 static void test_trace_create_trace_spans(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_tree_sampling_metadata_t metadata = {0};
   nr_segment_tree_result_t result = {0};
 
@@ -2169,8 +2300,8 @@ static void test_trace_create_trace_spans(void) {
   nrobj_t* intrinsics = nro_create_from_json("[\"intrinsics\"]");
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 2000};
   // clang-format on
 
   metadata.out = &result;
@@ -2258,7 +2389,7 @@ static void test_trace_create_trace_spans(void) {
 }
 
 static void test_trace_create_data(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
   nr_segment_tree_result_t result = {.trace_json = NULL};
 
@@ -2272,9 +2403,9 @@ static void test_trace_create_data(void) {
   nr_span_event_t* evt_b;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
-  nr_segment_t B = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 2000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
   // clang-format on
 
   metadata.out = &result;
@@ -2351,7 +2482,7 @@ static void test_trace_create_data(void) {
 }
 
 static void test_trace_create_data_with_sampling(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
   nr_segment_tree_result_t result = {.trace_json = NULL};
 
@@ -2363,9 +2494,9 @@ static void test_trace_create_data_with_sampling(void) {
   nr_span_event_t* evt_b;
 
   // clang-format off
-  nr_segment_t root = {.txn = &txn, .start_time = 1000, .stop_time = 10000};
-  nr_segment_t A = {.txn = &txn, .start_time = 2000, .stop_time = 3000};
-  nr_segment_t B = {.txn = &txn, .start_time = 4000, .stop_time = 5000};
+  nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
+  nr_segment_t A = {.txn = &txn, .start_time = 1000, .stop_time = 2000};
+  nr_segment_t B = {.txn = &txn, .start_time = 3000, .stop_time = 4000};
   // clang-format on
 
   metadata.out = &result;
@@ -2463,8 +2594,9 @@ void test_main(void* p NRUNUSED) {
   test_json_print_segments_hanoi();
   test_json_print_segments_three_siblings();
   test_json_print_segments_two_generations();
-
   test_json_print_segments_datastore_external();
+  test_json_print_segments_datastore_params();
+  test_json_print_segments_external_async_user_attrs();
 
   test_json_print_segments_async_basic();
   test_json_print_segments_async_multi_child();

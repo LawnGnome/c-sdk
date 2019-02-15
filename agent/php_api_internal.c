@@ -4,6 +4,7 @@
 #include "php_hash.h"
 #include "nr_datastore_instance.h"
 #include "nr_header.h"
+#include "nr_segment_traces.h"
 #include "nr_traces.h"
 #include "util_logging.h"
 #include "util_memory.h"
@@ -95,12 +96,65 @@ PHP_FUNCTION(newrelic_get_hostname) {
   nr_free(hostname);
 }
 
+/*
+ * Purpose: Extend an array with the given metrics.
+ *
+ * The given metrics are, via a JSON representation, converted to a PHP array.
+ * This array is merged with the array given as parameter.
+ *
+ * The array object pointed to by the array parameter will be replaced with the
+ * merged array.
+ */
+static void add_metrics_to_array(zval** array,
+                                 const nrmtable_t* metrics TSRMLS_DC) {
+  char* json = NULL;
+  zval* json_zv = NULL;
+  zval* new_array = NULL;
+  zval* merged_array = NULL;
+
+  if (NULL == array || NULL == *array || NULL == metrics) {
+    return;
+  }
+
+  json = nr_metric_table_to_daemon_json(metrics);
+
+  if (NULL == json) {
+    php_error(E_WARNING, "%s", "cannot convert metric table to JSON");
+    goto end;
+  }
+
+  json_zv = nr_php_zval_alloc();
+  nr_php_zval_str(json_zv, json);
+
+  new_array = nr_php_call(NULL, "json_decode", json_zv);
+  if (!nr_php_is_zval_valid_array(new_array)) {
+    php_error(E_WARNING, "json_decode() failed on data='%s'", json);
+    goto end;
+  }
+
+  merged_array = nr_php_call(NULL, "array_merge", *array, new_array);
+  if (!nr_php_is_zval_valid_array(merged_array)) {
+    php_error(E_WARNING, "%s", "array_merge() failed");
+    nr_php_zval_free(&merged_array);
+    goto end;
+  }
+
+  nr_php_zval_free(array);
+  *array = merged_array;
+
+end:
+  nr_php_zval_free(&json_zv);
+  nr_php_zval_free(&new_array);
+  nr_free(json);
+}
+
 PHP_FUNCTION(newrelic_get_metric_table) {
   char* json = NULL;
   zval* json_zv = NULL;
   const nrmtable_t* metrics;
   zend_bool scoped = 0;
   zval* table = NULL;
+  nr_segment_tree_result_t segment_result = {0};
 
   NR_UNUSED_RETURN_VALUE_PTR;
   NR_UNUSED_RETURN_VALUE_USED;
@@ -117,22 +171,20 @@ PHP_FUNCTION(newrelic_get_metric_table) {
     goto end;
   }
 
+  table = nr_php_zval_alloc();
+  array_init(table);
+
+  /* transaction metrics */
+
   metrics = scoped ? NRTXN(scoped_metrics) : NRTXN(unscoped_metrics);
-  json = nr_metric_table_to_daemon_json(metrics);
+  add_metrics_to_array(&table, metrics TSRMLS_CC);
 
-  if (NULL == json) {
-    php_error(E_WARNING, "%s", "cannot convert metric table to JSON");
-    goto end;
-  }
+  /* segment metrics */
 
-  json_zv = nr_php_zval_alloc();
-  nr_php_zval_str(json_zv, json);
-
-  table = nr_php_call(NULL, "json_decode", json_zv);
-  if (!nr_php_is_zval_valid_array(table)) {
-    php_error(E_WARNING, "json_decode() failed on data='%s'", json);
-    goto end;
-  }
+  nr_segment_tree_assemble_data(NRPRG(txn), &segment_result, 0, 0);
+  metrics = scoped ? segment_result.scoped_metrics
+                   : segment_result.unscoped_metrics;
+  add_metrics_to_array(&table, metrics TSRMLS_CC);
 
   RETVAL_ZVAL(table, 1, 0);
 
@@ -140,6 +192,8 @@ end:
   nr_free(json);
   nr_php_zval_free(&json_zv);
   nr_php_zval_free(&table);
+  nrm_table_destroy(&segment_result.scoped_metrics);
+  nrm_table_destroy(&segment_result.unscoped_metrics);
 }
 
 PHP_FUNCTION(newrelic_get_slowsqls) {
@@ -188,11 +242,50 @@ PHP_FUNCTION(newrelic_get_slowsqls) {
   }
 }
 
+typedef struct _find_active_segments_metadata_t {
+  nr_set_t* active_segments;
+  nrtime_t stop_time;
+} find_active_segments_metadata_t;
+
+static nr_segment_iter_return_t find_active_segments(
+    nr_segment_t* segment,
+    find_active_segments_metadata_t* metadata) {
+  if (NULL == segment || NULL == metadata) {
+    nrl_error(NRL_API, "%s: unexpected NULL inputs; segment=%p; metadata=%p",
+              __func__, segment, metadata);
+    return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
+  }
+
+  if (0 == segment->stop_time) {
+    nr_set_insert(metadata->active_segments, segment);
+    segment->stop_time = metadata->stop_time;
+  }
+
+  return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
+}
+
+static nr_segment_iter_return_t reset_active_segments(
+    nr_segment_t* segment,
+    nr_set_t* active_segments) {
+  if (NULL == segment || NULL == active_segments) {
+    nrl_error(NRL_API,
+              "%s: unexpected NULL inputs; segment=%p; active_segments=%p",
+              __func__, segment, active_segments);
+    return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
+  }
+
+  if (nr_set_contains(active_segments, segment)) {
+    segment->stop_time = 0;
+  }
+
+  return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
+}
+
 PHP_FUNCTION(newrelic_get_trace_json) {
-  nrtime_t duration;
-  char* json;
-  nrtime_t now;
-  nrtxntime_t orig_stop_time;
+  nr_segment_tree_result_t assembly_result = {0};
+  find_active_segments_metadata_t fas_metadata;
+  nrtime_t orig_tt_threshold;
+  nrtxn_t* txn = NRPRG(txn);
 
   NR_UNUSED_HT;
   NR_UNUSED_RETURN_VALUE_PTR;
@@ -207,27 +300,43 @@ PHP_FUNCTION(newrelic_get_trace_json) {
     RETURN_FALSE;
   }
 
-  now = nr_get_time();
-  duration = nr_time_duration(NRTXN(root).start_time.when, now);
+  /*
+   * We have to make the transaction trace threshold 0 to ensure that a trace is
+   * generated.
+   */
+  orig_tt_threshold = txn->options.tt_threshold;
+  txn->options.tt_threshold = 0;
 
   /*
-   * We have to temporarily change the root node's stop time to now, otherwise
-   * the sanity check in nr_traces_json_print_segments() will (rightly) be
-   * unhappy.
+   * Now it gets spicy: we can't generate a trace if there are active segments,
+   * as their stop times will be 0 and therefore before the start time, which
+   * fails the sanity check in trace assembly. We'll iterate over the tree, set
+   * any segment with a stop time to the current time, and track which segments
+   * we changed so we can put them back at the end.
    */
-  orig_stop_time = NRTXN(root).stop_time;
-  nr_txn_set_time(NRPRG(txn), &NRTXN(root).stop_time);
+  fas_metadata.active_segments = nr_set_create();
+  fas_metadata.stop_time
+      = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
+  nr_segment_iterate(txn->segment_root, (nr_segment_iter_t)find_active_segments,
+                     &fas_metadata);
 
-  json = nr_harvest_trace_create_data(NRPRG(txn), duration, NULL, NULL, NULL,
-                                      NULL, 0);
-  nr_php_zval_str(return_value, json);
-  nr_free(json);
+  nr_segment_tree_assemble_data(txn, &assembly_result, NR_TXN_MAX_NODES, 0);
+  nr_php_zval_str(return_value, assembly_result.trace_json);
+
+  nrm_table_destroy(&assembly_result.scoped_metrics);
+  nrm_table_destroy(&assembly_result.unscoped_metrics);
+  nr_vector_destroy(&assembly_result.span_events);
+  nr_free(assembly_result.trace_json);
 
   /*
    * Let's put things back how they were. Nobody will ever know that we had
    * this moment.
    */
-  NRTXN(root).stop_time = orig_stop_time;
+  txn->options.tt_threshold = orig_tt_threshold;
+  nr_segment_iterate(txn->segment_root,
+                     (nr_segment_iter_t)reset_active_segments,
+                     fas_metadata.active_segments);
+  nr_set_destroy(&fas_metadata.active_segments);
 }
 
 PHP_FUNCTION(newrelic_is_localhost) {

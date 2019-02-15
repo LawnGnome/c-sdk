@@ -10,7 +10,7 @@
 #include "tlib_main.h"
 
 static void test_assemble_data_bad_params(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 1;
   size_t span_limit = 1;
   nr_segment_tree_result_t result = {.trace_json = NULL};
@@ -66,7 +66,7 @@ static void test_assemble_data_bad_params(void) {
 }
 
 static void test_assemble_data_one_only_with_metrics(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 1;
   size_t span_limit = 0;
   nr_segment_tree_result_t result = {.trace_json = NULL};
@@ -74,8 +74,8 @@ static void test_assemble_data_one_only_with_metrics(void) {
 
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
 
-  root->start_time = 1000;
-  root->stop_time = 4000;
+  root->start_time = 0;
+  root->stop_time = 3000;
 
   /* Mock up the transaction */
   txn.segment_count = 1;
@@ -133,7 +133,7 @@ static void test_assemble_data_one_only_with_metrics(void) {
    */
 
   /* Make the transaction long enough so that a trace should be made */
-  root->stop_time = 10000;
+  root->stop_time = 9000;
 
   /* The necessity for mocking up nodes_used will be eliminated when
    * the notion of nodes is removed from nrtxn_t.  For now, mock
@@ -234,7 +234,7 @@ static void test_assemble_data_one_only_with_metrics(void) {
 }
 
 static void test_assemble_data_one_only_without_metrics(void) {
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 1;
   size_t span_limit = 0;
   nr_segment_tree_result_t result = {.trace_json = NULL};
@@ -242,8 +242,8 @@ static void test_assemble_data_one_only_without_metrics(void) {
 
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
 
-  root->start_time = 1000;
-  root->stop_time = 4000;
+  root->start_time = 0;
+  root->stop_time = 3000;
 
   /* Mock up the transaction */
   txn.segment_count = 1;
@@ -291,7 +291,7 @@ static void test_assemble_data_one_only_without_metrics(void) {
    */
 
   /* Make the transaction long enough so that a trace should be made */
-  root->stop_time = 10000;
+  root->stop_time = 9000;
 
   /* The necessity for mocking up nodes_used will be eliminated when
    * the notion of nodes is removed from nrtxn_t.  For now, mock
@@ -381,10 +381,10 @@ static void test_assemble_data(void) {
   nrobj_t* obj;
   nr_segment_t* current;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
-  nrtime_t start_time = 1000;
-  nrtime_t stop_time = 10000;
+  nrtime_t start_time = 0;
+  nrtime_t stop_time = 9000;
 
   size_t trace_limit = NR_TEST_SEGMENT_TREE_SIZE;
   size_t span_limit = 0;
@@ -480,10 +480,10 @@ static void test_assemble_data_with_sampling(void) {
   nrobj_t* obj;
   nr_segment_t* current;
 
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
 
-  nrtime_t start_time = 1000;
-  nrtime_t stop_time = 10000;
+  nrtime_t start_time = 0;
+  nrtime_t stop_time = 9000;
 
   size_t trace_limit = NR_TEST_SEGMENT_TREE_SIZE;
   size_t span_limit = 0;
@@ -576,7 +576,7 @@ static void test_assemble_data_with_sampling(void) {
 #define NR_TEST_SEGMENT_EXTENDED_TREE_SIZE 3000
 static void test_assemble_data_with_extended_sampling(void) {
   int i;
-  nrtxn_t txn = {0};
+  nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 4;
   size_t span_limit = 0;
   nr_segment_tree_result_t result = {.trace_json = NULL};
@@ -588,8 +588,8 @@ static void test_assemble_data_with_extended_sampling(void) {
 
   txn.trace_strings = nr_string_pool_create();
 
-  root->start_time = 1000;
-  root->stop_time = 35000;
+  root->start_time = 0;
+  root->stop_time = 34000;
   root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
 
   txn.segment_root = root;
@@ -632,8 +632,8 @@ static void test_assemble_data_with_extended_sampling(void) {
       "transaction must create expected trace JSON with the four longest "
       "segments",
       result.trace_json,
-      "[[0,{},{},[0,34,\"ROOT\",{},[[0,34,\"`0\",{},[[1,28,\"`1\",{},[[1,28,\"`"
-      "2\",{},[[1,28,\"`3\",{},[]]]]]]]]]],{}],[\"WebTransaction\\/"
+      "[[0,{},{},[0,34,\"ROOT\",{},[[0,34,\"`0\",{},[[2,29,\"`1\",{},[[2,29,\"`"
+      "2\",{},[[2,29,\"`3\",{},[]]]]]]]]]],{}],[\"WebTransaction\\/"
       "*\",\"2997\",\"2998\",\"2999\"]]");
 
   obj = nro_create_from_json(result.trace_json);

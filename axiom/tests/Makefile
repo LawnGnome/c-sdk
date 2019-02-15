@@ -164,6 +164,8 @@ TESTS := \
   test_rum \
   test_sampling \
   test_segment \
+  test_segment_datastore \
+  test_segment_external \
   test_segment_private \
   test_segment_terms \
   test_segment_traces \

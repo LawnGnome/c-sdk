@@ -279,4 +279,37 @@ extern void tlib_php_free_zval_array(zval*** arr_ptr);
 #define tlib_pass_if_zval_type_is(M, EXPECTED, ZVAL) \
   tlib_pass_if_int_equal(M, EXPECTED, Z_TYPE_P(ZVAL))
 
+/*
+ * Booleans are tricky, since there are different zval types in PHP 5 and 7.
+ * We'll define a couple of macros to make this easier.
+ *
+ * If you're only interested in whether a value is truthy, you should call
+ * nr_php_is_zval_true() directly and assert on that.
+ */
+#define tlib_pass_if_zval_is_bool_value(M, EXPECTED, ZVAL)             \
+  do {                                                                 \
+    zval* tlib_test_zval = (ZVAL);                                     \
+    tlib_specific_message_alloc(zib, (M), sizeof(" value"));           \
+                                                                       \
+    tlib_specific_message_set(zib, " type");                           \
+    tlib_fail_if_int_equal(tlib_specific_message(zib), 0,              \
+                           nr_php_is_zval_valid_bool(tlib_test_zval)); \
+                                                                       \
+    tlib_specific_message_set(zib, " value");                          \
+    if (EXPECTED) {                                                    \
+      tlib_fail_if_int_equal(tlib_specific_message(zib), 0,            \
+                             nr_php_is_zval_true(tlib_test_zval));     \
+    } else {                                                           \
+      tlib_pass_if_int_equal(tlib_specific_message(zib), 0,            \
+                             nr_php_is_zval_true(tlib_test_zval));     \
+    }                                                                  \
+                                                                       \
+    tlib_specific_message_free(zib);                                   \
+  } while (0)
+
+#define tlib_pass_if_zval_is_bool_false(M, ZVAL) \
+  tlib_pass_if_zval_is_bool_value((M), false, (ZVAL))
+#define tlib_pass_if_zval_is_bool_true(M, ZVAL) \
+  tlib_pass_if_zval_is_bool_value((M), true, (ZVAL))
+
 #endif /* TLIB_PHP_HDR */

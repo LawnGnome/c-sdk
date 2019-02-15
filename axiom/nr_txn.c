@@ -417,8 +417,10 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
    * Install the root segment
    */
   nt->segment_root = nr_zalloc(sizeof(nr_segment_t));
+  nt->segment_root->txn = nt;
   nr_segment_children_init(&nt->segment_root->children);
-  nt->segment_root->start_time = nr_get_time();
+  nt->segment_root->start_time = 0;
+
   nr_txn_set_current_segment(nt, nt->segment_root);
   nt->segment_count = 1;
 
@@ -435,6 +437,10 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
   nt->status.recording = 1;
 
   nr_txn_set_time(nt, &nt->root.start_time);
+
+  /* Create the absolute start timestamp for this transaction.
+   * All of its segments' times are relative to this value. */
+  nt->abs_start_time = nr_get_time();
 
   nr_get_cpu_usage(&nt->user_cpu[NR_CPU_USAGE_START],
                    &nt->sys_cpu[NR_CPU_USAGE_START]);
@@ -663,23 +669,6 @@ void nr_txn_save_trace_node(nrtxn_t* txn,
   } else {
     /* Regular node */
     node->async_context = 0;
-  }
-
-  /*
-   * See comments in nr_txn_create_distributed_trace_payload for an
-   * explanation of this mechanism.
-   *
-   * txn->current_node_id and txn->current_node_time are set during outbound DT
-   * payload generation. A sanity check is done to verify, that the timestamp
-   * of the DT payload creation falls between the start and the end time of
-   * this trace node.
-   */
-  if (txn->current_node_id && NULL != attributes
-      && NR_EXTERNAL == attributes->type) {
-    node->id = txn->current_node_id;
-    txn->current_node_id = NULL;
-  } else {
-    node->id = NULL;
   }
 }
 
@@ -1290,7 +1279,6 @@ void nr_txn_destroy_fields(nrtxn_t* txn) {
   nr_free(txn->path);
   nr_free(txn->name);
   nr_free(txn->agent_run_id);
-  nr_free(txn->current_node_id);
 
   nr_free(txn->cat.inbound_guid);
   nr_free(txn->cat.trip_id);
@@ -1401,12 +1389,15 @@ void nr_txn_end(nrtxn_t* txn) {
                    &txn->sys_cpu[NR_CPU_USAGE_END]);
   nr_txn_set_time(txn, &txn->root.stop_time);
 
-  duration = nr_txn_duration(txn);
-
   /* Similarly, for the segment root node, set its name and stop time,
    * needed for creating the transaction trace json. */
   txn->segment_root->name = txn->root.name;
-  txn->segment_root->stop_time = nr_get_time();
+  txn->segment_root->stop_time
+      = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
+
+  duration = nr_txn_duration(txn);
+
+  duration = nr_txn_duration(txn);
 
 #ifdef NR_CAGENT
   /* The number of nodes_used is one of the characteristics
@@ -1472,6 +1463,16 @@ void nr_txn_end(nrtxn_t* txn) {
     nr_txn_create_error_metrics(txn, txn->name);
     nr_txn_add_error_attributes(txn);
   }
+}
+
+bool nr_txn_set_timing(nrtxn_t* txn, nrtime_t start, nrtime_t duration) {
+  if (nrunlikely(NULL == txn || NULL == txn->segment_root)) {
+    return false;
+  }
+  txn->abs_start_time = start;
+  txn->segment_root->stop_time = duration;
+
+  return true;
 }
 
 nr_status_t nr_txn_set_path(const char* whence,
@@ -2365,16 +2366,32 @@ double nr_txn_start_time_secs(const nrtxn_t* txn) {
 
 nrtime_t nr_txn_start_time(const nrtxn_t* txn) {
 #ifdef NR_CAGENT
-  if (NULL == txn || NULL == txn->segment_root) {
+  if (NULL == txn) {
     return 0;
   }
-  return txn->segment_root->start_time;
+  return txn->abs_start_time;
 #else
   if (NULL == txn) {
     return 0;
   }
   return txn->root.start_time.when;
 #endif /* NR_CAGENT */
+}
+
+nrtime_t nr_txn_time_rel_to_abs(const nrtxn_t* txn,
+                                const nrtime_t relative_time) {
+  if (nrunlikely(NULL == txn)) {
+    return relative_time;
+  }
+  return txn->abs_start_time + relative_time;
+}
+
+nrtime_t nr_txn_time_abs_to_rel(const nrtxn_t* txn,
+                                const nrtime_t absolute_time) {
+  if (nrunlikely(NULL == txn)) {
+    return absolute_time;
+  }
+  return nr_time_duration(txn->abs_start_time, absolute_time);
 }
 
 void nr_txn_add_file_naming_pattern(nrtxn_t* txn, const char* user_pattern) {
@@ -2748,6 +2765,7 @@ bool nr_txn_should_create_span_events(const nrtxn_t* txn) {
 char* nr_txn_create_distributed_trace_payload(nrtxn_t* txn) {
   nr_distributed_trace_payload_t* payload;
   char* text = NULL;
+  nr_segment_t* current_segment;
 
   if (NULL == txn) {
     goto end;
@@ -2770,47 +2788,19 @@ char* nr_txn_create_distributed_trace_payload(nrtxn_t* txn) {
   }
 
   /*
-   * span = segment = trace node
-   *
-   * Maybe one day, the id of the current span can be obtained in a clear and
-   * concise way:
-   *
-   *   nr_distributed_trace_set_guid(txn->distributed_trace,
-   *                                 nr_txn_current_span_id(txn));
-   *
-   * In the meantime, a workaround has to be used:
-   *
-   *  1. A new guid is assigned to txn->current_node_id, the current
-   *     time is assigned to txn->current_node_time.
-   *     txn->current_node_id is used as the guid (current span id) for the DT
-   *     payload.
-   *  2. When a new trace node is created, it is checked whether
-   *     txn->current_node_time falls in between the start and stop
-   *     times of the trace node. If so, the trace node represents the
-   *     current span and txn->current_node_id gets assigned to this trace node.
-   *
-   * This works for the following reasons:
-   *
-   *  - A segment is created only when it ends.
-   *  - As a DT payload is created in the current segment, the current segment
-   *    is an external segment.
-   *  - Currently only DT auto-instrumentation of certain PHP calls (e. g.
-   *    file_get_contents, curl_exec) is supported.
-   *  - The segments for those calls don't have children, but are leaves of the
-   *    segment tree.
-   *  - Due to the nature of the transaction tracer, every child segment ends
-   *    before its parent.
-   *  - Thus, the current segment is a leave in the segment tree, and
-   *    the next segment/trace node to be created is the current
-   *    segment.
+   * The span event identifier needs to be the same as the distributed trace
+   * guid. See:
+   * https://source.datanerd.us/agents/agent-specs/blob/master/Distributed-Tracing.md#guid
    */
-  if (NULL == txn->current_node_id) {
-    txn->current_node_id = nr_guid_create(txn->rnd);
-    txn->current_node_time = nr_get_time();
-  }
-
   if (nr_txn_should_create_span_events(txn)) {
-    nr_distributed_trace_set_guid(txn->distributed_trace, txn->current_node_id);
+    current_segment = nr_txn_get_current_segment(txn);
+    if (NULL == current_segment) {
+      return NULL;
+    }
+    if (NULL == current_segment->id) {
+      current_segment->id = nr_guid_create(txn->rnd);
+    }
+    nr_distributed_trace_set_guid(txn->distributed_trace, current_segment->id);
   }
 
   payload = nr_distributed_trace_payload_create(

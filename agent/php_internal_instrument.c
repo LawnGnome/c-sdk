@@ -19,6 +19,8 @@
 #include "nr_datastore_instance.h"
 #include "nr_explain.h"
 #include "nr_header.h"
+#include "nr_segment_datastore.h"
+#include "nr_segment_external.h"
 #include "nr_txn.h"
 #include "util_logging.h"
 #include "util_strings.h"
@@ -470,11 +472,11 @@ NR_INNER_WRAPPER(mysql_connect) {
  * functions. This is the inner wrapper function for most mysql functions.
  */
 NR_INNER_WRAPPER(mysql_query) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   zval* mysql = NULL;
   int zcaught = 0;
+  nr_segment_t* segment;
   nr_datastore_instance_t* instance;
 
   if (FAILURE
@@ -487,15 +489,15 @@ NR_INNER_WRAPPER(mysql_query) {
     return;
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
   instance = nr_php_mysql_retrieve_datastore_instance(mysql TSRMLS_CC);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_MYSQL, instance TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_MYSQL, instance TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -517,13 +519,13 @@ NR_INNER_WRAPPER(mysql_query) {
  * $link_identifier ] )
  */
 NR_INNER_WRAPPER(mysql_db_query) {
-  nrtxntime_t start;
   char* sqlstr;
   char* dbstr;
   nr_string_len_t dblen;
   nr_string_len_t sqlstrlen;
   zval* mysql = NULL;
   int zcaught = 0;
+  nr_segment_t* segment;
   nr_datastore_instance_t* instance;
 
   if (FAILURE
@@ -536,7 +538,7 @@ NR_INNER_WRAPPER(mysql_db_query) {
     return;
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
@@ -544,8 +546,8 @@ NR_INNER_WRAPPER(mysql_db_query) {
   instance = nr_php_mysql_retrieve_datastore_instance(mysql TSRMLS_CC);
   nr_datastore_instance_set_database_name(instance, dbstr);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_MYSQL, instance TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_MYSQL, instance TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -863,6 +865,7 @@ NR_INNER_WRAPPER(mysqli_general_query) {
   zval* mysqli_obj = 0;
   nr_explain_plan_t* plan = NULL;
   int zcaught = 0;
+  nr_segment_t* segment;
   nr_datastore_instance_t* instance;
 
   /*
@@ -887,7 +890,7 @@ NR_INNER_WRAPPER(mysqli_general_query) {
     }
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
@@ -902,8 +905,8 @@ NR_INNER_WRAPPER(mysqli_general_query) {
                                        sqlstrlen, &start, &stop TSRMLS_CC);
   }
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, plan,
-                          NR_DATASTORE_MYSQL, instance TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, plan,
+                             NR_DATASTORE_MYSQL, instance TSRMLS_CC);
 
   nr_explain_plan_destroy(&plan);
 
@@ -984,13 +987,13 @@ static void nr_php_prepared_statement_save(const zval* obj,
 }
 
 NR_INNER_WRAPPER(pdostatement_execute) {
-  nrtxntime_t start;
   nrtxntime_t stop;
   zval* stmt_obj = 0;
   zval* parameters = 0;
   const char* sqlstr;
   int sqlstrlen;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   /*
    * It's immaterial if this fails: if there aren't any parameters, we proceed
@@ -1005,15 +1008,15 @@ NR_INNER_WRAPPER(pdostatement_execute) {
   sqlstr = nr_php_prepared_statement_find(stmt_obj, "pdo" TSRMLS_CC);
   sqlstrlen = nr_strlen(sqlstr);
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
   nr_txn_set_time(NRPRG(txn), &stop);
 
-  nr_php_pdo_end_node_sql(NRPRG(txn), &start, &stop, sqlstr, sqlstrlen,
-                          stmt_obj, parameters, 1 TSRMLS_CC);
+  nr_php_pdo_end_segment_sql(segment, &stop, sqlstr, sqlstrlen, stmt_obj,
+                             parameters, true TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1131,6 +1134,7 @@ NR_INNER_WRAPPER(mysqli_stmt_execute) {
   const char* sqlstr;
   int sqlstrlen;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   if (FAILURE
       == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
@@ -1140,7 +1144,7 @@ NR_INNER_WRAPPER(mysqli_stmt_execute) {
   sqlstr = nr_php_prepared_statement_find(stmt_obj, "mysqli" TSRMLS_CC);
   sqlstrlen = nr_strlen(sqlstr);
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
@@ -1153,8 +1157,8 @@ NR_INNER_WRAPPER(mysqli_stmt_execute) {
                                       &start, &stop TSRMLS_CC);
   }
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, plan,
-                          NR_DATASTORE_MYSQL, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, plan,
+                             NR_DATASTORE_MYSQL, NULL TSRMLS_CC);
 
   nr_explain_plan_destroy(&plan);
 
@@ -1339,23 +1343,23 @@ static void nr_php_instrument_datastore_operation_call(
     nr_datastore_instance_t* instance,
     INTERNAL_FUNCTION_PARAMETERS) {
   int zcaught = 0;
-  nr_node_datastore_params_t params = {
+  nr_segment_t* segment;
+  nr_segment_datastore_params_t params = {
     .datastore = {
       .type = datastore,
     },
-    .operation = nr_strdup (operation),
+    .operation = nr_strdup(operation),
     .instance  = instance,
     .callbacks = {
       .backtrace = nr_php_backtrace_callback,
     },
   };
 
-  nr_txn_set_time(NRPRG(txn), &params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
-  nr_txn_set_time(NRPRG(txn), &params.stop);
 
-  nr_txn_end_node_datastore(NRPRG(txn), &params, NULL);
+  nr_segment_datastore_end(segment, &params);
 
   nr_free(params.operation);
 
@@ -1540,7 +1544,6 @@ NR_INNER_WRAPPER(pg_connect) {
  *   resource pg_execute(resource $conn, string $stmtname, array params)
  */
 NR_INNER_WRAPPER(pg_execute) {
-  nrtxntime_t start;
   zval* conn = NULL;
   zval* params = NULL;
   const char* query = NULL;
@@ -1550,6 +1553,7 @@ NR_INNER_WRAPPER(pg_execute) {
   int argc;
   int rv;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   rv = FAILURE;
   argc = ZEND_NUM_ARGS();
@@ -1587,11 +1591,11 @@ NR_INNER_WRAPPER(pg_execute) {
     query = NR_PHP_PREPARED_STATEMENT_UNKNOWN;
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, query, nr_strlen(query),
-                          NULL, NR_DATASTORE_POSTGRES, instance TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, query, nr_strlen(query), NULL,
+                             NR_DATASTORE_POSTGRES, instance TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1651,13 +1655,13 @@ NR_INNER_WRAPPER(pg_prepare) {
  *   pg_query (string) and pg_query (resource, string)
  */
 NR_INNER_WRAPPER(pg_query) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   int argc;
   zval* pgsql_link = 0;
   nr_datastore_instance_t* instance = NULL;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   argc = ZEND_NUM_ARGS();
 
@@ -1685,13 +1689,12 @@ NR_INNER_WRAPPER(pg_query) {
    */
   instance = nr_php_pgsql_retrieve_datastore_instance(pgsql_link TSRMLS_CC);
 
-  nr_txn_set_time(NRPRG(txn), &start);
-
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_POSTGRES, instance TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_POSTGRES, instance TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1714,13 +1717,13 @@ NR_INNER_WRAPPER(pg_query) {
  * full SQL that the server will see.
  */
 NR_INNER_WRAPPER(pg_query_params) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   int argc;
   zval* pgsql_link = 0;
   zval* param_array;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   argc = ZEND_NUM_ARGS();
   if (argc == 2) {
@@ -1741,13 +1744,13 @@ NR_INNER_WRAPPER(pg_query_params) {
     }
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_POSTGRES, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_POSTGRES, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1762,7 +1765,6 @@ NR_INNER_WRAPPER(pg_query_params) {
  * and related query functions
  */
 NR_INNER_WRAPPER(sqlite_query_function) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   zend_long ignores;
@@ -1770,6 +1772,7 @@ NR_INNER_WRAPPER(sqlite_query_function) {
   zval* obj;
   zval* zdb;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   obj = NR_PHP_INTERNAL_FN_THIS;
   if (obj) {
@@ -1795,13 +1798,13 @@ NR_INNER_WRAPPER(sqlite_query_function) {
     }
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1815,13 +1818,13 @@ NR_INNER_WRAPPER(sqlite_query_function) {
  *   sqlite_query (string, resource, errormsg)
  */
 NR_INNER_WRAPPER(sqlite_exec_or_query) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   zval* errstr = 0;
   zval* obj;
   zval* zdb;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   obj = NR_PHP_INTERNAL_FN_THIS;
   if (obj) {
@@ -1847,13 +1850,13 @@ NR_INNER_WRAPPER(sqlite_exec_or_query) {
     }
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1867,10 +1870,10 @@ NR_INNER_WRAPPER(sqlite_exec_or_query) {
  *   sqlite3::exec
  */
 NR_INNER_WRAPPER(sqlite3) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   if (FAILURE
       == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
@@ -1880,13 +1883,13 @@ NR_INNER_WRAPPER(sqlite3) {
     sqlstrlen = nr_strlen(sqlstr);
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1899,12 +1902,12 @@ NR_INNER_WRAPPER(sqlite3) {
  *   sqlite3::querysingle
  */
 NR_INNER_WRAPPER(sqlite3_querysingle) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   zend_bool entire_row;
   int zcaught = 0;
   int rv;
+  nr_segment_t* segment;
 
   rv = zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
                                 ZEND_NUM_ARGS() TSRMLS_CC, "s|b", &sqlstr,
@@ -1915,13 +1918,13 @@ NR_INNER_WRAPPER(sqlite3_querysingle) {
     sqlstrlen = nr_strlen(sqlstr);
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_SQLITE, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -1979,10 +1982,10 @@ NR_INNER_WRAPPER(pdo_construct) {
  *   PDO::exec (string)
  */
 NR_INNER_WRAPPER(pdo_exec) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   if (FAILURE
       == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
@@ -1992,13 +1995,13 @@ NR_INNER_WRAPPER(pdo_exec) {
     sqlstrlen = nr_strlen(sqlstr);
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_pdo_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen,
-                          NR_PHP_INTERNAL_FN_THIS, NULL, 0 TSRMLS_CC);
+  nr_php_pdo_end_segment_sql(segment, NULL, sqlstr, sqlstrlen,
+                             NR_PHP_INTERNAL_FN_THIS, NULL, false TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -2010,11 +2013,11 @@ NR_INNER_WRAPPER(pdo_exec) {
  * Handle PDO::query
  */
 NR_INNER_WRAPPER(pdo_query) {
-  nrtxntime_t start;
   nrtxntime_t stop;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   if (0 == ZEND_NUM_ARGS()) {
     nr_wrapper->oldhandler(INTERNAL_FUNCTION_PARAM_PASSTHRU);
@@ -2035,15 +2038,15 @@ NR_INNER_WRAPPER(pdo_query) {
     sqlstrlen = nr_strlen(sqlstr);
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
   nr_txn_set_time(NRPRG(txn), &stop);
 
-  nr_php_pdo_end_node_sql(NRPRG(txn), &start, &stop, sqlstr, sqlstrlen,
-                          return_value, NULL, 1 TSRMLS_CC);
+  nr_php_pdo_end_segment_sql(segment, &stop, sqlstr, sqlstrlen, return_value,
+                             NULL, true TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -2129,7 +2132,8 @@ NR_INNER_WRAPPER(curl_init) {
  * mixed curl_exec ( resource $ch )
  */
 NR_INNER_WRAPPER(curl_exec) {
-  nr_node_external_params_t external_params = {.library = "curl"};
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params = {.library = "curl"};
   zval* curlres;
   char* method;
   int should_instrument = 0;
@@ -2146,15 +2150,14 @@ NR_INNER_WRAPPER(curl_exec) {
 
   nr_php_curl_exec_set_httpheaders(curlres TSRMLS_CC);
 
-  external_params.url = nr_php_curl_get_url(curlres TSRMLS_CC);
-  if (nr_php_curl_should_instrument_proto(external_params.url)
+  external_params.uri = nr_php_curl_get_url(curlres TSRMLS_CC);
+  if (nr_php_curl_should_instrument_proto(external_params.uri)
       && (0 == nr_guzzle_in_call_stack(TSRMLS_C))) {
     should_instrument = 1;
-    external_params.urllen = nr_strlen(external_params.url);
   }
 
   if (should_instrument) {
-    nr_txn_set_time(NRPRG(txn), &external_params.start);
+    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
     method = nr_php_curl_exec_get_method(curlres TSRMLS_CC);
     if (NULL == method) {
       method = "GET";
@@ -2172,14 +2175,13 @@ NR_INNER_WRAPPER(curl_exec) {
   }
 
   if (should_instrument) {
-    nr_txn_set_time(NRPRG(txn), &external_params.stop);
     external_params.encoded_response_header
         = NRPRG(curl_exec_x_newrelic_app_data);
-    nr_txn_end_node_external(NRPRG(txn), &external_params);
+    nr_segment_external_end(segment, &external_params);
   }
 
   nr_free(NRPRG(curl_exec_x_newrelic_app_data));
-  nr_free(external_params.url);
+  nr_free(external_params.uri);
   nr_free(external_params.procedure);
 
   if (zcaught) {
@@ -2236,12 +2238,12 @@ leave:
  * $batch_size = 0]] )
  */
 NR_INNER_WRAPPER(mssql_query) {
-  nrtxntime_t start;
   char* sqlstr;
   nr_string_len_t sqlstrlen;
   zval** ignore1;
   zval** ignore2;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   if (FAILURE
       == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
@@ -2251,13 +2253,13 @@ NR_INNER_WRAPPER(mssql_query) {
     return;
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_MSSQL, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_MSSQL, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -2282,11 +2284,12 @@ NR_INNER_WRAPPER(mongocollection_15) {
   int collection_name_len = 0;
   zval* collectionnamez = 0;
   zval* this_var = 0;
-  nr_node_datastore_params_t params = {
+  nr_segment_t* segment;
+  nr_segment_datastore_params_t params = {
     .datastore = {
       .type = NR_DATASTORE_MONGODB,
     },
-    .operation = nr_strdup (nr_wrapper->extra),
+    .operation = nr_strdup(nr_wrapper->extra),
     .callbacks = {
       .backtrace = nr_php_backtrace_callback,
     },
@@ -2310,12 +2313,10 @@ NR_INNER_WRAPPER(mongocollection_15) {
 
   params.collection = collection_name;
 
-  nr_txn_set_time(NRPRG(txn), &params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
-  nr_txn_set_time(NRPRG(txn), &params.stop);
-
-  nr_txn_end_node_datastore(NRPRG(txn), &params, NULL);
+  nr_segment_datastore_end(segment, &params);
 
   nr_free(params.operation);
 
@@ -2386,12 +2387,12 @@ NR_INNER_WRAPPER(oci_parse) {
  * This is the inner wrapper function for this Oracle function.
  */
 NR_INNER_WRAPPER(oci_execute) {
-  nrtxntime_t start;
   zval* stmt_obj = 0;
   zend_long ignore1;
   const char* sqlstr;
   int sqlstrlen;
   int zcaught = 0;
+  nr_segment_t* segment;
 
   if (FAILURE
       == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
@@ -2404,13 +2405,13 @@ NR_INNER_WRAPPER(oci_execute) {
   sqlstr = nr_php_prepared_statement_find(stmt_obj, "oci" TSRMLS_CC);
   sqlstrlen = nr_strlen(sqlstr);
 
-  nr_txn_set_time(NRPRG(txn), &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_php_txn_end_node_sql(NRPRG(txn), &start, NULL, sqlstr, sqlstrlen, NULL,
-                          NR_DATASTORE_ORACLE, NULL TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, NULL, sqlstr, sqlstrlen, NULL,
+                             NR_DATASTORE_ORACLE, NULL TSRMLS_CC);
 
   if (zcaught) {
     zend_bailout();
@@ -2430,7 +2431,9 @@ NR_INNER_WRAPPER(oci_execute) {
 NR_INNER_WRAPPER(file_get_contents) {
   nr_status_t rv;
   int zend_rv;
-  nr_node_external_params_t external_params = {.library = "file_get_contents"};
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params
+      = {.library = "file_get_contents"};
   zval* file_zval = 0;
   zval* use_include_path = 0;
   zval* context = 0;
@@ -2484,19 +2487,19 @@ NR_INNER_WRAPPER(file_get_contents) {
   }
 
   nr_php_file_get_contents_add_headers(context TSRMLS_CC);
-  external_params.url
+  external_params.uri
       = nr_strndup(Z_STRVAL_P(file_zval), Z_STRLEN_P(file_zval));
-  external_params.urllen = (size_t)Z_STRLEN_P(file_zval);
 
-  nr_txn_set_time(NRPRG(txn), &external_params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
-
   external_params.encoded_response_header
       = nr_php_file_get_contents_response_header(TSRMLS_C);
+
+  nr_segment_external_end(segment, &external_params);
+
   nr_php_file_get_contents_remove_headers(context TSRMLS_CC);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
@@ -2506,10 +2509,9 @@ NR_INNER_WRAPPER(file_get_contents) {
         X_NEWRELIC_APP_DATA, NRP_CAT(external_params.encoded_response_header));
   }
 
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
   nr_free(external_params.procedure);
   nr_free(external_params.encoded_response_header);
-  nr_free(external_params.url);
+  nr_free(external_params.uri);
 
   if (zcaught) {
     zend_bailout();
@@ -2529,21 +2531,18 @@ NR_INNER_WRAPPER(curl_multi_exec) {
   int zcaught = 0;
 
   if (!nr_guzzle_in_call_stack(TSRMLS_C)) {
-    nr_node_external_params_t external_params = {
-        .do_rollup = true,
-        .library = "curl_multi_exec",
-        .url = "curl_multi_exec",
-        .urllen = sizeof("curl_multi_exec") - 1,
-    };
+    nr_segment_t* segment;
+    nr_segment_external_params_t external_params
+        = {.do_rollup = true,
+           .library = "curl_multi_exec",
+           .uri = "curl_multi_exec"};
 
-    nr_txn_set_time(NRPRG(txn), &external_params.start);
+    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
     zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                        INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-    nr_txn_set_time(NRPRG(txn), &external_params.stop);
-
-    nr_txn_end_node_external(NRPRG(txn), &external_params);
+    nr_segment_external_end(segment, &external_params);
   } else {
     zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                        INTERNAL_FUNCTION_PARAM_PASSTHRU);
@@ -2561,23 +2560,23 @@ NR_INNER_WRAPPER(curl_multi_exec) {
 NR_INNER_WRAPPER(httprequest_send) {
   int zcaught = 0;
   zval* this_var = 0;
-  nr_node_external_params_t external_params = {.library = "pecl_http 1"};
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params = {.library = "pecl_http 1"};
 
   this_var = NR_PHP_INTERNAL_FN_THIS;
 
   nr_php_httprequest_send_request_headers(this_var TSRMLS_CC);
-  external_params.url = nr_php_httprequest_send_get_url(this_var TSRMLS_CC);
-  external_params.urllen = nr_strlen(external_params.url);
+  external_params.uri = nr_php_httprequest_send_get_url(this_var TSRMLS_CC);
 
-  nr_txn_set_time(NRPRG(txn), &external_params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
-
   external_params.encoded_response_header
       = nr_php_httprequest_send_response_header(this_var TSRMLS_CC);
+
+  nr_segment_external_end(segment, &external_params);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
     nrl_verbosedebug(
@@ -2585,9 +2584,8 @@ NR_INNER_WRAPPER(httprequest_send) {
         X_NEWRELIC_APP_DATA, NRP_CAT(external_params.encoded_response_header));
   }
 
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
   nr_free(external_params.encoded_response_header);
-  nr_free(external_params.url);
+  nr_free(external_params.uri);
 
   if (zcaught) {
     zend_bailout();
@@ -2601,7 +2599,9 @@ NR_INNER_WRAPPER(httprequest_send) {
 NR_INNER_WRAPPER(soapclient_dorequest) {
   int rv;
   int zcaught;
-  nr_node_external_params_t external_params = {.library = "SoapClient"};
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params
+      = {.uri = NULL, .library = "SoapClient"};
   nr_string_len_t buf_len = 0;
   nr_string_len_t loc_len = 0;
   nr_string_len_t action_len = 0;
@@ -2616,15 +2616,15 @@ NR_INNER_WRAPPER(soapclient_dorequest) {
       &buf_len, &loc, &loc_len, &action, &action_len, &version, &one_way);
 
   if (FAILURE != rv) {
-    external_params.url = loc;
-    external_params.urllen = (size_t)loc_len;
+    external_params.uri = nr_strndup(loc, loc_len);
   }
 
-  nr_txn_set_time(NRPRG(txn), &external_params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
+  nr_segment_external_end(segment, &external_params);
+
+  nr_free(external_params.uri);
 
   if (zcaught) {
     zend_bailout();

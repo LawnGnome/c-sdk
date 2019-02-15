@@ -92,8 +92,16 @@ typedef struct _nr_segment_t {
   nr_segment_color_t color;
 
   /* Generic segment fields. */
-  nrtime_t start_time;  /* Start time for node */
-  nrtime_t stop_time;   /* Stop time for node */
+
+  /* The start_time and stop_time of a segment are relative times.  For each
+   * field, a value of 0 is equal to the absolute start time of the transaction.
+   */
+
+  nrtime_t start_time; /* Start time for node, relative to the start of
+                          the transaction. */
+  nrtime_t stop_time;  /* Stop time for node, relative to the start of the
+                          transaction. */
+
   unsigned int count;   /* N+1 rollup count */
   int name;             /* Node name (pooled string index) */
   int async_context;    /* Execution context (pooled string index) */
@@ -274,8 +282,12 @@ extern bool nr_segment_set_parent(nr_segment_t* segment, nr_segment_t* parent);
  * Purpose : Set the timing of a segment.
  *
  * Params  : 1. The pointer to the segment to be retimed.
- *           2. The new start time for the segment.
+ *           2. The new start time for the segment, in microseconds since
+ *              the start of the transaction.
  *           3. The new duration for the segment.
+ *
+ * Notes   : A start value of 0 means that the segment started at the same
+ *           time as its transaction.
  *
  * Returns : true if successful, false otherwise.
  */
@@ -391,6 +403,24 @@ extern void nr_segment_heap_to_set(nr_minmax_heap_t* heap, nr_set_t* set);
  * Params  : 1. A pointer to the root.
  *
  */
-void nr_segment_destroy(nr_segment_t* root);
+extern void nr_segment_destroy(nr_segment_t* root);
+
+/*
+ * Purpose : Discard and free a single segment.
+ *
+ * Params  : 1. The address of a segment.
+ *
+ * Returns : true if the segment was successfully discarded.
+ *
+ * Notes   : Discarding a segment removes a single segment from the segment
+ *           tree. Children of the discarded segment are re-parented with the
+ *           parent of the segment.
+ *
+ *           nr_segment_end must be called on the segment before it is
+ *           discarded.
+ *
+ *           A segment without a parent (a root segment) cannot be discarded.
+ */
+extern bool nr_segment_discard(nr_segment_t** segment);
 
 #endif /* NR_SEGMENT_HDR */
