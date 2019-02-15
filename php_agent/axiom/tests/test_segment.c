@@ -58,7 +58,7 @@ static void test_segment_new_txn_with_segment_root(void) {
   nrtxn_t* txn = new_txn(0);
 
   /*
-   * Test : Normal operation.  When a new transaction is started, affirm
+   * Test : Normal operation. When a new transaction is started, affirm
    * that it has all the necessary initialization for maintaining
    * a tree of segments.
    */
@@ -79,7 +79,7 @@ static void test_segment_new_txn_with_segment_root(void) {
 
   tlib_pass_if_true(
       "A new transaction's segment root must have its start time initialized",
-      0 != txn->segment_root->start_time, "Expected true");
+      0 != txn->abs_start_time, "Expected true");
 
   /* Force the call to nr_txn_end() to be successful */
   txn->status.path_is_frozen = 1;
@@ -104,15 +104,11 @@ static void test_segment_start(void) {
 
   nr_segment_t* prev_parent = NULL;
 
-  nrtxn_t txnv = {0};
+  /* Use the helper function to leverage nr_txn_begin(), install a segment_root
+   * in the transaction and set a start time */
+  nrtxn_t* txn = new_txn(0);
 
-  /* Mock up the parent stack used by the txn */
-  nr_stack_init(&txnv.parent_stack, 32);
-
-  prev_parent = nr_txn_get_current_segment(&txnv);
-  tlib_pass_if_null(
-      "Before any segments are started, the current segment must be NULL",
-      prev_parent);
+  txn->status.recording = 1;
 
   /*
    * Test : Bad parameters.
@@ -131,13 +127,13 @@ static void test_segment_start(void) {
    */
 
   /* Start a segment and affirm that it is well-formed */
-  s = nr_segment_start(&txnv, NULL, NULL);
+  s = nr_segment_start(txn, NULL, NULL);
   tlib_pass_if_not_null("Starting a segment on a valid txn must succeed", s);
 
   tlib_pass_if_ptr_equal(
       "The most-recently started segment must be the transaction's current "
       "segment",
-      nr_txn_get_current_segment(&txnv), s);
+      nr_txn_get_current_segment(txn), s);
 
   tlib_pass_if_not_null(
       "Starting a segment on a valid txn must allocate space for children",
@@ -148,24 +144,24 @@ static void test_segment_start(void) {
   tlib_pass_if_uint64_t_equal("A started segment has default type CUSTOM",
                               s->type, NR_SEGMENT_CUSTOM);
   tlib_pass_if_ptr_equal("A started segment must save its transaction", s->txn,
-                         &txnv);
+                         txn);
   tlib_fail_if_uint64_t_equal("A started segment has an initialized start time",
                               s->start_time, 0);
   tlib_pass_if_not_null("A started segment has a hash for user attributes",
                         s->user_attributes);
   tlib_pass_if_ptr_equal(
-      "A segment started with an implicit parent must have the previously "
-      "current segment as parent",
-      s->parent, prev_parent);
+      "A segment started with an implicit parent must have the transaction's"
+      " segment_root as parent",
+      s->parent, txn->segment_root);
 
   /* Start and end a second segment, t */
-  prev_parent = nr_txn_get_current_segment(&txnv);
-  t = nr_segment_start(&txnv, NULL, NULL);
+  prev_parent = nr_txn_get_current_segment(txn);
+  t = nr_segment_start(txn, NULL, NULL);
   tlib_pass_if_not_null("Starting a segment on a valid txn must succeed", t);
   tlib_pass_if_ptr_equal(
       "The most recently started segment must be the transaction's current "
       "segment",
-      nr_txn_get_current_segment(&txnv), t);
+      nr_txn_get_current_segment(txn), t);
 
   tlib_pass_if_ptr_equal(
       "A segment started with an implicit parent must have the previously "
@@ -178,16 +174,16 @@ static void test_segment_start(void) {
   tlib_pass_if_ptr_equal(
       "The most recently started segment has ended; the current segment must "
       "be its parent",
-      nr_txn_get_current_segment(&txnv), s);
+      nr_txn_get_current_segment(txn), s);
 
   /* Start a third segment.  Its sibling should be the second segment, t */
-  prev_parent = nr_txn_get_current_segment(&txnv);
-  u = nr_segment_start(&txnv, NULL, NULL);
+  prev_parent = nr_txn_get_current_segment(txn);
+  u = nr_segment_start(txn, NULL, NULL);
   tlib_pass_if_not_null("Starting a segment on a valid txn must succeed", u);
   tlib_pass_if_ptr_equal(
       "The most recently started segment must be the transaction's current "
       "segment",
-      nr_txn_get_current_segment(&txnv), u);
+      nr_txn_get_current_segment(txn), u);
 
   tlib_pass_if_ptr_equal(
       "A segment started with an implicit parent must have the previously "
@@ -212,59 +208,45 @@ static void test_segment_start(void) {
                     nr_segment_end(s), "Expected true");
 
   /* Clean up */
-  nr_segment_children_destroy_fields(&s->children);
-  nr_segment_destroy_fields(s);
-
-  nr_segment_children_destroy_fields(&t->children);
-  nr_segment_destroy_fields(t);
-
-  nr_segment_children_destroy_fields(&u->children);
-  nr_segment_destroy_fields(u);
-
-  nr_stack_destroy_fields(&txnv.parent_stack);
-
-  nr_free(s);
-  nr_free(t);
-  nr_free(u);
+  nr_txn_destroy(&txn);
 }
 
 static void test_segment_start_async(void) {
-  nr_segment_t* s = NULL;
-  nr_segment_t first_born;
-  nr_segment_t third_born;
+  nr_segment_t* s;
+  nr_segment_t* mother;
+  nr_segment_t* first_born;
+  nr_segment_t* third_born;
 
-  nrtxn_t txnv = {0};
-  nr_segment_t mother
-      = {.type = NR_SEGMENT_CUSTOM, .txn = &txnv, .parent = NULL};
+  /* Use the helper function to leverage nr_txn_begin(), install a segment_root
+   * in the transaction and set a start time */
+  nrtxn_t* txn = new_txn(0);
 
-  /* Mock up the parent stack used by the txn */
-  nr_stack_init(&txnv.parent_stack, 32);
-  txnv.trace_strings = nr_string_pool_create();
+  txn->status.recording = 1;
+
+  /* Build out a small tree of segments to test upon */
+  mother = nr_segment_start(txn, NULL, NULL);
+  first_born = nr_segment_start(txn, NULL, NULL);
 
   /*
    * Test : Bad parameters.
    */
-  s = nr_segment_start(NULL, &mother, "async_context");
+  s = nr_segment_start(NULL, mother, "async_context");
   tlib_pass_if_null("Starting a segment on a NULL txn must not succeed", s);
 
   /*
    * Test : Async operation. Starting a segment with an explicit parent,
-   * supplied as a parameter to nr_segment_start().
+   * supplied as a parameter to nr_segment_start() has the expected impact
+   * on parent and sibling relationships.
    */
-
-  /* Build a mock parent with an array of children */
-  nr_segment_children_init(&mother.children);
-  nr_segment_children_add(&mother.children, &first_born);
-
-  s = nr_segment_start(&txnv, &mother, "async_context");
+  s = nr_segment_start(txn, mother, "async_context");
   tlib_pass_if_not_null(
       "Starting a segment on a valid txn and an explicit parent must succeed",
       s);
 
-  tlib_pass_if_null(
+  tlib_pass_if_ptr_equal(
       "The most recently started, explicitly-parented segment must not alter "
       "the transaction's current segment",
-      nr_txn_get_current_segment(&txnv));
+      nr_txn_get_current_segment(txn), first_born);
 
   tlib_pass_if_not_null(
       "Starting a segment on a valid txn must allocate space for children",
@@ -272,7 +254,7 @@ static void test_segment_start_async(void) {
   tlib_pass_if_uint64_t_equal("A started segment has default type CUSTOM",
                               s->type, NR_SEGMENT_CUSTOM);
   tlib_pass_if_ptr_equal("A started segment must save its transaction", s->txn,
-                         &txnv);
+                         txn);
   tlib_fail_if_uint64_t_equal("A started segment has an initialized start time",
                               s->start_time, 0);
   tlib_pass_if_not_null("A started segment has a hash for user attributes",
@@ -284,30 +266,27 @@ static void test_segment_start_async(void) {
   tlib_pass_if_ptr_equal(
       "A segment started with an explicit parent must have the explicit "
       "parent",
-      s->parent, &mother);
+      s->parent, mother);
 
   tlib_pass_if_ptr_equal(
       "A segment started with an explicit parent must have the explicit "
       "previous siblings",
-      nr_segment_children_get_prev(&mother.children, s), &first_born);
+      nr_segment_children_get_prev(&(mother->children), s), first_born);
 
-  nr_segment_children_add(&mother.children, &third_born);
+  /*
+   * Test : Async operation. Starting a segment with an explicit parent,
+   * supplied as a parameter to nr_segment_start() has the expected impact
+   * on subsequent sibling relationships.
+   */
+  nr_segment_end(first_born);
+  third_born = nr_segment_start(txn, NULL, NULL);
   tlib_pass_if_ptr_equal(
       "A segment started with an explicit parent must have the explicit "
       "next siblings",
-      nr_segment_children_get_next(&mother.children, s), &third_born);
+      nr_segment_children_get_next(&(mother->children), s), third_born);
 
   /* Clean up */
-  nr_segment_children_destroy_fields(&mother.children);
-  nr_segment_destroy_fields(&mother);
-
-  nr_segment_children_destroy_fields(&s->children);
-  nr_segment_destroy_fields(s);
-
-  nr_stack_destroy_fields(&txnv.parent_stack);
-  nr_string_pool_destroy(&txnv.trace_strings);
-
-  nr_free(s);
+  nr_txn_destroy(&txn);
 }
 
 static void test_set_name(void) {
@@ -316,6 +295,7 @@ static void test_set_name(void) {
       = {.type = NR_SEGMENT_CUSTOM, .txn = &txnv, .parent = NULL};
 
   /* Mock up transaction */
+  txnv.status.recording = 1;
   txnv.trace_strings = nr_string_pool_create();
 
   /*
@@ -1151,9 +1131,103 @@ static void test_segment_destroy_tree(void) {
   nr_segment_destroy(grandmother);
 }
 
+static void test_segment_discard(void) {
+  nrtxn_t txn = {0};
+  nr_segment_t* A;
+  nr_segment_t* B;
+  nr_segment_t* C;
+  nr_segment_t* D;
+
+  txn.status.recording = 1;
+
+  /* Bad parameters. */
+  tlib_pass_if_false("NULL address", nr_segment_discard(NULL),
+                     "expected false");
+  tlib_pass_if_false("NULL segment", nr_segment_discard(&txn.segment_root),
+                     "expected false");
+
+  txn.segment_root = nr_zalloc(sizeof(nr_segment_t));
+
+  tlib_pass_if_false("NULL segment pointer to txn",
+                     nr_segment_discard(&txn.segment_root), "expected false");
+
+  txn.segment_root->txn = &txn;
+  txn.segment_count = 1;
+
+  /* Build a mock tree of segments
+   *
+   *          A
+   *          |
+   *          B
+   *        /  \
+   *       C    D
+   */
+
+  A = txn.segment_root;
+  B = nr_segment_start(&txn, A, NULL);
+  C = nr_segment_start(&txn, B, NULL);
+  nr_segment_end(C);
+  D = nr_segment_start(&txn, B, NULL);
+  nr_segment_end(D);
+  nr_segment_end(B);
+
+  tlib_pass_if_size_t_equal("segment count", 4, txn.segment_count);
+
+  /* Allocate some fields, so we know those are getting destroyed. */
+  A->id = nr_strdup("A");
+  B->id = nr_strdup("B");
+  C->id = nr_strdup("C");
+  D->id = nr_strdup("D");
+
+  /* Deleting the root node of a tree must not work.
+   *
+   * delete -> A              A
+   *           |              |
+   *           B      =>      B
+   *         /  \            / \
+   *        C    D          C   D
+   */
+  tlib_pass_if_false("Don't discard root node", nr_segment_discard(&A),
+                     "expected false");
+  tlib_pass_if_size_t_equal("segment count", 4, txn.segment_count);
+
+  /* Deleting B must reparent C and D.
+   *
+   *           A
+   *           |              A
+   * delete -> B      =>     / \
+   *         /  \           C   D
+   *        C    D
+   */
+  tlib_pass_if_true("delete node with kids", nr_segment_discard(&B),
+                    "expected true");
+  tlib_pass_if_size_t_equal("A has two children", 2,
+                            nr_vector_size(&A->children));
+  tlib_pass_if_ptr_equal("A is C's parent", C->parent, A);
+  tlib_pass_if_ptr_equal("A is D's parent", D->parent, A);
+  tlib_pass_if_ptr_equal("B is NULL", B, NULL);
+  tlib_pass_if_size_t_equal("segment count", 3, txn.segment_count);
+
+  /* Deleting  a leaf node.
+   *
+   *              A           A
+   *            /  \    =>    |
+   * delete -> C    D         D
+   */
+  tlib_pass_if_true("delete leaf node", nr_segment_discard(&C),
+                    "expected true");
+  tlib_pass_if_size_t_equal("A has one child", 1, nr_vector_size(&A->children));
+  tlib_pass_if_ptr_equal("A is D's parent", D->parent, A);
+  tlib_pass_if_ptr_equal("C is NULL", B, NULL);
+  tlib_pass_if_size_t_equal("segment count", 2, txn.segment_count);
+
+  nr_segment_destroy(A);
+}
+
 static void test_segment_tree_to_heap(void) {
   nr_minmax_heap_t* heap;
-  nr_segment_tree_to_heap_metadata_t heaps = {.trace_heap = NULL, .span_heap = NULL};
+  nr_segment_tree_to_heap_metadata_t heaps
+      = {.trace_heap = NULL, .span_heap = NULL};
 
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
   nr_segment_t* mini = nr_zalloc(sizeof(nr_segment_t));
@@ -1216,8 +1290,10 @@ static void test_segment_tree_to_heap(void) {
   /*
    * Test : Normal operation.  Iterate over a tree and make a heap.
    */
-  heaps.trace_heap = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
-  heaps.span_heap = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
+  heaps.trace_heap
+      = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
+  heaps.span_heap
+      = nr_segment_heap_create(2, nr_segment_wrapped_duration_comparator);
   nr_segment_tree_to_heap(root, &heaps);
 
   tlib_pass_if_ptr_equal(
@@ -1225,18 +1301,18 @@ static void test_segment_tree_to_heap(void) {
       "trace heap",
       nr_minmax_heap_peek_min(heaps.trace_heap), maxi);
   tlib_pass_if_ptr_equal(
-          "After inserting the maxi segment, it must be the min value in the "
-          "span heap",
-          nr_minmax_heap_peek_min(heaps.span_heap), maxi);
+      "After inserting the maxi segment, it must be the min value in the "
+      "span heap",
+      nr_minmax_heap_peek_min(heaps.span_heap), maxi);
 
   tlib_pass_if_ptr_equal(
       "After inserting the root segment, it must be the max value in the "
       "trace heap",
       nr_minmax_heap_peek_max(heaps.trace_heap), root);
   tlib_pass_if_ptr_equal(
-          "After inserting the root segment, it must be the max value in the "
-          "span heap",
-          nr_minmax_heap_peek_max(heaps.span_heap), root);
+      "After inserting the root segment, it must be the max value in the "
+      "span heap",
+      nr_minmax_heap_peek_max(heaps.span_heap), root);
 
   /* Clean up */
   nr_minmax_heap_destroy(&heap);
@@ -1272,7 +1348,8 @@ static void test_segment_set(void) {
 
 static void test_segment_heap_to_set(void) {
   nr_set_t* set;
-  nr_segment_tree_to_heap_metadata_t heaps = {.trace_heap = NULL, .span_heap = NULL};
+  nr_segment_tree_to_heap_metadata_t heaps
+      = {.trace_heap = NULL, .span_heap = NULL};
 
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
   nr_segment_t* mini = nr_zalloc(sizeof(nr_segment_t));
@@ -1298,7 +1375,8 @@ static void test_segment_heap_to_set(void) {
   nr_segment_add_child(root, maxi);
 
   /* Build a heap */
-  heaps.trace_heap = nr_segment_heap_create(4, nr_segment_wrapped_duration_comparator);
+  heaps.trace_heap
+      = nr_segment_heap_create(4, nr_segment_wrapped_duration_comparator);
   nr_segment_tree_to_heap(root, &heaps);
 
   /* Prepare a set for population */
@@ -1362,10 +1440,12 @@ static void test_segment_set_parent_cycle(void) {
   nr_segment_children_init(&D.children);
   nr_segment_children_init(&E.children);
 
-  tlib_pass_if_true("root -> A", nr_segment_set_parent(&A, &root), "expected true");
+  tlib_pass_if_true("root -> A", nr_segment_set_parent(&A, &root),
+                    "expected true");
   tlib_pass_if_true("A -> B", nr_segment_set_parent(&B, &A), "expected true");
   tlib_pass_if_true("A -> C", nr_segment_set_parent(&C, &A), "expected true");
-  tlib_pass_if_true("root -> D", nr_segment_set_parent(&D, &root), "expected true");
+  tlib_pass_if_true("root -> D", nr_segment_set_parent(&D, &root),
+                    "expected true");
   tlib_pass_if_true("D -> E", nr_segment_set_parent(&E, &D), "expected true");
 
   tlib_pass_if_false("Cycle must not succeed E->Root",
@@ -1401,6 +1481,30 @@ static void test_segment_set_parent_cycle(void) {
   nr_segment_destroy_fields(&E);
 }
 
+static void test_segment_no_recording(void) {
+  nrtxn_t txn = {0};
+  nr_segment_t* seg;
+
+  txn.status.recording = 0;
+
+  /* Recording is off, no segment is started. */
+  seg = nr_segment_start(&txn, NULL, NULL);
+  tlib_pass_if_null("recording off, no segment", seg);
+
+  /* Test that other segment functions don't crash at NULL inputs. */
+  nr_segment_destroy_fields(seg);
+  nr_segment_set_custom(seg);
+  nr_segment_set_datastore(seg, &(nr_segment_datastore_t){0});
+  nr_segment_set_external(seg, &(nr_segment_external_t){0});
+  nr_segment_add_child(seg, &(nr_segment_t){0});
+  nr_segment_add_metric(seg, "metric", false);
+  nr_segment_set_name(seg, "name");
+  nr_segment_set_parent(seg, &(nr_segment_t){0});
+  nr_segment_set_timing(seg, 1, 2);
+  nr_segment_end(seg);
+  nr_segment_destroy(seg);
+}
+
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 2, .state_size = 0};
 
 void test_main(void* p NRUNUSED) {
@@ -1425,8 +1529,10 @@ void test_main(void* p NRUNUSED) {
   test_segment_iterate_with_post_callback();
   test_segment_destroy();
   test_segment_destroy_tree();
+  test_segment_discard();
   test_segment_tree_to_heap();
   test_segment_set();
   test_segment_heap_to_set();
   test_segment_set_parent_cycle();
+  test_segment_no_recording();
 }

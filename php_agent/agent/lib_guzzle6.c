@@ -43,8 +43,9 @@
 #include "fw_support.h"
 #include "lib_guzzle_common.h"
 #include "lib_guzzle6.h"
-#include "node_external.h"
 #include "nr_header.h"
+#include "nr_segment_external.h"
+#include "nr_txn.h"
 #include "nr_txn.h"
 #include "php_psr7.h"
 #include "util_hashmap.h"
@@ -102,15 +103,17 @@ static zval* nr_guzzle6_requesthandler_get_request(zval* obj TSRMLS_DC) {
 static void nr_guzzle6_requesthandler_handle_response(zval* handler,
                                                       zval* response
                                                           TSRMLS_DC) {
-  nr_node_external_params_t external_params = {.library = "Guzzle 6"};
+  nrtxntime_t start;
+  nrtxntime_t stop;
+  char* async_context;
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params = {.library = "Guzzle 6"};
   zval* request;
   zval* method;
 
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
+  nr_txn_set_time(NRPRG(txn), &stop);
 
-  if (NR_FAILURE
-      == nr_guzzle_obj_find_and_remove(handler,
-                                       &external_params.start TSRMLS_CC)) {
+  if (NR_FAILURE == nr_guzzle_obj_find_and_remove(handler, &start TSRMLS_CC)) {
     return;
   }
 
@@ -123,11 +126,10 @@ static void nr_guzzle6_requesthandler_handle_response(zval* handler,
     return;
   }
 
-  external_params.url = nr_php_psr7_request_uri(request TSRMLS_CC);
-  if (NULL == external_params.url) {
+  external_params.uri = nr_php_psr7_request_uri(request TSRMLS_CC);
+  if (NULL == external_params.uri) {
     return;
   }
-  external_params.urllen = nr_strlen(external_params.url);
 
   /*
    * Get the X-NewRelic-App-Data response header. If there isn't one, NULL is
@@ -145,20 +147,22 @@ static void nr_guzzle6_requesthandler_handle_response(zval* handler,
   /*
    * Create a context name.
    */
-  external_params.async_context
-      = nr_guzzle_create_async_context_name("Guzzle 6", response);
+  async_context = nr_guzzle_create_async_context_name("Guzzle 6", response);
 
   method = nr_php_call(request, "getMethod");
 
-  if(nr_php_is_zval_valid_string(method)) {
+  if (nr_php_is_zval_valid_string(method)) {
     external_params.procedure = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
   }
 
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
+  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
+  segment->start_time = nr_txn_time_abs_to_rel(NRPRG(txn), start.when);
+  segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop.when);
+  nr_segment_external_end(segment, &external_params);
 
-  nr_free(external_params.async_context);
+  nr_free(async_context);
   nr_free(external_params.encoded_response_header);
-  nr_free(external_params.url);
+  nr_free(external_params.uri);
   nr_free(external_params.procedure);
   nr_php_zval_free(&method);
 }

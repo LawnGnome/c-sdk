@@ -9,6 +9,7 @@
 #include "fw_hooks.h"
 #include "fw_support.h"
 #include "nr_header.h"
+#include "nr_segment_external.h"
 #include "util_hash.h"
 #include "util_logging.h"
 #include "util_memory.h"
@@ -152,13 +153,12 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
    * drupal_http_request() calls are on the stack by checking a counter.
    */
   if (1 == NRPRG(drupal_http_request_depth)) {
-    nr_node_external_params_t external_params = {
-        .library = "Drupal",
-        .url = Z_STRVAL_P(arg1),
-        .urllen = (size_t)Z_STRLEN_P(arg1),
-    };
+    nr_segment_t* segment;
+    nr_segment_external_params_t external_params
+        = {.library = "Drupal",
+           .uri = nr_strndup(Z_STRVAL_P(arg1), Z_STRLEN_P(arg1))};
 
-    nr_txn_set_time(NRPRG(txn), &external_params.start);
+    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
     /*
      * Our wrapper for drupal_http_request (which we installed in
@@ -166,8 +166,6 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
      * headers, so let's just go ahead and call the function.
      */
     NR_PHP_WRAPPER_CALL;
-
-    nr_txn_set_time(NRPRG(txn), &external_params.stop);
 
     external_params.encoded_response_header
         = nr_drupal_http_request_get_response_header(return_value TSRMLS_CC);
@@ -184,16 +182,15 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
         method = nr_php_zend_hash_find(Z_ARRVAL_P(arg2), "method");
         if (nr_php_is_zval_valid_string(method)) {
           external_params.procedure
-                  = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+              = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
         }
       }
     } else if (nr_php_is_zval_valid_string(arg3)) {
       // This is drupal 6, the method is the third arg.
-      external_params.procedure
-          = strndup(Z_STRVAL_P(arg3), Z_STRLEN_P(arg3));
+      external_params.procedure = strndup(Z_STRVAL_P(arg3), Z_STRLEN_P(arg3));
     }
     // If the method is not set, Drupal will default to GET
-    if (NULL == external_params.procedure){
+    if (NULL == external_params.procedure) {
       external_params.procedure = nr_strdup("GET");
     }
 
@@ -204,10 +201,11 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
           NRP_CAT(external_params.encoded_response_header));
     }
 
-    nr_txn_end_node_external(NRPRG(txn), &external_params);
+    nr_segment_external_end(segment, &external_params);
 
     nr_free(external_params.encoded_response_header);
     nr_free(external_params.procedure);
+    nr_free(external_params.uri);
   } else {
     NR_PHP_WRAPPER_CALL;
   }

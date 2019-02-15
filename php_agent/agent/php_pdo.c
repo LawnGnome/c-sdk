@@ -328,29 +328,30 @@ end:
   return instance;
 }
 
-void nr_php_pdo_end_node_sql(nrtxn_t* txn,
-                             const nrtxntime_t* start,
-                             const nrtxntime_t* stop,
-                             const char* sqlstr,
-                             int sqlstrlen,
-                             zval* stmt_obj,
-                             zval* parameters,
-                             int try_explain TSRMLS_DC) {
+void nr_php_pdo_end_segment_sql(nr_segment_t* segment,
+                                const nrtxntime_t* stop,
+                                const char* sqlstr,
+                                size_t sqlstrlen,
+                                zval* stmt_obj,
+                                zval* parameters,
+                                bool try_explain TSRMLS_DC) {
   nr_datastore_t datastore;
+  nrtxntime_t start;
   pdo_dbh_t* dbh
       = nr_php_pdo_get_database_object_from_object(stmt_obj TSRMLS_CC);
   nr_datastore_instance_t* instance;
   nr_explain_plan_t* plan = NULL;
 
-  if (try_explain) {
-    plan = nr_php_explain_pdo_statement(txn, stmt_obj, parameters, start,
-                                        stop TSRMLS_CC);
+  if (try_explain && (NULL != segment)) {
+    start.when = nr_txn_time_rel_to_abs(NRPRG(txn), segment->start_time);
+    plan = nr_php_explain_pdo_statement(segment->txn, stmt_obj, parameters,
+                                        &start, stop TSRMLS_CC);
   }
 
   datastore = nr_php_pdo_get_datastore_internal(dbh);
   instance = nr_php_pdo_get_datastore_instance(stmt_obj TSRMLS_CC);
-  nr_php_txn_end_node_sql(txn, start, stop, sqlstr, sqlstrlen, plan, datastore,
-                          instance TSRMLS_CC);
+  nr_php_txn_end_segment_sql(segment, stop, sqlstr, sqlstrlen, plan, datastore,
+                             instance TSRMLS_CC);
 
   nr_explain_plan_destroy(&plan);
 }

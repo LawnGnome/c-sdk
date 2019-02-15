@@ -6,6 +6,7 @@
 #include "fw_hooks.h"
 #include "lib_zend_http.h"
 #include "nr_header.h"
+#include "nr_segment_external.h"
 #include "util_logging.h"
 
 typedef enum _nr_zend_http_adapter {
@@ -95,20 +96,18 @@ static nr_zend_http_adapter nr_zend_check_adapter(zval* this_var TSRMLS_DC) {
  * Params  : 1. The instance receiver of the Zend_Http_Client::request call.
  *           2. A pointer to a string that will receive the URL. It is the
  *              responsibility of the caller to free this URL.
- *           3. A pointer to an integer that will receive the URL length.
  *
  * Returns : NR_SUCCESS or NR_FAILURE. If NR_FAILURE is returned, the url and
  *           url_len pointers will be unchanged.
  */
 static nr_status_t nr_zend_http_client_request_get_url(zval* this_var,
-                                                       char** url_ptr,
-                                                       size_t* urllen_ptr
+                                                       char** url_ptr
                                                            TSRMLS_DC) {
   nr_status_t retval = NR_FAILURE;
   zval* uri = 0;
   zval* rval = 0;
 
-  if ((0 == this_var) || (0 == url_ptr) || (0 == urllen_ptr)) {
+  if ((0 == this_var) || (0 == url_ptr)) {
     goto end;
   }
 
@@ -145,7 +144,6 @@ static nr_status_t nr_zend_http_client_request_get_url(zval* this_var,
   rval = nr_php_call(uri, "getUri");
   if (nr_php_is_zval_non_empty_string(rval)) {
     *url_ptr = nr_strndup(Z_STRVAL_P(rval), Z_STRLEN_P(rval));
-    *urllen_ptr = (size_t)Z_STRLEN_P(rval);
     retval = NR_SUCCESS;
   } else {
     nrl_verbosedebug(NRL_FRAMEWORK, "Zend: uri->getUri() failed");
@@ -258,7 +256,9 @@ static char* nr_zend_http_client_request_get_response_header(
 NR_PHP_WRAPPER_START(nr_zend_http_client_request) {
   zval* this_var = 0;
   zval** retval_ptr;
-  nr_node_external_params_t external_params = {.library = "Zend_Http_Client"};
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params
+      = {.library = "Zend_Http_Client"};
   nr_zend_http_adapter adapter;
 
   (void)wraprec;
@@ -275,18 +275,16 @@ NR_PHP_WRAPPER_START(nr_zend_http_client_request) {
   }
 
   if (NR_FAILURE
-      == nr_zend_http_client_request_get_url(
-             this_var, &external_params.url,
-             &external_params.urllen TSRMLS_CC)) {
+      == nr_zend_http_client_request_get_url(this_var,
+                                             &external_params.uri TSRMLS_CC)) {
     NR_PHP_WRAPPER_CALL;
     goto leave;
   }
 
   nr_zend_http_client_request_add_request_headers(this_var TSRMLS_CC);
 
-  nr_txn_set_time(NRPRG(txn), &external_params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   NR_PHP_WRAPPER_CALL;
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
 
   if (retval_ptr) {
     external_params.encoded_response_header
@@ -304,11 +302,11 @@ NR_PHP_WRAPPER_START(nr_zend_http_client_request) {
         X_NEWRELIC_APP_DATA, NRP_CAT(external_params.encoded_response_header));
   }
 
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
+  nr_segment_external_end(segment, &external_params);
 
 leave:
   nr_free(external_params.encoded_response_header);
-  nr_free(external_params.url);
+  nr_free(external_params.uri);
   nr_php_scope_release(&this_var);
 }
 NR_PHP_WRAPPER_END

@@ -228,7 +228,7 @@ typedef struct _nrtxn_t {
   nrtxnopt_t options;   /* Options for this transaction */
   nrtxnstatus_t status; /* Status for the transaction */
   nrtxncat_t cat;       /* Incoming CAT fields */
-  nr_random_t* rnd;     /* Random number generator, owned by the application. */
+  nr_random_t* rnd;     /* Random number generator, owned by the application */
   int nodes_used;       /* Number of nodes used */
   nrtxnnode_t root;     /* Root node */
   nrtxnnode_t nodes[NR_TXN_MAX_NODES];
@@ -239,18 +239,10 @@ typedef struct _nrtxn_t {
                               segments */
   size_t segment_count; /* A count of segments for this transaction, maintained
                            throughout the life of this transaction */
-  nr_segment_t* segment_root;  /* The root pointer to the tree of segments */
-
-  /*
-   * The next trace node that will be created and for which
-   *
-   *   start_time <= current_node_time <= stop_time
-   *
-   * holds true, will be assigned the id in current_node_id. current_node_id
-   * and current_node_time are set when creating an outbound DT payload.
-   */
-  char* current_node_id;
-  nrtime_t current_node_time;
+  nr_segment_t* segment_root; /* The root pointer to the tree of segments */
+  nrtime_t abs_start_time; /* The absolute start timestamp for this transaction;
+                            * all segment start and end times are relative to
+                            * this field */
 
   int stamp;                    /* Node stamp counter */
   nr_error_t* error;            /* Captured error */
@@ -370,6 +362,18 @@ extern nrtxn_t* nr_txn_begin(nrapp_t* app,
  * Params  : 1. Pointer to the transaction being ended.
  */
 extern void nr_txn_end(nrtxn_t* txn);
+
+/*
+ * Purpose : Set the timing of a transaction.
+ *
+ *           1. The pointer to the transaction to be retimed.
+ *           2. The new start time for the transaction, in microseconds since
+ *              the since the UNIX epoch.
+ *           3. The new duration for the transaction, in microseconds.
+ *
+ * Returns : true if successful, false otherwise.
+ */
+extern bool nr_txn_set_timing(nrtxn_t* txn, nrtime_t start, nrtime_t duration);
 
 /*
  * Purpose : Set the transaction path and type.  Writes a log message.
@@ -834,6 +838,22 @@ extern double nr_txn_start_time_secs(const nrtxn_t* txn);
  *           if the txn is NULL.
  */
 extern nrtime_t nr_txn_start_time(const nrtxn_t* txn);
+
+/*
+ * Purpose : Given a transaction and a time relative to the start of the
+ * transaction, return the absolute time. Returns relative_time if the txn
+ * is NULL.
+ */
+extern nrtime_t nr_txn_time_rel_to_abs(const nrtxn_t* txn,
+                                       const nrtime_t relative_time);
+
+/*
+ * Purpose : Given a transaction and an absolute time, return the time 
+ * relative to the start of the transaction. Returns absolute_time if the txn
+ * is NULL.
+ */
+extern nrtime_t nr_txn_time_abs_to_rel(const nrtxn_t* txn,
+                                       const nrtime_t absolute_time);
 
 /*
  * Purpose : Add a pattern to the list of files that will be matched on for

@@ -22,6 +22,7 @@
 GCOV  ?= gcov
 GO    ?= go
 SHELL = /bin/bash
+GCOVR ?= gcovr
 
 include make/config.mk
 include make/version.mk
@@ -34,6 +35,7 @@ export GO15VENDOREXPERIMENT=1
 unexport GOBIN
 
 GOFLAGS += -ldflags '-X newrelic/version.Number=$(AGENT_VERSION) -X newrelic/version.Commit=$(GIT_COMMIT)'
+GCOVRFLAGS += -e "agent/tests/*" -e "axiom/tests/*" -e ".*\.h" -o
 
 #
 # TODO(msl): Should we use override to force required flags to be set
@@ -63,13 +65,8 @@ ifeq (1,$(ENABLE_LTO))
   LDFLAGS += -flto
 endif
 
-#
-# Code coverage
-#
-ifeq (1,$(ENABLE_COVERAGE))
-  CPPFLAGS += -DDO_GCOV
-  CFLAGS += -fprofile-arcs -ftest-coverage
-  LDFLAGS += --coverage
+ifeq (1,$(ENABLE_MULDEFS))
+  LDFLAGS += -Wl,--no-warn-search-mismatch -Wl,-z,muldefs
 endif
 
 #
@@ -320,16 +317,36 @@ gcov: Makefile
 	cd axiom/tests; $(GCOV) $(GCOV_FLAGS) *.gcno
 
 # Reset code coverage line counts.
-.PHONY: gcov_reset
-gcov_reset:
+.PHONY: coverage-clean
+coverage-clean:
 	find . -name \*.gcda | xargs rm -f
+	find . -name \*coverage-report*.html | xargs rm -f
+	find . -name \*coverage-report*.xml | xargs rm -f
+
+# Creates a human readable coverage report, the name of the file will be coverage-report.html.
+.PHONY: coverage-report-html
+coverage-report-html:
+	$(GCOVR) -r . --html-details $(GCOVRFLAGS) coverage-report.html;
+
+# Create and xml code coverage report. The xml report is intended for jenkins.
+.PHONY: coverage-report-xml
+coverage-report-xml:
+	$(GCOVR) -r . --xml $(GCOVRFLAGS) coverage-report.xml || true
+
+# Compile all tests with the coverage flag and run them. Then create the html coverage report.
+.PHONY: coverage
+coverage:
+	$(MAKE) ENABLE_COVERAGE=1
+	.\/bin\/integration_runner
+	$(MAKE) ENABLE_COVERAGE=1 run_tests
+	$(MAKE) coverage-report-html
 
 #
 # Clean up
 #
 
 .PHONY: clean
-clean: agent-clean axiom-clean daemon-clean package-clean
+clean: agent-clean axiom-clean daemon-clean package-clean coverage-clean
 	rm -rf releases
 	rm -f agent/newrelic.map agent/LicenseData/license_errors.txt
 

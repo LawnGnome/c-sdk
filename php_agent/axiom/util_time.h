@@ -24,10 +24,10 @@ typedef uint64_t nrtime_t; /* Microseconds since the UNIX epoch */
  * the ability to measure this with nanosecond accuracy on some systems, and
  * in microseconds on most. We thus use the lowest common denominator of
  * microseconds. However, RPM still wants time in fractional seconds as a
- * double, which is a pain in the ass as it means we have to resort to using
- * doubles, so we delay that as long as is humanly possible and only do the
- * conversion when we are preparing the JSON output for the collector. Up to
- * that point in time, we deal with microseconds.
+ * double; doing so requires using doubles, so we delay that as long as is
+ * humanly possible and only do the conversion when we are preparing the JSON
+ * output for the collector. Up to that point in time, we deal with
+ * microseconds.
  */
 #define NR_TIME_DIVISOR \
   ((nrtime_t)1000000) /* How many units of time in a second */
@@ -54,6 +54,11 @@ static inline nrtime_t nr_get_time(void) {
   return ret;
 }
 
+/*
+ * Purpose: Calculate a time duration, the difference between a given
+ *          start and stop time, each measured in microseconds since the
+ *          UNIX Epoch.
+ */
 static inline nrtime_t nr_time_duration(nrtime_t start, nrtime_t stop) {
   if (start > stop) {
     return 0;

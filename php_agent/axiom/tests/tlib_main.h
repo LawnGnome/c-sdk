@@ -6,9 +6,11 @@
 
 #include "nr_axiom.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
+#include "util_memory.h"
 #include "util_object.h"
 #include "util_strings.h"
 
@@ -286,28 +288,39 @@ extern int tlib_fail_if_status_success_f(const char* what,
 /*
  * String versions of the above equality tests.
  */
-#define tlib_pass_if_str_equal(M, EXPECTED, ACTUAL)                            \
-  {                                                                            \
-    const char* tlib_test_actual = (ACTUAL);                                   \
-    const char* tlib_test_expected = (EXPECTED);                               \
-                                                                               \
-    tlib_pass_if_true_f(                                                       \
-        (M), 0 == nr_strcmp(tlib_test_expected, tlib_test_actual), __FILE__,   \
-        __LINE__, "0 == nr_strcmp (" #EXPECTED ", " #ACTUAL ")",               \
-        #EXPECTED "=\"%s\" " #ACTUAL "=\"%s\"", NRSAFESTR(tlib_test_expected), \
-        NRSAFESTR(tlib_test_actual));                                          \
+#define tlib_pass_if_str_equal(M, EXPECTED, ACTUAL)                        \
+  tlib_check_if_str_equal_f((M), #EXPECTED, (EXPECTED), #ACTUAL, (ACTUAL), \
+                            true, __FILE__, __LINE__)
+
+#define tlib_fail_if_str_equal(M, EXPECTED, ACTUAL)                        \
+  tlib_check_if_str_equal_f((M), #EXPECTED, (EXPECTED), #ACTUAL, (ACTUAL), \
+                            false, __FILE__, __LINE__)
+
+static inline void tlib_check_if_str_equal_f(const char* what,
+                                             const char* expected_literal,
+                                             const char* expected,
+                                             const char* actual_literal,
+                                             const char* actual,
+                                             bool expect_match,
+                                             const char* file,
+                                             int line) {
+  bool matched = (0 == nr_strcmp(expected, actual));
+
+  if (matched == expect_match) {
+    tlib_did_pass();
+  } else {
+    char* cond
+        = nr_formatf("0 %s nr_strcmp(%s, %s)",
+                     expect_match ? "==" : "!=", NRSAFESTR(expected_literal),
+                     NRSAFESTR(actual_literal));
+
+    tlib_pass_if_true_f(what, 0, file, line, cond, "%s=\"%s\" %s=\"%s\"",
+                        NRSAFESTR(expected_literal), NRSAFESTR(expected),
+                        NRSAFESTR(actual_literal), NRSAFESTR(actual));
+
+    nr_free(cond);
   }
-#define tlib_fail_if_str_equal(M, EXPECTED, ACTUAL)                            \
-  {                                                                            \
-    const char* tlib_test_actual = (ACTUAL);                                   \
-    const char* tlib_test_expected = (EXPECTED);                               \
-                                                                               \
-    tlib_pass_if_false_f(                                                      \
-        (M), 0 == nr_strcmp(tlib_test_expected, tlib_test_actual), __FILE__,   \
-        __LINE__, "0 == nr_strcmp (" #EXPECTED ", " #ACTUAL ")",               \
-        #EXPECTED "=\"%s\" " #ACTUAL "=\"%s\"", NRSAFESTR(tlib_test_expected), \
-        NRSAFESTR(tlib_test_actual));                                          \
-  }
+}
 
 /*
  * Generic pointer tests.

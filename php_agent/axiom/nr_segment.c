@@ -19,12 +19,21 @@ nr_segment_t* nr_segment_start(nrtxn_t* txn,
     return NULL;
   }
 
+  if (!txn->status.recording) {
+    return NULL;
+  }
+
   new_segment = nr_zalloc(sizeof(nr_segment_t));
 
   new_segment->color = NR_SEGMENT_WHITE;
   new_segment->type = NR_SEGMENT_CUSTOM;
   new_segment->txn = txn;
-  new_segment->start_time = nr_get_time();
+
+  /* A segment's time is expressed in terms of time relative to the transaction.
+   * Determine the difference between the transaction's start time and now. */
+  new_segment->start_time
+      = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
+
   new_segment->user_attributes = nro_new_hash();
 
   nr_segment_children_init(&new_segment->children);
@@ -239,7 +248,11 @@ bool nr_segment_end(nr_segment_t* segment) {
   }
 
   if (0 == segment->stop_time) {
-    segment->stop_time = nr_get_time();
+    /* A segment's time is expressed in terms of time relative to the
+     * transaction. Determine the difference between the transaction's start
+     * time and now. */
+    segment->stop_time
+        = nr_time_duration(nr_txn_start_time(segment->txn), nr_get_time());
   }
 
   segment->txn->segment_count += 1;
@@ -375,6 +388,43 @@ void nr_segment_destroy(nr_segment_t* root) {
 
   nr_segment_iterate(
       root, (nr_segment_iter_t)nr_segment_destroy_children_callback, NULL);
+}
+
+bool nr_segment_discard(nr_segment_t** segment_ptr) {
+  nr_segment_t* segment;
+
+  if (NULL == segment_ptr || NULL == *segment_ptr
+      || NULL == (*segment_ptr)->txn) {
+    return false;
+  }
+
+  segment = *segment_ptr;
+
+  /* Don't discard root nodes. */
+  if (NULL == segment->parent) {
+    return false;
+  }
+
+  /* Reparent all children. */
+  while (nr_vector_size(&segment->children) > 0) {
+    bool rv = nr_segment_set_parent(nr_vector_get(&segment->children, 0),
+                                    segment->parent);
+
+    if (!rv) {
+      return false;
+    }
+  }
+
+  /* Unhook the segment from its parent. */
+  nr_segment_children_remove(&segment->parent->children, segment);
+
+  segment->txn->segment_count -= 1;
+
+  /* Free memory. */
+  nr_segment_destroy(segment);
+  (*segment_ptr) = NULL;
+
+  return true;
 }
 
 static int nr_segment_duration_comparator(const nr_segment_t* a,

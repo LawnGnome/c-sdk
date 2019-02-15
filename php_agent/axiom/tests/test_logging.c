@@ -161,7 +161,6 @@ static void test_logging(void) {
    * Change the log file name without first closing the old file. Should
    * succeed and messages should be written just fine.
    */
-  nrl_close_log_file();
   rv = nrl_set_log_file("./logtest2.tmp");
   tlib_pass_if_true("log change succeeds", NR_SUCCESS == rv, "rv=%d", (int)rv);
   tlib_pass_if_exists("./logtest2.tmp");

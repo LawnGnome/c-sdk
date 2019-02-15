@@ -26,6 +26,7 @@
 #include "lib_guzzle_common.h"
 #include "lib_guzzle4.h"
 #include "nr_header.h"
+#include "nr_segment_external.h"
 #include "util_logging.h"
 #include "util_memory.h"
 
@@ -305,7 +306,10 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
   zval* request = NULL;
   zval* response = NULL;
   zval* method;
-  nr_node_external_params_t external_params = {.library = "Guzzle 4/5"};
+  char* async_context;
+  nrtxntime_t start;
+  nr_segment_t* segment;
+  nr_segment_external_params_t external_params = {.library = "Guzzle 4/5"};
   zval* url = NULL;
 
   if (NR_FAILURE
@@ -340,22 +344,12 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
   /*
    * Find the original start time for the request.
    */
-  if (NR_FAILURE
-      == nr_guzzle_obj_find_and_remove(request,
-                                       &external_params.start TSRMLS_CC)) {
+  if (NR_FAILURE == nr_guzzle_obj_find_and_remove(request, &start TSRMLS_CC)) {
     nrl_verbosedebug(NRL_INSTRUMENT,
                      "Guzzle 4-5: Request completed without being tracked");
     RETVAL_FALSE;
     goto leave;
   }
-
-  /*
-   * Unlike Guzzle 3, we don't have any metadata available from Guzzle itself
-   * to answer the question of how long the request took. Instead, we'll assume
-   * that curl_multi_exec() calls back reasonably efficiently and just take the
-   * wallclock time up to now.
-   */
-  nr_txn_set_time(NRPRG(txn), &external_params.stop);
 
   /*
    * We also need the URL to create a useful metric.
@@ -365,8 +359,7 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
     RETVAL_FALSE;
     goto leave;
   }
-  external_params.url = Z_STRVAL_P(url);
-  external_params.urllen = (size_t)Z_STRLEN_P(url);
+  external_params.uri = nr_strndup(Z_STRVAL_P(url), Z_STRLEN_P(url));
 
   /*
    * Grab the X-NewRelic-App-Data response header, if there is one. We don't
@@ -385,24 +378,34 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
   /*
    * Create the async context, in case there was parallelism.
    */
-  external_params.async_context
-      = nr_guzzle_create_async_context_name("Guzzle 4", request);
+  async_context = nr_guzzle_create_async_context_name("Guzzle 4", request);
 
   method = nr_php_call(request, "getMethod");
 
-  if(nr_php_is_zval_valid_string(method)) {
+  if (nr_php_is_zval_valid_string(method)) {
     external_params.procedure = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
   }
   /*
-   * Whew! Let's create an external node already.
+   * Whew! Let's create an external segment already.
    */
-  nr_txn_end_node_external(NRPRG(txn), &external_params);
+  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
+  segment->start_time = nr_txn_time_abs_to_rel(NRPRG(txn), start.when);
+
+  /*
+   * Unlike Guzzle 3, we don't have any metadata available from Guzzle itself
+   * to answer the question of how long the request took. Instead, we'll assume
+   * that curl_multi_exec() calls back reasonably efficiently and just take the
+   * wallclock time up to now.
+   */
+  nr_segment_external_end(segment, &external_params);
+
   RETVAL_TRUE;
 
 leave:
-  nr_free(external_params.async_context);
+  nr_free(external_params.uri);
   nr_free(external_params.encoded_response_header);
   nr_free(external_params.procedure);
+  nr_free(async_context);
   nr_php_zval_free(&method);
   nr_php_zval_free(&request);
   nr_php_zval_free(&response);

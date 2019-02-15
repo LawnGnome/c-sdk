@@ -79,6 +79,12 @@ In spite of its name, this builds and runs the daemon unit tests.
 
 Runs the daemon performance tests.
 
+#### `coverage`
+Run integration and unit tests and create an html file that contains a test 
+code coverage report. This file will be named `coverage-report.html`. More 
+information [here](development_guide.md#code-coverage)
+
+
 ### Cleaning
 
 #### `clean`
@@ -109,6 +115,11 @@ Will run [gcov](https://gcc.gnu.org/onlinedocs/gcc/Gcov.html) against any `.gcno
 ```sh
 make axiom-run-tests ENABLE_COVERAGE=1
 make gcov
+```
+
+To create an html coverage report based on a run of the unit tests and integration tests run:
+```sh
+make coverage
 ```
 
 ## Variables

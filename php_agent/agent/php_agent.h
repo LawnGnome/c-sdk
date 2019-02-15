@@ -117,7 +117,7 @@ extern void nr_php_backtrace_fd(int fd, int limit TSRMLS_DC);
 
 /*
  * Purpose : Same as nr_php_backtrace_to_json but designed as a callback
- * parameter for nr_txn_end_node_sql.
+ * parameter for nr_segment_datastore_end().
  */
 extern char* nr_php_backtrace_callback(void);
 

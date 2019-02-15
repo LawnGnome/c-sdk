@@ -102,25 +102,22 @@ static void nr_php_extension_trace_name(const char* ext_name,
 }
 
 /*
- * Purpose : Save a trace node for an extension trace.
+ * Purpose : Ends a segment of an extension trace.
  *
- * Params  : 1. The active transaction.
- *           2. The start time of the traced action.
- *           3. The end time of the traced action.
+ * Params  : 1. The active segment.
  *           4. The extension name, or NULL if it isn't defined.
  *           5. The suffix to append to the extension name indicating the
  *              action that was traced, such as RSHUTDOWN.
  */
-static void nr_php_save_extension_trace_node(nrtxn_t* txn,
-                                             const nrtxntime_t* start,
-                                             const nrtxntime_t* end,
-                                             const char* ext_name,
-                                             const char* suffix) {
+static void nr_php_extension_segment_end(nr_segment_t* segment,
+                                         const char* ext_name,
+                                         const char* suffix) {
   char name[512];
 
   nr_php_extension_trace_name(ext_name, suffix, name, sizeof(name));
 
-  nr_txn_save_trace_node(txn, start, end, name, NULL, 0, NULL);
+  nr_segment_end(segment);
+  nr_segment_set_name(segment, name);
 }
 
 /*
@@ -145,21 +142,19 @@ static int nr_php_extension_shutdown_wrapper(SHUTDOWN_FUNC_ARGS) {
      */
     if (NULL != extension->request_shutdown_func) {
       int retval;
-      nrtxntime_t start;
-      nrtxntime_t stop;
+      nr_segment_t* segment;
       nrtxn_t* txn = NRPRG(txn);
 
-      nr_txn_set_time(txn, &start);
+      segment = nr_segment_start(txn, NULL, NULL);
       retval = extension->request_shutdown_func(SHUTDOWN_FUNC_ARGS_PASSTHRU);
-      nr_txn_set_time(txn, &stop);
 
       /*
        * There's no threshold right now: even a 0ms RSHUTDOWN will get an
        * interesting node created. If we decide to roll this out as a public
        * feature, we'll probably want to add a threshold.
        */
-      nr_php_save_extension_trace_node(txn, &start, &stop, extension->name,
-                                       NR_EXTENSION_RSHUTDOWN_SUFFIX);
+      nr_php_extension_segment_end(segment, extension->name,
+                                   NR_EXTENSION_RSHUTDOWN_SUFFIX);
 
       return retval;
     }
