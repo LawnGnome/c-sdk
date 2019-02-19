@@ -52,10 +52,10 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
     nrl_verbose(NRL_INSTRUMENT,
                 "sending txnname='%.64s'"
                 " agent_run_id=" NR_AGENT_RUN_ID_FMT
-                " nodes_used=%d"
+                " segment_count=%zu"
                 " duration=" NR_TIME_FMT " threshold=" NR_TIME_FMT,
                 txn->name ? txn->name : "unknown", txn->agent_run_id,
-                txn->nodes_used, nr_txn_duration(txn),
+                txn->segment_count, nr_txn_duration(txn),
                 txn->options.tt_threshold);
 
     if (0 == txn->status.ignore) {

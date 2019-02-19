@@ -3,7 +3,6 @@
 #include "segment.h"
 #include "transaction.h"
 
-#include "node_external.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
