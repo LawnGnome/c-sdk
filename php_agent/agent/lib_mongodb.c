@@ -6,6 +6,7 @@
 #include "fw_hooks.h"
 #include "fw_support.h"
 #include "nr_datastore_instance.h"
+#include "nr_segment_datastore.h"
 #include "util_logging.h"
 #include "util_strings.h"
 #include "util_system.h"
@@ -108,12 +109,13 @@ NR_PHP_WRAPPER(nr_mongodb_operation) {
   zval* database = NULL;
   zval* server = NULL;
   zval* this_var = NULL;
+  nr_segment_t* segment;
   nr_datastore_instance_t instance = {
       .host = NULL,
       .port_path_or_id = NULL,
       .database_name = NULL,
   };
-  nr_node_datastore_params_t params = {
+  nr_segment_datastore_params_t params = {
     .datastore = {
       .type = NR_DATASTORE_MONGODB,
     },
@@ -153,11 +155,9 @@ NR_PHP_WRAPPER(nr_mongodb_operation) {
   nr_mongodb_get_host_and_port_path_or_id(server, &instance.host,
                                           &instance.port_path_or_id TSRMLS_CC);
 
-  nr_txn_set_time(NRPRG(txn), &params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   NR_PHP_WRAPPER_CALL;
-  nr_txn_set_time(NRPRG(txn), &params.stop);
-
-  nr_txn_end_node_datastore(NRPRG(txn), &params, NULL);
+  nr_segment_datastore_end(segment, &params);
 
 leave:
   nr_php_arg_release(&server);

@@ -2196,6 +2196,16 @@ static int metric_exists(nrmtable_t* metrics, const char* name) {
   return 1;
 }
 
+static int metric_total_is_nonzero(nrmtable_t* metrics, const char* name) {
+  nrmetric_t* m = nrm_find(metrics, name);
+
+  if (NULL == m) {
+    return -1;
+  }
+
+  return 0 != m->mdata[NRM_TOTAL];
+}
+
 static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
   nrtxn_t* txn;
 
@@ -2214,7 +2224,7 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
   txn->options.ss_threshold = 0;
 
 #ifdef NR_CAGENT
-  txn->segment_root->start_time
+  txn->abs_start_time
       -= 5
          * (txn->options.tt_threshold + txn->options.ep_threshold
             + txn->options.ss_threshold);
@@ -2330,7 +2340,7 @@ static nrtxn_t* create_full_txn_and_reset(nrapp_t* app) {
 
 #ifdef NR_CAGENT
   tlib_pass_if_true("four segments added", 5 == txn->segment_count,
-                    "txn->segment_count=%lu", txn->segment_count);
+                    "txn->segment_count=%zu", txn->segment_count);
 #else
   tlib_pass_if_true("four nodes added", 4 == txn->nodes_used,
                     "txn->nodes_used=%d", txn->nodes_used);
@@ -2354,6 +2364,7 @@ static void test_end_testcase_fn(const char* testname,
                                  int expected_apdex_metrics,
                                  int expected_error_metrics,
                                  int expected_queuetime_metric,
+                                 int expected_nonzero_total_time,
                                  const char* file,
                                  int line) {
   int txndata_apdex_metrics = 0;
@@ -2374,9 +2385,14 @@ static void test_end_testcase_fn(const char* testname,
   txndata_error_metrics = metric_exists(txn->unscoped_metrics, "Errors/all");
   txndata_queuetime_metric
       = metric_exists(txn->unscoped_metrics, "WebFrontend/QueueTime");
+#ifdef NR_CAGENT
+  txndata_root_stop_time_when = txn->segment_root->stop_time;
+#else
   txndata_root_stop_time_when = txn->root.stop_time.when;
+#endif
 
   if (txn->unscoped_metrics) {
+    int metric_nonzero_code;
     int metric_exists_code;
 
     /*
@@ -2385,16 +2401,30 @@ static void test_end_testcase_fn(const char* testname,
     if (1 == txn->status.background) {
       metric_exists_code
           = metric_exists(txn->unscoped_metrics, "OtherTransaction/all");
+
+      /* If OtherTransactionTotalTime exists, make sure it's nonzero */
+      metric_nonzero_code = metric_total_is_nonzero(
+          txn->unscoped_metrics, "OtherTransactionTotalTime");
+
     } else {
       metric_exists_code
           = metric_exists(txn->unscoped_metrics, "WebTransaction");
-    }
 
+      /* If WebTransactionTotalTime exists, make sure it's nonzero */
+      metric_nonzero_code = metric_total_is_nonzero(txn->unscoped_metrics,
+                                                    "WebTransactionTotalTime");
+    }
+    tlib_pass_if_false(testname, metric_nonzero_code == -1,
+                       "metric_nonzero_code=%d txn->status.background=%d",
+                       metric_nonzero_code, txn->status.background);
+    tlib_pass_if_true(testname,
+                      metric_nonzero_code == expected_nonzero_total_time,
+                      "metric_nonzero_code=%d txn->status.background=%d",
+                      metric_nonzero_code, txn->status.background);
     test_pass_if_true(testname, 1 == metric_exists_code,
                       "metric_exists_code=%d txn->status.background=%d",
                       metric_exists_code, txn->status.background);
   }
-
   test_pass_if_true(testname, txndata_apdex_metrics == expected_apdex_metrics,
                     "txndata_apdex_metrics=%d expected_apdex_metrics=%d",
                     txndata_apdex_metrics, expected_apdex_metrics);
@@ -2476,8 +2506,9 @@ static void test_end(void) {
    */
   txn = create_full_txn_and_reset(app);
   nr_txn_end(txn);
+
   test_end_testcase("full txn to cmd_txndata", txn, 1 /* apdex */, 1 /* error*/,
-                    1 /* queue */);
+                    1 /* queue */, 1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2487,7 +2518,7 @@ static void test_end(void) {
   txn->synthetics = nr_synthetics_create("[1,100,\"a\",\"b\",\"c\"]");
   nr_txn_end(txn);
   test_end_testcase("full txn to cmd_txndata", txn, 1 /* apdex */, 1 /* error*/,
-                    1 /* queue */);
+                    1 /* queue */, 1 /* total time */);
   tlib_pass_if_str_equal(
       "synthetics intrinsics", "a",
       nro_get_hash_string(txn->intrinsics, "synthetics_resource_id", NULL));
@@ -2499,8 +2530,8 @@ static void test_end(void) {
   txn = create_full_txn_and_reset(app);
   nr_error_destroy(&txn->error);
   nr_txn_end(txn);
-  test_end_testcase("no error", txn, 1 /* apdex */, 0 /* error*/,
-                    1 /* queue */);
+  test_end_testcase("no error", txn, 1 /* apdex */, 0 /* error*/, 1 /* queue */,
+                    1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2510,7 +2541,7 @@ static void test_end(void) {
   txn->status.background = 1;
   nr_txn_end(txn);
   test_end_testcase("background task", txn, 0 /* apdex */, 1 /* error*/,
-                    0 /* queue */);
+                    0 /* queue */, 1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2520,7 +2551,7 @@ static void test_end(void) {
   txn->status.ignore_apdex = 1;
   nr_txn_end(txn);
   test_end_testcase("ignore apdex", txn, 0 /* apdex */, 1 /* error*/,
-                    1 /* queue */);
+                    1 /* queue */, 1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2530,17 +2561,21 @@ static void test_end(void) {
   txn->status.http_x_start = 0;
   nr_txn_end(txn);
   test_end_testcase("no queue time", txn, 1 /* apdex */, 1 /* error*/,
-                    0 /* queue */);
+                    0 /* queue */, 1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
-   * Test : Stop time in future
+   * Test : Start time in future
    */
   txn = create_full_txn_and_reset(app);
+#ifdef NR_CAGENT
+  txn->segment_root->start_time = nr_get_time() + 999999;
+#else
   txn->root.start_time.when = nr_get_time() + 999999;
+#endif
   nr_txn_end(txn);
   test_end_testcase("stop time in future", txn, 1 /* apdex */, 1 /* error*/,
-                    1 /* queue */);
+                    1 /* queue */, 0 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2549,7 +2584,8 @@ static void test_end(void) {
   txn = create_full_txn_and_reset(app);
   nr_txn_end(txn);
   nr_txn_end(txn);
-  test_end_testcase("halted", txn, 1 /* apdex */, 1 /* error*/, 1 /* queue */);
+  test_end_testcase("halted", txn, 1 /* apdex */, 1 /* error*/, 1 /* queue */,
+                    1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2559,7 +2595,7 @@ static void test_end(void) {
   nr_free(txn->name);
   nr_txn_end(txn);
   test_end_testcase("missing path", txn, 1 /* apdex */, 1 /* error*/,
-                    1 /* queue */);
+                    1 /* queue */, 1 /* total time */);
   nr_txn_destroy(&txn);
 
   /*
@@ -2569,7 +2605,7 @@ static void test_end(void) {
   nrm_table_destroy(&txn->unscoped_metrics);
   nr_txn_end(txn);
   test_end_testcase("no metric table", txn, 0 /* apdex */, 0 /* error*/,
-                    0 /* queue */);
+                    0 /* queue */, 1 /* total time */);
   nr_txn_destroy(&txn);
 
   nr_random_destroy(&app->rnd);
@@ -3077,6 +3113,111 @@ static void test_duration(void) {
   tlib_pass_if_true("finished txn", 1 == duration, "duration=" NR_TIME_FMT,
                     duration);
 }
+
+static void test_duration_with_segment_retiming(void) {
+  nrtxn_t* txn = new_txn(0);
+  nr_segment_t* seg;
+  nrtime_t duration;
+
+#ifdef NR_CAGENT
+  txn->segment_root->start_time = 0;
+  txn->segment_root->stop_time = 1;
+#else
+  txn->root.start_time.when = 0;
+  txn->root.stop_time.when = 1;
+#endif /* NR_CAGENT */
+
+  seg = nr_segment_start(txn, NULL, NULL);
+  nr_segment_set_timing(seg, 0, 500);
+  nr_segment_end(seg);
+
+  duration = nr_txn_duration(txn);
+  tlib_pass_if_time_equal(
+      "a transaction with a retimed segment should not have its duration "
+      "impacted",
+      1, duration);
+
+  nr_txn_destroy(&txn);
+}
+
+#ifdef NR_CAGENT
+static void test_duration_with_txn_retiming(void) {
+  nrtxn_t malformed_txn = {0};
+  nrtxn_t* txn = new_txn(0);
+  nrtime_t duration;
+  nr_segment_t* seg;
+
+  /*
+   * Test : Bad parameters
+   */
+  tlib_pass_if_bool_equal("retiming a NULL transaction must return false",
+                          false, nr_txn_set_timing(NULL, 1000, 2000));
+  tlib_pass_if_bool_equal(
+      "retiming a transaction with a NULL segment_root must return false",
+      false, nr_txn_set_timing(&malformed_txn, 1000, 2000));
+
+  /*
+   * Test : Normal operation
+   */
+  txn->abs_start_time = 1000;
+  txn->segment_root->start_time = 0;
+  txn->segment_root->stop_time = 2000;
+  tlib_pass_if_bool_equal("retiming a well-formed transaction must return true",
+                          true, nr_txn_set_timing(txn, 2000, 4000));
+
+  duration = nr_txn_duration(txn);
+  tlib_pass_if_time_equal(
+      "a retimed transaction must reflect a change in its duration", 4000,
+      duration);
+
+  /*
+   * Test : Retiming a transaction during an active segment
+   */
+  seg = nr_segment_start(txn, NULL, NULL);
+  tlib_pass_if_bool_equal(
+      "retiming a well-formed transaction while a segment is active must "
+      "return true",
+      true, nr_txn_set_timing(txn, 1000, 3000));
+
+  duration = nr_txn_duration(txn);
+  tlib_pass_if_time_equal(
+      "a retimed transaction must reflect a change in its duration", 3000,
+      duration);
+  nr_segment_end(seg);
+
+  /*
+   * Test : Retiming a transaction into the future and placing
+   *        an active segment to before the beginning of time.
+   *
+   * This test case is mind-bending, so let's step through it:
+   *
+   * a) The transaction starts at absolute time = 1000.
+   * b) The segment is started; its relative start time is 10, or 1010.
+   * c) The transaction is retimed; it now starts at absolute time = 1015.
+   * d) The segment is ended with a relative stop time of 5.
+   * e) The duration of the segment is stop - start, or 5 - 10 => 0.
+   */
+  txn->abs_start_time = 1000;
+  seg = nr_segment_start(txn, NULL, NULL);
+  seg->start_time = 10;
+  nr_txn_set_timing(txn, 1015, 5000);
+
+  seg->stop_time = 5;
+  nr_segment_end(seg);
+  duration = nr_time_duration(seg->start_time, seg->stop_time);
+  tlib_pass_if_time_equal(
+      "when a retimed transaction places a segment before the transaction's "
+      "altered start time the segment must have a 0 duration",
+      0, duration);
+
+  duration = nr_txn_duration(txn);
+  tlib_pass_if_time_equal(
+      "a retimed transaction must reflect a change in its duration", 5000,
+      duration);
+
+  nr_txn_destroy(&txn);
+}
+#endif
 
 static void test_queue_time(void) {
   nrtxn_t txn;
@@ -3970,32 +4111,93 @@ static void test_start_time_secs(void) {
   nrtxn_t txn;
 
 #ifdef NR_CAGENT
-  nr_segment_t seg = {0};
-  txn.segment_root = &seg;
-  txn.segment_root->start_time = 123456789 * NR_TIME_DIVISOR_US;
+  txn.abs_start_time = 123456789 * NR_TIME_DIVISOR_US;
 #else
   txn.root.start_time.when = 123456789 * NR_TIME_DIVISOR_US;
 #endif /* NR_CAGENT */
 
   tlib_pass_if_double_equal("NULL txn", nr_txn_start_time_secs(NULL), 0.0);
-  tlib_pass_if_double_equal("success", nr_txn_start_time_secs(&txn),
-                            123.456789);
+  tlib_pass_if_uint_equal(
+      "A transaction with a well-formed timestamp must yield a correct start "
+      "time measured in seconds ",
+      nr_txn_start_time_secs(&txn), 123.456789);
 }
 
 static void test_start_time(void) {
   nrtxn_t txn = {0};
 
 #ifdef NR_CAGENT
-  nr_segment_t seg = {0};
-  txn.segment_root = &seg;
-  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
+  txn.abs_start_time = 123 * NR_TIME_DIVISOR;
 #else
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
 #endif /* NR_CAGENT */
 
-  tlib_pass_if_time_equal("NULL txn", nr_txn_start_time(NULL), 0);
-  tlib_pass_if_time_equal("success", nr_txn_start_time(&txn),
-                          123 * NR_TIME_DIVISOR);
+  tlib_pass_if_uint_equal("NULL txn", nr_txn_start_time(NULL), 0);
+  tlib_pass_if_uint_equal(
+      "A transaction with a well-formed timestamp must yield a correct start "
+      "time",
+      nr_txn_start_time(&txn), 123 * NR_TIME_DIVISOR);
+}
+
+static void test_rel_to_abs(void) {
+  nrtxn_t txn = {0};
+
+  /*
+   *  Test : Bad parameters
+   */
+  tlib_pass_if_uint_equal(
+      "A NULL transaction must yield the original relative time",
+      nr_txn_time_rel_to_abs(NULL, 246 * NR_TIME_DIVISOR),
+      246 * NR_TIME_DIVISOR);
+
+  tlib_pass_if_uint_equal(
+      "A transaction with a malformed timestamp must yield the original "
+      "relative time",
+      nr_txn_time_rel_to_abs(&txn, 246 * NR_TIME_DIVISOR),
+      246 * NR_TIME_DIVISOR);
+
+  /*
+   * Test : Normal operation
+   */
+  txn.abs_start_time = 123 * NR_TIME_DIVISOR;
+  tlib_pass_if_uint_equal(
+      "A transaction with a well-formed timestamp must yield a correct "
+      "absolute start time",
+      nr_txn_time_rel_to_abs(&txn, 246 * NR_TIME_DIVISOR),
+      369 * NR_TIME_DIVISOR);
+}
+
+static void test_abs_to_rel(void) {
+  nrtxn_t txn = {0};
+
+  /*
+   *  Test : Bad parameters
+   */
+  tlib_pass_if_uint_equal(
+      "A NULL transaction must yield the original absolute time",
+      nr_txn_time_abs_to_rel(NULL, 246 * NR_TIME_DIVISOR),
+      246 * NR_TIME_DIVISOR);
+
+  tlib_pass_if_uint_equal(
+      "A transaction with a malformed timestamp must yield the original "
+      "absolute time",
+      nr_txn_time_abs_to_rel(&txn, 246 * NR_TIME_DIVISOR),
+      246 * NR_TIME_DIVISOR);
+
+  /*
+   * Test : Normal operation
+   */
+  txn.abs_start_time = 100 * NR_TIME_DIVISOR;
+  tlib_pass_if_uint_equal(
+      "A transaction with a well-formed timestamp must yield a correct "
+      "absolute start time",
+      nr_txn_time_abs_to_rel(&txn, 123 * NR_TIME_DIVISOR),
+      23 * NR_TIME_DIVISOR);
+
+  tlib_pass_if_uint_equal(
+      "A transaction should return 0 instead of a negative time result",
+      nr_txn_time_abs_to_rel(&txn, 50 * NR_TIME_DIVISOR),
+      0);
 }
 
 static nrtxn_t* test_namer_with_app_and_expressions_and_return_txn(
@@ -4279,10 +4481,11 @@ static void test_create_event(void) {
   nr_txn_set_guid(&txn, "abcd");
   txn.name = nr_strdup("my_txn_name");
 #ifdef NR_CAGENT
+  txn.abs_start_time = 123 * NR_TIME_DIVISOR;
+
   txn.segment_root = &seg;
-  txn.segment_root->start_time = 123 * NR_TIME_DIVISOR;
-  txn.segment_root->stop_time
-      = txn.segment_root->start_time + 987 * NR_TIME_DIVISOR_MS;
+  txn.segment_root->start_time = 0;
+  txn.segment_root->stop_time = 987 * NR_TIME_DIVISOR_MS;
 #else
   txn.root.start_time.when = 123 * NR_TIME_DIVISOR;
   txn.root.stop_time.when = txn.root.start_time.when + 987 * NR_TIME_DIVISOR_MS;
@@ -4427,11 +4630,84 @@ static void test_create_event(void) {
                          "]");
   nr_analytics_event_destroy(&event);
 
+#ifdef NR_CAGENT
+  nr_txn_set_timing(&txn, 456 * NR_TIME_DIVISOR, 789 * NR_TIME_DIVISOR_MS);
+  event = nr_txn_to_event(&txn);
+  tlib_pass_if_str_equal(
+      "retimed transaction", nr_analytics_event_json(event),
+      "["
+      "{"
+      "\"type\":\"Transaction\","
+      "\"name\":\"my_txn_name\","
+      "\"timestamp\":456.00000,"
+      "\"duration\":0.78900,"
+      "\"totalTime\":1.12200," /* 0.789 + async duration 0.333 */
+      "\"nr.apdexPerfZone\":\"F\","
+      "\"queueDuration\":3.00000,"
+      "\"externalDuration\":2.00000,"
+      "\"databaseDuration\":1.00000,"
+      "\"databaseCallCount\":1,"
+      "\"error\":false"
+      "},"
+      "{\"user_long\":1},"
+      "{\"agent_long\":2}"
+      "]");
+  nr_analytics_event_destroy(&event);
+#endif
+
   nr_distributed_trace_destroy(&txn.distributed_trace);
   nr_free(txn.name);
   nr_attributes_destroy(&txn.attributes);
   nrm_table_destroy(&txn.unscoped_metrics);
 }
+
+#ifdef NR_CAGENT
+static void test_create_event_with_retimed_segments(void) {
+  nr_segment_t* seg;
+  nrtxn_t* txn = new_txn(0);
+  nr_analytics_event_t* event;
+
+  txn->abs_start_time = 123 * NR_TIME_DIVISOR;
+  txn->segment_root->start_time = 0;
+  txn->segment_root->stop_time = 987 * NR_TIME_DIVISOR_MS;
+  txn->name = nr_strdup("my_txn_name");
+
+  /*
+   * Test : A retimed segment does not impact totalTime
+   *
+   * Future work should see this test fail as retimed segments
+   * must be counted in a transaction's total time.
+   *
+   * See: PHP-1985
+   */
+  seg = nr_segment_start(txn, NULL, NULL);
+
+  /* Even though this segment has been manually re-timed and now
+   * has an immense duration, it is not an async component, and
+   * so its duration does not impact the transaction's totalTime. */
+  nr_segment_set_timing(seg, 0, 10000 * NR_TIME_DIVISOR_MS);
+  nr_segment_end(seg);
+
+  event = nr_txn_to_event(txn);
+  tlib_pass_if_str_equal("retimed segments", nr_analytics_event_json(event),
+                         "["
+                         "{"
+                         "\"type\":\"Transaction\","
+                         "\"name\":\"my_txn_name\","
+                         "\"timestamp\":123.00000,"
+                         "\"duration\":0.98700,"
+                         "\"totalTime\":0.98700,"
+                         "\"nr.apdexPerfZone\":\"T\","
+                         "\"error\":false"
+                         "},"
+                         "{},"
+                         "{}"
+                         "]");
+  nr_analytics_event_destroy(&event);
+
+  nr_txn_destroy(&txn);
+}
+#endif
 
 static void test_name_from_function(void) {
   nrtxn_t txn = {.high_security = 0};
@@ -4725,6 +5001,7 @@ static void test_txn_dt_cross_agent_testcase(nrapp_t* app,
   nrobj_t* txn_event;
   nrobj_t* error_event;
   nrobj_t* span_event;
+  nr_segment_t* current_segment;
 
   const char* testname = nro_get_hash_string(hash, "test_name", NULL);
   const char* trusted_account_key
@@ -4825,13 +5102,12 @@ static void test_txn_dt_cross_agent_testcase(nrapp_t* app,
     test_txn_dt_cross_agent_intrinsics(testname, "outbound payload",
                                        json_payload, spec);
 
+    current_segment = nr_txn_get_current_segment(txn);
+    nr_free(current_segment->id);
     nro_delete(json_payload);
     nr_free(payload);
   }
 
-  /*
-   * Intrinsics.
-   */
 #ifdef NR_CAGENT
   txn->segment_root->start_time = 1000;
   txn->segment_root->stop_time = 2000;
@@ -4839,6 +5115,10 @@ static void test_txn_dt_cross_agent_testcase(nrapp_t* app,
   txn->root.start_time.stamp = txn->root.start_time.when = 1000;
   txn->root.stop_time.stamp = txn->root.stop_time.when = 2000;
 #endif /* NR_CAGENT */
+
+  /*
+   * Intrinsics.
+   */
 
   /* Initialize transaction event */
   txn_event = nr_txn_event_intrinsics(txn);
@@ -5486,10 +5766,19 @@ static void test_nr_txn_is_current_path_named(void) {
 
 static void test_create_distributed_trace_payload(void) {
   char* text;
+  char* dt_guid1;
+  const char* dt_guid2;
+  const char* dt_guid3;
   nrtxn_t txn;
+  nr_segment_t* previous_segment = NULL;
+  nr_segment_t* current_segment = NULL;
 
   nr_memset(&txn, 0, sizeof(nrtxn_t));
   txn.unscoped_metrics = nrm_table_create(0);
+  nr_stack_init(&txn.parent_stack, 10);
+  txn.distributed_trace = nr_distributed_trace_create();
+  txn.rnd = nr_random_create();
+  txn.segment_root = nr_segment_start(&txn, NULL, NULL);
 
   /*
    * Test : Bad parameters.
@@ -5536,6 +5825,8 @@ static void test_create_distributed_trace_payload(void) {
    */
   txn.options.span_events_enabled = true;
   txn.options.analytics_events_enabled = false;
+  txn.status.recording = true;
+  current_segment = nr_segment_start(&txn, NULL, NULL);
   nr_txn_set_guid(&txn, "kangaroos");
   text = nr_txn_create_distributed_trace_payload(&txn);
   tlib_fail_if_null("valid guid kangaroos",
@@ -5544,6 +5835,51 @@ static void test_create_distributed_trace_payload(void) {
       "success", txn.unscoped_metrics, MET_FORCED,
       "Supportability/DistributedTrace/CreatePayload/Success", 2, 0, 0, 0, 0,
       0);
+  tlib_pass_if_null("The guid should be empty when dt sampled is off",
+                    current_segment->id);
+  nr_free(text);
+
+  /*
+   * Test : Create two payloads in the same segment.
+   */
+  txn.distributed_trace->sampled = true;
+
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  dt_guid1 = nr_strdup(nr_distributed_trace_get_guid(txn.distributed_trace));
+  nr_free(text);
+  tlib_pass_if_str_equal("The DT guid should match the segment id", dt_guid1,
+                         current_segment->id);
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  dt_guid2 = nr_distributed_trace_get_guid(txn.distributed_trace);
+  tlib_pass_if_str_equal("The new DT guid should match the old one", dt_guid1,
+                         dt_guid2);
+  tlib_pass_if_str_equal("The segment id should be the same",
+                         current_segment->id, dt_guid1);
+  nr_segment_end(current_segment);
+  nr_free(text);
+
+  /*
+   * Test : Create a payload in the next segment.
+   *
+   * +--------------------------------+
+   * |          Root Segment          |
+   * +--------------------------------+
+   * |   Segment 1      |  Segment 2  |
+   * +--------------------------------+
+   *          ^ ^            ^
+   *          1 2            3
+   *          Payload creation
+   */
+  previous_segment = current_segment;
+  current_segment = nr_segment_start(&txn, NULL, NULL);
+  text = nr_txn_create_distributed_trace_payload(&txn);
+  dt_guid3 = nr_distributed_trace_get_guid(txn.distributed_trace);
+  tlib_pass_if_str_equal("The new segment id should match the 3rd DT guid",
+                         current_segment->id, dt_guid3);
+  tlib_fail_if_str_equal("There should be a new id on the new segment",
+                         current_segment->id, previous_segment->id);
+  tlib_fail_if_str_equal("The new DT guid should not match the one from before",
+                         dt_guid3, dt_guid1);
   nr_free(text);
 
   /*
@@ -5554,16 +5890,24 @@ static void test_create_distributed_trace_payload(void) {
    */
   txn.options.span_events_enabled = true;
   txn.options.analytics_events_enabled = true;
+  txn.distributed_trace->sampled = true;
   nr_txn_set_guid(&txn, "guid");
   text = nr_txn_create_distributed_trace_payload(&txn);
   tlib_fail_if_null("valid text", text);
   tlib_fail_if_null("valid guid", nr_strstr(text, "\"tx\":\"guid\""));
   test_txn_metric_created(
       "success", txn.unscoped_metrics, MET_FORCED,
-      "Supportability/DistributedTrace/CreatePayload/Success", 3, 0, 0, 0, 0,
+      "Supportability/DistributedTrace/CreatePayload/Success", 6, 0, 0, 0, 0,
       0);
   nr_free(text);
 
+  nr_free(dt_guid1);
+  nr_random_destroy(&txn.rnd);
+  nr_distributed_trace_destroy(&txn.distributed_trace);
+  nr_stack_destroy_fields(&txn.parent_stack);
+  nr_segment_destroy(txn.segment_root);
+  nr_segment_destroy(current_segment);
+  nr_segment_destroy(previous_segment);
   nr_txn_destroy_fields(&txn);
 }
 
@@ -6122,7 +6466,7 @@ static void test_txn_current_span_event_id(void) {
   text = nr_txn_create_distributed_trace_payload(txn);
   nr_free(text);
   spanid = nr_distributed_trace_get_guid(txn->distributed_trace);
-  spanid_time = txn->current_node_time;
+  spanid_time = 0;
 
   /*
    * Save a trace node that does not contain the time the DT payload was
@@ -6225,6 +6569,10 @@ void test_main(void* p NRUNUSED) {
   test_set_request_content_length();
   test_add_error_attributes();
   test_duration();
+  test_duration_with_segment_retiming();
+#ifdef NR_CAGENT
+  test_duration_with_txn_retiming();
+#endif
   test_queue_time();
   test_set_queue_start();
   test_create_rollup_metrics();
@@ -6248,9 +6596,14 @@ void test_main(void* p NRUNUSED) {
   test_is_synthetics();
   test_start_time();
   test_start_time_secs();
+  test_rel_to_abs();
+  test_abs_to_rel();
   test_namer();
   test_error_to_event();
   test_create_event();
+#ifdef NR_CAGENT
+  test_create_event_with_retimed_segments();
+#endif
   test_name_from_function();
   test_txn_ignore();
   test_add_custom_metric();

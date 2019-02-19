@@ -6,43 +6,84 @@
 #include "nr_segment_traces.h"
 #include "nr_segment_tree.h"
 #include "nr_txn.h"
+#include "util_logging.h"
 #include "util_minmax_heap.h"
 #include "util_strings.h"
+
+#include <stdio.h>
 
 static void nr_vector_span_event_dtor(void* element, void* userdata NRUNUSED) {
   nr_span_event_destroy((nr_span_event_t**)&element);
 }
 
-static void add_hash_json_to_buffer(nrbuf_t* buf, const nrobj_t* hash) {
-  char* json;
-
-  if (NULL == hash) {
-    nr_buffer_add(buf, "{}", 2);
+/*
+ * Purpose: Add a key-value pair to a hash in the buffer.
+ *
+ * If the key-value pair is not the first pair in the hash, it is
+ * prepended with a comma.
+ *
+ * If raw_json is true, the value is added as escaped JSON. Otherwise
+ * the value is added to the JSON output as is.
+ */
+static void add_hash_key_value_to_buffer(nrbuf_t* buf,
+                                         const char* key,
+                                         const char* value,
+                                         bool raw_json) {
+  if (NULL == key || NULL == value) {
     return;
   }
 
-  json = nro_to_json(hash);
-  nr_buffer_add(buf, json, nr_strlen(json));
-  nr_free(json);
+  if ('{' != nr_buffer_peek_end(buf)) {
+    nr_buffer_add(buf, NR_PSTR(","));
+  }
+
+  nr_buffer_add(buf, NR_PSTR("\""));
+  nr_buffer_add(buf, key, nr_strlen(key));
+  nr_buffer_add(buf, NR_PSTR("\":"));
+  if (raw_json) {
+    nr_buffer_add(buf, value, nr_strlen(value));
+  } else {
+    nr_buffer_add_escape_json(buf, value);
+  }
 }
 
 /*
- * Purpose : Adds the given data hash to the JSON buffer, including the
- * execution context string ID.
+ * Purpose: Add the "async_context" attribute to a hash in the buffer.
+ *
+ * A previous version of this function also used the string table for
+ * "async_context", but it turns out that RPM doesn't interpolate keys.
  */
-static void add_async_hash_json_to_buffer(nrbuf_t* buf,
-                                          const nrobj_t* hash,
-                                          int async_context_value_idx) {
-  /*
-   * A previous version of this function also used the string table for
-   * "async_context", but it turns out that RPM doesn't interpolate keys.
-   */
-  nr_buffer_add(buf, NR_PSTR("{\"async_context\":\"`"));
-  nr_buffer_write_uint64_t_as_text(buf, (uint64_t)async_context_value_idx);
-  nr_buffer_add(buf, NR_PSTR("\""));
+static void add_async_attribute_to_buffer(nrbuf_t* buf,
+                                          nr_segment_t* segment,
+                                          nrpool_t* segment_names) {
+  const char* context;
+  uint64_t context_idx;
+  char context_idx_str[21] = {0};
 
-  if (NULL != hash) {
-    char* json = nro_to_json(hash);
+  context = nr_string_get(segment->txn->trace_strings, segment->async_context);
+  context_idx = nr_string_add(segment_names, context ? context : "<unknown>");
+
+  /* The internal string tables index at 1, and we wish to index by 0 here. */
+  context_idx--;
+
+  snprintf(context_idx_str, sizeof(context_idx_str), "`" NR_UINT64_FMT,
+           context_idx);
+
+  add_hash_key_value_to_buffer(buf, "async_context", context_idx_str, false);
+}
+
+/* 
+ * Purpose: Add a hash to a hash in the buffer.
+ *
+ * The hash is added without the leading and trailing '{' and '}'
+ * characters.
+ *
+ * If the hash in the buffer already contains key-value pairs, a comma
+ * is added before adding further values.
+ */
+static void add_attribute_hash_to_buffer(nrbuf_t* buf, nrobj_t* attributes) {
+  if (NULL != attributes) {
+    char* json = nro_to_json(attributes);
     int json_len = nr_strlen(json);
 
     /*
@@ -51,14 +92,51 @@ static void add_async_hash_json_to_buffer(nrbuf_t* buf,
      * surrounding braces.
      */
     if (json_len > 2) {
-      nr_buffer_add(buf, ",", 1);
+      if ('{' != nr_buffer_peek_end(buf)) {
+        nr_buffer_add(buf, ",", 1);
+      }
       nr_buffer_add(buf, json + 1, nr_strlen(json) - 2);
     }
 
     nr_free(json);
   }
+}
 
-  nr_buffer_add(buf, "}", 1);
+/*
+ * Purpose: Add typed attributes from a segment to a hash in the buffer.
+ */
+static void add_typed_attributes_to_buffer(nrbuf_t* buf,
+                                           const nr_segment_t* segment) {
+  switch (segment->type) {
+    case NR_SEGMENT_DATASTORE: {
+      const nr_segment_datastore_t* data = &segment->typed_attributes.datastore;
+      add_hash_key_value_to_buffer(buf, "host", data->instance.host, false);
+      add_hash_key_value_to_buffer(buf, "database_name",
+                                   data->instance.database_name, false);
+      add_hash_key_value_to_buffer(buf, "port_path_or_id",
+                                   data->instance.port_path_or_id, false);
+      add_hash_key_value_to_buffer(buf, "backtrace", data->backtrace_json,
+                                   true);
+      add_hash_key_value_to_buffer(buf, "explain_plan", data->explain_plan_json,
+                                   true);
+      add_hash_key_value_to_buffer(buf, "sql", data->sql, false);
+      add_hash_key_value_to_buffer(buf, "sql_obfuscated", data->sql_obfuscated,
+                                   false);
+      add_hash_key_value_to_buffer(buf, "input_query", data->input_query_json,
+                                   true);
+    } break;
+    case NR_SEGMENT_EXTERNAL: {
+      const nr_segment_external_t* ext = &segment->typed_attributes.external;
+      add_hash_key_value_to_buffer(buf, "uri", ext->uri, false);
+      add_hash_key_value_to_buffer(buf, "library", ext->library, false);
+      add_hash_key_value_to_buffer(buf, "procedure", ext->procedure, false);
+      add_hash_key_value_to_buffer(buf, "transaction_guid",
+                                   ext->transaction_guid, false);
+    } break;
+    case NR_SEGMENT_CUSTOM:
+    default:
+      break;
+  }
 }
 
 static void nr_segment_traces_stot_iterator_post_callback(
@@ -76,8 +154,8 @@ static void nr_segment_traces_stot_iterator_post_callback(
   current_span_segment = nr_vector_get(userdata->spans.current_path, 0);
 
   /*
-   * The segment is sampled for the the trace output. It has to be popped off 
-   * the current trace ancestor path and brackets have to be added to the 
+   * The segment is sampled for the the trace output. It has to be popped off
+   * the current trace ancestor path and brackets have to be added to the
    * trace output.
    */
   if (NULL != userdata->trace.buf && segment == current_trace_segment) {
@@ -89,8 +167,8 @@ static void nr_segment_traces_stot_iterator_post_callback(
   }
 
   /*
-   * The segment is sampled for the the span event output. It has to be popped 
-   * off the current span event ancestor paths (both for the segment path and 
+   * The segment is sampled for the the span event output. It has to be popped
+   * off the current span event ancestor paths (both for the segment path and
    * the span event path).
    */
   if (segment == current_span_segment) {
@@ -111,8 +189,9 @@ static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
   nrbuf_t* buf = userdata->trace.buf;
   int idx;
   nr_segment_t* parent = NULL;
-  uint64_t zerobased_start_ms;
-  uint64_t zerobased_stop_ms;
+
+  uint64_t start_ms;
+  uint64_t stop_ms;
 
   if (trace_is_sampled && !segment_is_sampled) {
     return;
@@ -141,29 +220,21 @@ static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
   idx = nr_string_add(segment_names, segment_name);
   idx--;
 
-  /* Calculate zerobased start and stop times. */
-  zerobased_start_ms = (segment->start_time - txn->segment_root->start_time)
-                       / NR_TIME_DIVISOR_MS;
+  /* Every segment's start and stop time are unsigned values, recorded in
+   * microseconds relative to the start of the transaction. Convert these
+   * values to milliseconds and adjust the stop time if it is recorded as
+   * taking place before the start. */
+  start_ms = segment->start_time / NR_TIME_DIVISOR_MS;
+  stop_ms = segment->stop_time / NR_TIME_DIVISOR_MS;
 
-  zerobased_stop_ms = (segment->stop_time - txn->segment_root->start_time)
-                      / NR_TIME_DIVISOR_MS;
-
-  if (txn->segment_root->start_time > segment->start_time) {
-    zerobased_start_ms = 0;
-  }
-
-  if (txn->segment_root->start_time > segment->stop_time) {
-    zerobased_stop_ms = 0;
-  }
-
-  if (zerobased_start_ms > zerobased_stop_ms) {
-    zerobased_stop_ms = zerobased_start_ms;
+  if (start_ms > stop_ms) {
+    stop_ms = start_ms;
   }
 
   nr_buffer_add(buf, "[", 1);
-  nr_buffer_write_uint64_t_as_text(buf, zerobased_start_ms);
+  nr_buffer_write_uint64_t_as_text(buf, start_ms);
   nr_buffer_add(buf, ",", 1);
-  nr_buffer_write_uint64_t_as_text(buf, zerobased_stop_ms);
+  nr_buffer_write_uint64_t_as_text(buf, stop_ms);
   nr_buffer_add(buf, ",", 1);
   nr_buffer_add(buf, "\"", 1);
   nr_buffer_add(buf, "`", 1);
@@ -173,7 +244,12 @@ static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
 
   /*
    * Segment parameters.
-   *
+   */
+  nr_buffer_add(buf, "{", 1);
+
+  add_typed_attributes_to_buffer(buf, segment);
+
+  /*
    * We only want to add the async context if the transaction itself is
    * asynchronous: ie if the WebTransactionTotalTime metric > WebTransaction.
    * The reason for this is that APM displays the transaction trace differently
@@ -183,20 +259,12 @@ static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
    * rather than nested under their individual start points).
    */
   if (segment->async_context && txn->async_duration) {
-    int async_context_idx;
-    const char* async_context;
-
-    async_context = nr_string_get(txn->trace_strings, segment->async_context);
-    async_context_idx = nr_string_add(
-        segment_names, async_context ? async_context : "<unknown>");
-    /* The internal string tables index at 1, and we wish to index by 0 here. */
-    async_context_idx--;
-
-    add_async_hash_json_to_buffer(buf, segment->user_attributes,
-                                  async_context_idx);
-  } else {
-    add_hash_json_to_buffer(buf, segment->user_attributes);
+    add_async_attribute_to_buffer(buf, segment, segment_names);
   }
+
+  add_attribute_hash_to_buffer(buf, segment->user_attributes);
+
+  nr_buffer_add(buf, "}", 1);
 
   /* And now for all its children. */
   nr_buffer_add(buf, ",", 1);
@@ -295,7 +363,11 @@ static void nr_segment_iteration_pass_span(nr_segment_t* segment,
 
   nr_span_event_set_name(span, segment_name);
   nr_span_event_set_parent(span, nr_vector_get(spandata->current_span_path, 1));
-  nr_span_event_set_timestamp(span, segment->start_time);
+
+  /* The start_time of a segment is measured relative to the transaction.
+   * Calculate its absolute timestamp and add it to the span event. */
+  nr_span_event_set_timestamp(span, nr_txn_time_rel_to_abs(txn, segment->start_time));
+
   nr_span_event_set_duration(
       span, nr_time_duration(segment->start_time, segment->stop_time));
 
@@ -319,17 +391,21 @@ nr_segment_iter_return_t nr_segment_traces_stot_iterator_callback(
   const nrtxn_t* txn = userdata->txn;
   const char* segment_name;
 
+  segment_name = nr_string_get(txn->trace_strings, segment->name);
+  if (NULL == segment_name) {
+    segment_name = "<unknown>";
+  }
+
   /*
    * Sanity check, the segment should have started before it stopped.
    */
   if (segment->start_time >= segment->stop_time) {
+    nrl_error(NRL_SEGMENT,
+              "Invalid segment '%s': start time (" NR_TIME_FMT
+              ") after stop time (" NR_TIME_FMT ")\n",
+              segment_name, segment->start_time, segment->stop_time);
     userdata->success = -1;
     return NR_SEGMENT_NO_POST_ITERATION_CALLBACK;
-  }
-
-  segment_name = nr_string_get(txn->trace_strings, segment->name);
-  if (NULL == segment_name) {
-    segment_name = "<unknown>";
   }
 
   /*
@@ -494,7 +570,10 @@ void nr_segment_traces_create_data(
       nro_set_hash(hash, "intrinsics", intrinsics);
     }
 
-    add_hash_json_to_buffer(buf, hash);
+    nr_buffer_add(buf, "{", 1);
+    add_attribute_hash_to_buffer(buf, hash);
+    nr_buffer_add(buf, "}", 1);
+
     nro_delete(hash);
   }
   nr_buffer_add(buf, "]", 1);

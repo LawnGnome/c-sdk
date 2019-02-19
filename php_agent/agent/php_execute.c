@@ -884,18 +884,6 @@ static void nr_execute_handle_library(const zend_op_array* op_array TSRMLS_DC) {
   }
 }
 
-static void nr_php_execute_add_custom_metric(const char* name,
-                                             nrtime_t duration,
-                                             nrtime_t kids_duration TSRMLS_DC) {
-  nrtime_t exclusive = 0;
-
-  if (nrlikely(duration > kids_duration)) {
-    exclusive = duration - kids_duration;
-  }
-
-  nrm_add_ex(NRTXN(scoped_metrics), name, duration, exclusive);
-}
-
 /*
  * The maximum length of a custom metric.
  */
@@ -1050,32 +1038,18 @@ static void nr_php_execute_metadata_release(
 #endif /* PHP7 */
 }
 
-/*
- * Purpose : Actually add a trace node, and optionally a custom metric.
- *
- * Params  : See nr_php_execute_add_metric_node(). Duration is calculated from
- *           the start and stop values.
- */
-static void NRNOINLINE
-nr_php_execute_do_add_metric_node(const nr_php_execute_metadata_t* metadata,
-                                  const nrtxntime_t* start,
-                                  const nrtxntime_t* stop,
-                                  nrtime_t duration,
-                                  int create_metric,
-                                  nrtime_t kids_duration,
-                                  nrtime_t* kids_duration_save TSRMLS_DC) {
+static inline void nr_php_execute_segment_add_metric(
+    nr_segment_t* segment,
+    const nr_php_execute_metadata_t* metadata,
+    bool create_metric) {
   char buf[METRIC_NAME_MAX_LEN];
 
   nr_php_execute_metadata_metric(metadata, buf, sizeof(buf));
 
   if (create_metric) {
-    if (kids_duration_save) {
-      *kids_duration_save += duration;
-    }
-    nr_php_execute_add_custom_metric(buf, duration, kids_duration TSRMLS_CC);
+    nr_segment_add_metric(segment, buf, true);
   }
-
-  nr_txn_save_trace_node(NRPRG(txn), start, stop, buf, NULL, 0, NULL);
+  nr_segment_set_name(segment, buf);
 }
 
 /*
@@ -1083,30 +1057,26 @@ nr_php_execute_do_add_metric_node(const nr_php_execute_metadata_t* metadata,
  *           for the given function, and adjust the duration of this function's
  *           parent accordingly.
  *
- * Params  : 1. The function naming metadata.
- *           2. The start time of the function.
- *           3. The stop time of the function.
- *           4. Whether to create a metric.
- *           5. The duration of the children of this function.
- *           6. A pointer to the saved duration of the children of this
- *              function's parent.
- *
- * Note    : If create_metric is 0, kids_duration and kids_duration_save are
- *           ignored, and should be 0 and NULL, respectively.
+ * Params  : 1. The segment to end.
+ *           2. The function naming metadata.
+ *           3. Whether to create a metric.
  */
-static inline void nr_php_execute_add_metric_node(
+static inline void nr_php_execute_segment_end(
+    nr_segment_t* segment,
     const nr_php_execute_metadata_t* metadata,
-    const nrtxntime_t* start,
-    const nrtxntime_t* stop,
-    int create_metric,
-    nrtime_t kids_duration,
-    nrtime_t* kids_duration_save TSRMLS_DC) {
-  nrtime_t duration = nr_time_duration(start->when, stop->when);
+    bool create_metric) {
+  nrtime_t duration;
+
+  nr_segment_end(segment);
+
+  duration = nr_time_duration(segment->start_time, segment->stop_time);
 
   if (create_metric || (duration >= NR_PHP_PROCESS_GLOBALS(expensive_min))) {
-    nr_php_execute_do_add_metric_node(metadata, start, stop, duration,
-                                      create_metric, kids_duration,
-                                      kids_duration_save TSRMLS_CC);
+    nr_php_execute_segment_add_metric(segment, metadata, create_metric);
+  } else {
+    if (NULL != segment) {
+      nr_segment_discard(&segment);
+    }
   }
 }
 
@@ -1118,16 +1088,12 @@ static inline void nr_php_execute_add_metric_node(
  * the call path and thus the overhead is (hopefully) very low.
  */
 static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
-  nrtxntime_t start;
-  nrtxntime_t stop;
   int zcaught = 0;
   nrtxn_t* txn = NRPRG(txn);
   nr_php_execute_metadata_t metadata;
+  nr_segment_t* segment = NULL;
 
   NRPRG(execute_count) += 1;
-
-  start.stamp = 0;
-  start.when = 0;
 
   if (nrunlikely(OP_ARRAY_IS_A_FILE(NR_OP_ARRAY))) {
     nr_php_execute_file(NR_OP_ARRAY, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
@@ -1143,9 +1109,7 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
      * This is the case for specifically requested custom instrumentation.
      */
     nruserfn_t* wraprec = nr_php_op_array_get_wraprec(NR_OP_ARRAY);
-    nrtime_t kids_duration = 0;
-    nrtime_t* kids_duration_save = NRTXN(cur_kids_duration);
-    int create_metric = wraprec->create_metric;
+    bool create_metric = wraprec->create_metric;
 
     nr_php_execute_metadata_init(&metadata, NR_OP_ARRAY);
 
@@ -1175,57 +1139,25 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
           "Uncaught exception ", &NRPRG(exception_filters) TSRMLS_CC);
     }
 
-    nr_txn_set_time(txn, &start);
+    txn = NRPRG(txn);
+    segment = nr_segment_start(txn, NULL, NULL);
 
-    if (create_metric) {
-      NRTXN(cur_kids_duration) = &kids_duration;
-    }
     zcaught = nr_zend_call_orig_execute_special(wraprec,
                                                 NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
-
-    if (NRPRG(txn) && (NRPRG(txn)->cur_kids_duration == &kids_duration)) {
-      /*
-       * IMPORTANT: Extreme subtlety here.  Beware.
-       *
-       * cur_kids_duration cannot be unconditionally restored since it is a
-       * transaction field, and the transaction may have been changed or been
-       * destroyed during the call.  Even if cur_kids_duration was turned into
-       * a request field (like cur_drupal_view_kids_duration), the restoration
-       * still could not be unconditional, since cur_kids_duration sometimes
-       * points to the transaction's root, not a place on the stack.  This
-       * difference is important, since any function that is restoring
-       * cur_drupal_view_kids_duration knows that the parent's stack frame
-       * must still exist, and therefore the restoration is guaranteed to be
-       * safe.
-       *
-       * Additionally, this restoration cannot depend on the return
-       * value of the nr_txn_set_stop_time call below.  This is because
-       * nr_txn_set_stop_time may return failure if the transaction is still
-       * the same but the start time is after the stop time due to clock
-       * jitter (this behavior of nr_txn_set_stop_time is nice because it
-       * guarantees a valid duration).  In this case, restoration is required
-       * to avoid a segfault.
-       */
-      NRTXN(cur_kids_duration) = kids_duration_save;
-    }
 
     /*
      * During this call, the transaction may have been ended and/or a new
      * transaction may have started.  Therefore, we must check recording status
      * and that this function call started during the current transaction.
      */
-    stop.stamp = 0;
-    stop.when = 0;
-    txn = NRPRG(txn);
-    if (NR_SUCCESS != nr_txn_set_stop_time(txn, &start, &stop)) {
+    if (txn != NRPRG(txn)) {
       if (zcaught) {
         zend_bailout();
       }
       return;
     }
 
-    nr_php_execute_add_metric_node(&metadata, &start, &stop, create_metric,
-                                   kids_duration, kids_duration_save TSRMLS_CC);
+    nr_php_execute_segment_end(segment, &metadata, create_metric);
 
     nr_php_execute_metadata_release(&metadata);
 
@@ -1239,7 +1171,8 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
      * This is the case for transaction_tracer.detail >= 1 requested custom
      * instrumentation.
      */
-    nr_txn_set_time(txn, &start);
+    txn = NRPRG(txn);
+    segment = nr_segment_start(txn, NULL, NULL);
 
     /*
      * Here we use orig_execute rather than nr_zend_call_orig_execute to avoid
@@ -1259,15 +1192,11 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
      * transaction may have started. Therefore, we must check recording status
      * and that this function call started during the current transaction.
      */
-    stop.stamp = 0;
-    stop.when = 0;
-    txn = NRPRG(txn);
-    if (NR_SUCCESS != nr_txn_set_stop_time(txn, &start, &stop)) {
+    if (txn != NRPRG(txn)) {
       return;
     }
 
-    nr_php_execute_add_metric_node(&metadata, &start, &stop, 0, 0,
-                                   NULL TSRMLS_CC);
+    nr_php_execute_segment_end(segment, &metadata, false);
 
     nr_php_execute_metadata_release(&metadata);
   } else {
@@ -1408,8 +1337,7 @@ void nr_php_execute_internal(zend_execute_data* execute_data,
 {
   nrtime_t duration = 0;
   zend_function* func = NULL;
-  nrtxntime_t start, stop;
-  nrtxn_t* txn = NRPRG(txn);
+  nr_segment_t* segment;
 
   if (nrunlikely(!nr_php_recording(TSRMLS_C))) {
     CALL_ORIGINAL;
@@ -1456,17 +1384,18 @@ void nr_php_execute_internal(zend_execute_data* execute_data,
 #endif /* PHP >= 5.5 */
   }
 
-  nr_txn_set_time(txn, &start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   CALL_ORIGINAL;
-  nr_txn_set_time(txn, &stop);
+  nr_segment_end(segment);
 
-  duration = nr_time_duration(start.when, stop.when);
+  duration = nr_time_duration(segment->start_time, segment->stop_time);
   if (duration >= NR_PHP_PROCESS_GLOBALS(expensive_min)) {
     nr_php_execute_metadata_t metadata;
 
     nr_php_execute_metadata_init(&metadata, (zend_op_array*)func);
-    nr_php_execute_do_add_metric_node(&metadata, &start, &stop, duration, 0, 0,
-                                      NULL TSRMLS_CC);
+
+    nr_php_execute_segment_add_metric(segment, &metadata, false);
+
     nr_php_execute_metadata_release(&metadata);
   }
 }

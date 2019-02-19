@@ -44,8 +44,7 @@ extern char* nr_sql_normalize(const char* obfuscated_sql);
 extern uint32_t nr_sql_normalized_id(const char* obfuscated_sql);
 
 /*
- * Purpose : Get the operation ('insert', 'update', etc) and the table name
- *           name.
+ * Purpose : Get the operation ('insert', 'update', etc) and the table name.
  *
  * Params  : 1. The NUL-terminated SQL.
  *           2. Pointer to location to return operation string.  This string

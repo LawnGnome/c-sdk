@@ -91,23 +91,21 @@ extern nr_datastore_instance_t* nr_php_pdo_get_datastore_instance(
 /*
  * Purpose : Create a new SQL trace node for a PDO query.
  *
- * Params  : 1. The current transaction.
- *           2. The query start time.
- *           3. The query end time.
- *           4. The SQL string that was executed.
- *           5. The length of the SQL string.
- *           6. The PDOStatement object that was executed, if any.
- *           7. The parameters that were bound to the PDOStatement, if any.
- *           8. Non-zero to enable explain plans, zero otherwise.
+ * Params  : 1. The segment to end.
+ *           2. The query end time.
+ *           3. The SQL string that was executed.
+ *           4. The length of the SQL string.
+ *           5. The PDOStatement object that was executed, if any.
+ *           6. The parameters that were bound to the PDOStatement, if any.
+ *           7. true to enable explain plans, false otherwise.
  */
-extern void nr_php_pdo_end_node_sql(nrtxn_t* txn,
-                                    const nrtxntime_t* start,
-                                    const nrtxntime_t* stop,
-                                    const char* sqlstr,
-                                    int sqlstrlen,
-                                    zval* stmt_obj,
-                                    zval* parameters,
-                                    int try_explain TSRMLS_DC);
+extern void nr_php_pdo_end_segment_sql(nr_segment_t* segment,
+                                       const nrtxntime_t* stop,
+                                       const char* sqlstr,
+                                       size_t sqlstrlen,
+                                       zval* stmt_obj,
+                                       zval* parameters,
+                                       bool try_explain TSRMLS_DC);
 
 /*
  * Purpose : Duplicate a PDO connection.

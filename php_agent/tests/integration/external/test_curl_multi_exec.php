@@ -2,6 +2,61 @@
 
 /*DESCRIPTION
 Test that the agent instruments curl_multi_exec.
+ */
+
+/*INI
+newrelic.transaction_tracer.threshold=0
+*/
+
+/*EXPECT_TXN_TRACES
+[
+  "?? agent run id",
+  [
+    [
+      "?? entry",
+      "?? duration",
+      "OtherTransaction/php__FILE__",
+      "\u003cunknown\u003e",
+      [
+        [
+          0, {}, {}, [
+            "?? start time", "?? end time", "ROOT", "?? root attributes", [
+              [
+                "?? start time", "?? end time", "`0", "?? node attributes", [
+                  [
+                    "?? start time", "?? end time", "`1",
+                    {
+                      "uri": "curl_multi_exec",
+                      "library": "curl_multi_exec"
+                    },
+                    []
+                  ]
+                ]
+              ]
+            ]
+	  ],
+          {
+            "intrinsics": {
+              "totalTime": "??",
+              "cpu_time": "??",
+              "cpu_user_time": "??",
+              "cpu_sys_time": "??"
+            }
+          }
+        ],
+        [
+          "OtherTransaction\/php__FILE__",
+          "External\/curl_multi_exec\/all"
+        ]
+      ],
+      "?? txn guid",
+      "?? reserved",
+      "?? force persist",
+      "?? x-ray sessions",
+      null
+    ]
+  ]
+]
 */
 
 /*EXPECT

@@ -1,7 +1,7 @@
 #include "php_agent.h"
 #include "php_datastore.h"
 #include "lib_doctrine2.h"
-#include "node_datastore.h"
+#include "nr_segment_datastore.h"
 #include "util_logging.h"
 
 /*
@@ -73,30 +73,27 @@ static nr_modify_table_name_fn_t nr_php_modify_table_name_fn(TSRMLS_D) {
   return modify_table_name_fn;
 }
 
-void nr_php_txn_end_node_sql(nrtxn_t* txn,
-                             const nrtxntime_t* start,
-                             const nrtxntime_t* stop,
-                             const char* sql,
-                             int sqllen,
-                             const nr_explain_plan_t* plan,
-                             nr_datastore_t datastore,
-                             nr_datastore_instance_t* instance TSRMLS_DC) {
+void nr_php_txn_end_segment_sql(nr_segment_t* segment,
+                                const nrtxntime_t* stop,
+                                const char* sql,
+                                int sqllen,
+                                const nr_explain_plan_t* plan,
+                                nr_datastore_t datastore,
+                                nr_datastore_instance_t* instance TSRMLS_DC) {
   nr_slowsqls_labelled_query_t* input_query;
   char* plan_json = NULL;
-  nrtxntime_t real_stop;
   char* terminated_sql;
   nr_modify_table_name_fn_t modify_table_name_fn = NULL;
 
-  if ((NULL == txn) || (NULL == start) || (NULL == sql) || ('\0' == *sql)
-      || (sqllen <= 0)) {
-    return;
+  if ((NULL == segment) || (NULL == sql) || ('\0' == *sql) || (sqllen <= 0)) {
+    goto error;
   }
 
   /*
    * Bail early if this is a nested explain plan query.
    */
   if (NRPRG(generating_explain_plan)) {
-    return;
+    goto error;
   }
 
   /*
@@ -106,21 +103,12 @@ void nr_php_txn_end_node_sql(nrtxn_t* txn,
     plan_json = nr_explain_plan_to_json(plan);
   }
 
-  if (NULL == stop) {
-    real_stop.when = 0;
-    real_stop.stamp = 0;
-    nr_txn_set_time(txn, &real_stop);
-    stop = &real_stop;
-  }
-
   input_query = nr_doctrine2_lookup_input_query(TSRMLS_C);
   terminated_sql = nr_strndup(sql, sqllen);
   modify_table_name_fn = nr_php_modify_table_name_fn(TSRMLS_C);
 
   {
-    nr_node_datastore_params_t params = {
-      .start        = *start,
-      .stop         = *stop,
+    nr_segment_datastore_params_t params = {
       .instance     = instance,
       .datastore    = {
         .type = datastore,
@@ -136,12 +124,23 @@ void nr_php_txn_end_node_sql(nrtxn_t* txn,
       },
     };
 
-    nr_txn_end_node_datastore(txn, &params, NULL);
+    nr_segment_datastore_end(segment, &params);
+    if (NULL != stop) {
+      segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop->when);
+    }
   }
 
   nr_free(terminated_sql);
   nr_free(plan_json);
   nr_free(input_query);
+
+  return;
+
+error:
+  if (NULL != segment) {
+    nr_segment_end(segment);
+    nr_segment_discard(&segment);
+  }
 }
 
 char* nr_php_datastore_make_key(const zval* conn, const char* extension) {

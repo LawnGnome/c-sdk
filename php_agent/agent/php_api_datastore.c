@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "nr_datastore.h"
+#include "nr_segment_datastore.h"
 #include "php_api.h"
 #include "php_api_datastore.h"
 #include "php_api_datastore_private.h"
@@ -85,7 +86,8 @@ PHP_FUNCTION(newrelic_record_datastore_segment) {
       .query = NULL,
   };
   bool instrument = true;
-  nr_node_datastore_params_t node_params = {
+  nr_segment_t* segment = NULL;
+  nr_segment_datastore_params_t node_params = {
     .callbacks = {
       .backtrace = nr_php_backtrace_callback,
     },
@@ -138,7 +140,7 @@ PHP_FUNCTION(newrelic_record_datastore_segment) {
   }
 
   if (instrument) {
-    nr_txn_set_time(NRPRG(txn), &node_params.start);
+    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
   }
   retval = nr_php_call_fcall_info(fci, fcc);
   ZVAL_ZVAL(return_value, retval, 0, 1);
@@ -157,8 +159,6 @@ PHP_FUNCTION(newrelic_record_datastore_segment) {
   if (!instrument) {
     goto end;
   }
-
-  nr_txn_set_time(NRPRG(txn), &node_params.stop);
 
   /*
    * Now we can build up the datastore node parameters.
@@ -180,7 +180,7 @@ PHP_FUNCTION(newrelic_record_datastore_segment) {
     node_params.sql.input_query = &input_query;
   }
 
-  nr_txn_end_node_datastore(NRPRG(txn), &node_params, NULL);
+  nr_segment_datastore_end(segment, &node_params);
 
 end:
   nr_datastore_instance_destroy(&node_params.instance);

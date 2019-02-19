@@ -8,6 +8,7 @@
 #include "fw_hooks.h"
 #include "fw_support.h"
 #include "nr_datastore_instance.h"
+#include "nr_segment_datastore.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
@@ -488,7 +489,8 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
   zval* command = NULL;
   zval* conn = NULL;
   uint64_t index;
-  nr_node_datastore_params_t params = {
+  nr_segment_t* segment;
+  nr_segment_datastore_params_t params = {
     .datastore = {
       .type = NR_DATASTORE_REDIS,
     },
@@ -528,8 +530,6 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
 
   params.instance = nr_predis_retrieve_datastore_instance(conn TSRMLS_CC);
   params.operation = operation;
-  params.start = *start;
-  params.stop = stop;
 
   /*
    * In normal, non-pipeline use, predis_ctx will be NULL, and everything is
@@ -557,11 +557,13 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
      */
     async_context = nr_formatf("Predis #" NR_UINT64_FMT "." NR_UINT64_FMT,
                                start->when, index);
-    params.async_context = async_context;
     nr_async_context_add(NRPRG(predis_ctx), duration);
   }
 
-  nr_txn_end_node_datastore(NRPRG(txn), &params, NULL);
+  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
+  segment->start_time = nr_txn_time_abs_to_rel(NRPRG(txn), start->when);
+  segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop.when);
+  nr_segment_datastore_end(segment, &params);
 
 end:
   nr_php_arg_release(&command);
@@ -727,7 +729,8 @@ NR_PHP_WRAPPER(nr_predis_webdisconnection_executeCommand) {
   char* operation = NULL;
   zval* command_obj = NULL;
   zval* conn = NULL;
-  nr_node_datastore_params_t params = {
+  nr_segment_t* segment;
+  nr_segment_datastore_params_t params = {
     .datastore = {
       .type = NR_DATASTORE_REDIS,
     },
@@ -741,12 +744,13 @@ NR_PHP_WRAPPER(nr_predis_webdisconnection_executeCommand) {
   operation = nr_predis_get_operation_name_from_object(command_obj TSRMLS_CC);
   params.operation = operation;
 
-  nr_txn_set_time(NRPRG(txn), &params.start);
+  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+
   NR_PHP_WRAPPER_CALL;
-  nr_txn_set_time(NRPRG(txn), &params.stop);
 
   params.instance = nr_predis_retrieve_datastore_instance(conn TSRMLS_CC);
-  nr_txn_end_node_datastore(NRPRG(txn), &params, NULL);
+
+  nr_segment_datastore_end(segment, &params);
 
   nr_free(operation);
   nr_php_arg_release(&command_obj);

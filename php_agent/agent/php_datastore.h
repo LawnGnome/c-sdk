@@ -4,7 +4,7 @@
 #include "nr_explain.h"
 
 /*
- * Purpose : Wrap nr_txn_end_node_sql to create an SQL node.
+ * Purpose : Wrap nr_segment_datastore_end() to create an SQL node.
  *
  * Params  : 1. The transaction.
  *           2. The start time of the query.
@@ -15,15 +15,14 @@
  *           5. The size of the SQL query.
  *           6. The explain plan JSON, if any.
  */
-extern void nr_php_txn_end_node_sql(nrtxn_t* txn,
-                                    const nrtxntime_t* start,
-                                    const nrtxntime_t* stop,
-                                    const char* sql,
-                                    int sqllen,
-                                    const nr_explain_plan_t* plan,
-                                    nr_datastore_t datastore,
-                                    nr_datastore_instance_t* instance
-                                        TSRMLS_DC);
+extern void nr_php_txn_end_segment_sql(nr_segment_t* segment,
+                                       const nrtxntime_t* stop,
+                                       const char* sql,
+                                       int sqllen,
+                                       const nr_explain_plan_t* plan,
+                                       nr_datastore_t datastore,
+                                       nr_datastore_instance_t* instance
+                                           TSRMLS_DC);
 
 /*
  * Purpose : Make a character string from a connection object or resource. If
