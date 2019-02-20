@@ -420,6 +420,7 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
   nt->segment_root->txn = nt;
   nr_segment_children_init(&nt->segment_root->children);
   nt->segment_root->start_time = 0;
+  nt->segment_root->stop_time = 0;
 
   nr_txn_set_current_segment(nt, nt->segment_root);
   nt->segment_count = 1;
@@ -1392,10 +1393,12 @@ void nr_txn_end(nrtxn_t* txn) {
   /* Similarly, for the segment root node, set its name and stop time,
    * needed for creating the transaction trace json. */
   txn->segment_root->name = txn->root.name;
-  txn->segment_root->stop_time
-      = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
 
-  duration = nr_txn_duration(txn);
+  if (0 == txn->segment_root->stop_time) {
+    /* If the transaction wasn't manually retimed, set its stop time. */
+    txn->segment_root->stop_time
+        = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
+  }
 
   duration = nr_txn_duration(txn);
 
@@ -2392,6 +2395,13 @@ nrtime_t nr_txn_time_abs_to_rel(const nrtxn_t* txn,
     return absolute_time;
   }
   return nr_time_duration(txn->abs_start_time, absolute_time);
+}
+
+nrtime_t nr_txn_now_rel(const nrtxn_t* txn) {
+  if (nrunlikely(NULL == txn)) {
+    return 0;
+  }
+  return nr_time_duration(txn->abs_start_time, nr_get_time());
 }
 
 void nr_txn_add_file_naming_pattern(nrtxn_t* txn, const char* user_pattern) {

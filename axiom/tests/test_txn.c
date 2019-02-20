@@ -2445,6 +2445,7 @@ static void test_end(void) {
   nrapp_t appv;
   nrapp_t* app = &appv;
   nrobj_t* rules_ob;
+  nrtime_t duration;
   test_txn_state_t* p = (test_txn_state_t*)tlib_getspecific();
 
   app->rnd = nr_random_create();
@@ -2606,6 +2607,19 @@ static void test_end(void) {
   nr_txn_end(txn);
   test_end_testcase("no metric table", txn, 0 /* apdex */, 0 /* error*/,
                     0 /* queue */, 1 /* total time */);
+  nr_txn_destroy(&txn);
+
+  /*
+   * Test : Transaction is manually retimed
+   */
+  txn = create_full_txn_and_reset(app);
+  nr_txn_set_timing(txn, 5000000, 1000000);
+  nrm_table_destroy(&txn->unscoped_metrics);
+  nr_txn_end(txn);
+  test_end_testcase("manually retimed", txn, 0 /* apdex */, 0 /* error*/,
+                    0 /* queue */, 1 /* total time */);
+  duration = nr_txn_duration(txn);
+  tlib_pass_if_time_equal("duration is manually retimed", duration, 1000000);
   nr_txn_destroy(&txn);
 
   nr_random_destroy(&app->rnd);
@@ -4196,8 +4210,28 @@ static void test_abs_to_rel(void) {
 
   tlib_pass_if_uint_equal(
       "A transaction should return 0 instead of a negative time result",
-      nr_txn_time_abs_to_rel(&txn, 50 * NR_TIME_DIVISOR),
-      0);
+      nr_txn_time_abs_to_rel(&txn, 50 * NR_TIME_DIVISOR), 0);
+}
+
+static void test_now_rel(void) {
+  nrtime_t now;
+  nrtxn_t txn = {.abs_start_time = nr_get_time()};
+
+  /*
+   * Test : Bad parameters.
+   */
+  tlib_pass_if_time_equal("a NULL transaction must yield 0", 0,
+                          nr_txn_now_rel(NULL));
+
+  /*
+   * Test : Normal operation.
+   */
+  now = nr_txn_now_rel(&txn);
+  tlib_pass_if_true(
+      "a valid transaction must return a value less than the absolute time",
+      now < txn.abs_start_time,
+      "abs_start_time=" NR_TIME_FMT " now=" NR_TIME_FMT, txn.abs_start_time,
+      now);
 }
 
 static nrtxn_t* test_namer_with_app_and_expressions_and_return_txn(
@@ -6598,6 +6632,7 @@ void test_main(void* p NRUNUSED) {
   test_start_time_secs();
   test_rel_to_abs();
   test_abs_to_rel();
+  test_now_rel();
   test_namer();
   test_error_to_event();
   test_create_event();
