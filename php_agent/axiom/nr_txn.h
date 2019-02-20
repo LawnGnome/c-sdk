@@ -175,10 +175,10 @@ typedef struct _nrtxnnode_t {
   int name;               /* Node name (pooled string index) */
   int async_context;      /* Execution context (pooled string index) */
   char* id;               /* Node id.
-              
+
                              If this is NULL, a new id will be created when a
                              span event is created from this trace node.
-              
+
                              If this is not NULL, this id will be used for
                              creating a span event from this trace node. This
                              id set indicates that the node represents an
@@ -848,12 +848,21 @@ extern nrtime_t nr_txn_time_rel_to_abs(const nrtxn_t* txn,
                                        const nrtime_t relative_time);
 
 /*
- * Purpose : Given a transaction and an absolute time, return the time 
+ * Purpose : Given a transaction and an absolute time, return the time
  * relative to the start of the transaction. Returns absolute_time if the txn
  * is NULL.
  */
 extern nrtime_t nr_txn_time_abs_to_rel(const nrtxn_t* txn,
                                        const nrtime_t absolute_time);
+
+/*
+ * Purpose : Return the current relative time for a transaction.
+ *
+ * Params  : 1. The transaction.
+ *
+ * Returns : The relative time for this very moment in a transaction.
+ */
+extern nrtime_t nr_txn_now_rel(const nrtxn_t* txn);
 
 /*
  * Purpose : Add a pattern to the list of files that will be matched on for
