@@ -484,6 +484,33 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
                                                    const char* name);
 
 /*!
+ * @brief Override the timing for the given transaction.
+ *
+ * Transactions are normally timed automatically based on when they were started
+ * and ended. Calling this function disables the automatic timing, and uses the
+ * times given instead.
+ *
+ * Note that this may cause unusual looking transaction traces. This function
+ * manually alters a transaction's start time and duration, but it does not
+ * alter any timing for the segments belonging to the transaction.  As a result,
+ * the sum of all segment durations may be substantively greater or less than
+ * the total duration of the transaction.
+ *
+ * It is likely that users of this function will also want to use
+ * newrelic_set_segment_timing() to manually time their segments.
+ *
+ * @param [in] transaction    The transaction to manually time.
+ * @param [in] start_time     The start time for the segment, in microseconds
+ *                            since the UNIX Epoch.
+ * @param [in] duration       The duration of the transaction in microseconds.
+ *
+ * @return True if the segment timing was changed; false otherwise.
+ */
+bool newrelic_set_transaction_timing(newrelic_txn_t* transaction,
+                                     newrelic_time_us_t start_time,
+                                     newrelic_time_us_t duration);
+
+/*!
  * @brief End a transaction.
  *
  * Given an active transaction, this function stops the transaction's

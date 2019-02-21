@@ -4,6 +4,12 @@
 
 ### New Features ###
 
+- The C agent now offers `newrelic_set_transaction_timing()` with which users
+  may manually change transaction timing. Though the C agent is incredibly 
+  effective at automatically timing transactions, providing users with this 
+  kind of timing allows them to achieve consistent timing values across 
+  the New Relic Platform and their own internal monitoring systems.
+  
 ### Bug Fixes ###
 
 ### End of Life Notices ###

@@ -7,8 +7,6 @@ newrelic_set_segment_timing() should override the default segment timing.
   cfg->transaction_tracer.duration_us = 1;
 */
 
-/*XFAIL This has to be fixed by the transaction timing C Agent integration. */
-
 /*EXPECT_METRICS
 [
   "?? agent run id",

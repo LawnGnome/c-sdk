@@ -116,6 +116,7 @@ TESTS := \
 	test_global \
 	test_notice_error \
 	test_segment \
+	test_set_transaction_timing \
 	test_start_transaction \
 	test_txn \
 	test_version \

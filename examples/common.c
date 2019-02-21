@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "common.h"
 
@@ -81,4 +82,19 @@ char* get_license_key(void) {
   }
 
   return license_key;
+}
+
+/*!
+ * @brief Get the current time.
+ *
+ * @return The current time in microseconds since the UNIX Epoch.
+ */
+newrelic_time_us_t now_us(void) {
+  struct timeval tv;
+  newrelic_time_us_t ret;
+
+  (void)gettimeofday(&tv, 0);
+  ret = tv.tv_sec * NEWRELIC_MS_PER_SEC;
+  ret = ret + tv.tv_usec;
+  return ret;
 }

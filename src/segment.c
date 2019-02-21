@@ -145,10 +145,6 @@ bool newrelic_set_segment_timing(newrelic_segment_t* segment,
     return false;
   }
 
-  /* For flexibility, this accepts a time relative to the start of the
-   * transaction, but the underlying API currently expects an absolute time. */
-  start_time += segment->transaction->root.start_time.when;
-
   return nr_segment_set_timing(segment->segment, start_time, duration);
 }
 

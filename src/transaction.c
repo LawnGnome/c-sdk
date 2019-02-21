@@ -20,6 +20,16 @@ newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
   return newrelic_start_transaction(app, name, false);
 }
 
+bool newrelic_set_transaction_timing(newrelic_txn_t* transaction,
+                                     newrelic_time_us_t start_time,
+                                     newrelic_time_us_t duration) {
+  if (NULL == transaction) {
+    return false;
+  }
+
+  return nr_txn_set_timing(transaction->txn, start_time, duration);
+}
+
 bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
   newrelic_txn_t* transaction;
   bool ret = true;

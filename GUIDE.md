@@ -1,4 +1,4 @@
-# C Agent
+#C Agent
 
 Generic library to communicate with New Relic.
 
@@ -26,9 +26,9 @@ Instrument your code. Consider the brief program below or look at the
 
 int main (void) {
   int priority = 50;
-  newrelic_app_t *app = 0;
-  newrelic_txn_t *txn = 0;
-  newrelic_app_config_t *config = 0;
+  newrelic_app_t* app = 0;
+  newrelic_txn_t* txn = 0;
+  newrelic_app_config_t* config = 0;
   newrelic_segment_t *segment1, *segment2;
 
   newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
@@ -55,19 +55,19 @@ int main (void) {
 
   /* Add segments */
   segment1 = newrelic_start_segment(txn, "Stuff", "Secret");
-  sleep (1);
+  sleep(1);
   newrelic_end_segment(txn, &segment1);
 
   segment2 = newrelic_start_segment(txn, "More Stuff", "Secret");
-  sleep (2);
+  sleep(2);
   newrelic_end_segment(txn, &segment2);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
 
   /* Start and end a non-web transaction */
-  txn =
-      newrelic_start_non_web_transaction(app, "veryImportantOtherTransaction");
+  txn = newrelic_start_non_web_transaction(app,
+                                           "veryImportantOtherTransaction");
   sleep(1);
 
   newrelic_end_transaction(&txn);
@@ -108,9 +108,12 @@ Run your test application and check the `c-agent.log` file for output.
 * Transactions
   * Transaction events
   * Web and non-web transactions
+  * Segments
   * Custom attributes
   * Error instrumentation
-  * Segments
+  * Custom events
+  * Custom metrics
+  * Manual timing  
 * Logging levels
 
 ### Segment Instrumentation
@@ -397,7 +400,7 @@ and an amount of time in milliseconds to the function, (along with the active
 transaction).
 
 ```c
-    // txn is a newrelic_txn_t*, create via newrelic_start_web_transaction
+    // txn is a newrelic_txn_t*, created via newrelic_start_web_transaction
 
     // Record a metric value of 100ms in the transaction txn
     newrelic_record_custom_metric(txn, "Custom/YourMetric/Label", 100);
@@ -410,6 +413,103 @@ To learn more about collecting custom metrics, including naming strategies to
 avoid metric grouping issues (also calls MGIs) read the
 [Collect Custom Metrics](https://docs.newrelic.com/docs/agents/manage-apm-agents/agent-data/collect-custom-metrics)
 documentation.
+
+## Manual timing
+
+The C agent provides a pair of API calls with which users may manually change
+transaction timing and individual segment timing. Though the C agent is 
+incredibly effective at automatically timing transactions and segments, 
+providing users with this kind of timing allows them to achieve consistent 
+timing values across the New Relic Platform and their own internal monitoring
+systems.
+
+Users may manually change timing for active transactions using 
+`newrelic_set_transaction_timing()`, as shown in the example below.
+
+```c
+  txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
+  newrelic_set_transaction_timing(txn, now_us() + 50, 500000);
+  newrelic_end_transaction(&txn);
+```
+
+It is important to note than a transaction must be active in order to change its
+timing. Attempting to change timing for a transaction after it has been ended 
+results in undefined behavior. 
+
+Similarly, users may manually change timing for active segments using 
+`newrelic_set_segment_timing()`, as shown in the example below.
+
+```c 
+  seg_c = newrelic_start_segment(txn, "C", "Secret");
+
+  /* Manually change seg_c so that starts 10 us after the start 
+   * of the transaction and lasts half a second. */
+  newrelic_set_segment_timing(seg_c, 10, 500000);
+  newrelic_end_segment(txn, &seg_c);
+```
+
+Again, it is important to note that a segment must be active in order to change
+its timing. Attempting to change timing for a segment after it has been ended 
+results in undefined behavior.
+
+Users may want to coordinate their use of these two API calls. Using just one
+or the other may result in inconsistent transaction summary values at the New 
+Relic user interface. In the example below, a transaction is manually changed
+with a duration of only 500 milliseconds, even though its custom segment 
+lasted a full second.
+
+```c
+  txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
+
+  seg = newrelic_start_segment(txn, "Custom Segment A", "Category");
+  sleep(1);
+  newrelic_end_segment(txn, &seg);
+
+  /* Manually change the transaction timing so that the start time is
+   * 50 us from now and the duration is 500 ms */ 
+  newrelic_set_transaction_timing(txn, now_us() + 50, 500000);
+  newrelic_end_transaction(&txn);
+```
+
+At the New Relic user interface showing the transaction trace, 
+"Custom Segment A" appears to have taken 1000 ms (correct) while the top-level
+segment for the web transaction, "ExampleWebTransaction"  appears to have
+taken -500 ms (incorrect). Even so, because of the call to 
+`newrelic_set_transaction_timing()` the response time shown for the 
+transaction is 500 ms. Essentially, the user interface takes the necessary
+steps to make the segment times add up, even when calls to 
+`newrelic_set_transaction_timing()` or `newrelic_set_segment_timing()` 
+break the mathematics.
+
+It is recommended that users coordinate their calls to 
+`newrelic_set_segment_timing()` and `newrelic_set_transaction_timing()`
+so that the timing values are consistent. In the example below, the call
+to `newrelic_set_segment_timing()` sets the segment to a duration of 500 ms
+while the call to `newrelic_set_transaction_timing()` sets the transaction
+duration to 2 seconds. You can find a working version of this code sample
+in `examples/ex_timing.c`
+
+```c
+  txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
+
+  seg = newrelic_start_segment(txn, "Custom Segment A", "Category");
+  sleep(1);
+
+  /* Manually change the segment timing so that it starts at the
+   * same time as the transaction and the duration is 500 ms */
+  newrelic_set_segment_timing(seg, 0, 500000);
+  newrelic_end_segment(txn, &seg);
+
+  /* Manually change the transaction timing so that the start time is
+   * now and the duration is 500 ms */ 
+  newrelic_set_transaction_timing(txn, now_us(), 2000000);
+  newrelic_end_transaction(&txn);
+```  
+
+All told, this pair of API calls offers users a powerful means to customize
+transaction and segment timing values according to their systems' needs. But
+with great power comes great responsibility.  Misuse of these calls can create
+summary values that are inconsistent at the New Relic user interface.
 
 ## About
 
