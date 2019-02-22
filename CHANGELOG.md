@@ -4,6 +4,16 @@
 
 ### New Features ###
 
+### Bug Fixes ###
+
+### End of Life Notices ###
+
+### Upgrade Notices ###
+
+
+## 0.1.2 ##
+### New Features ###
+
 - The C agent now offers `newrelic_set_transaction_timing()` with which users
   may manually change transaction timing. Though the C agent is incredibly 
   effective at automatically timing transactions, providing users with this 
@@ -14,10 +24,6 @@
   may manually reparent a segment with the transaction's root segment; this is 
   useful in scenarios in which an asynchronous segment is best represented 
   as a top-level call in the transaction.
-
-### Bug Fixes ###
-
-### End of Life Notices ###
 
 ### Upgrade Notices ###
 
