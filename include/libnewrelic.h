@@ -695,6 +695,26 @@ bool newrelic_set_segment_parent(newrelic_segment_t* segment,
                                  newrelic_segment_t* parent);
 
 /*!
+ * @brief Set the transaction's root as the parent for the given segment.
+ *
+ * Transactions are represented by a collection of segments. Segments are
+ * created by calls to newrelic_start_segment(),
+ * newrelic_start_datastore_segment() and newrelic_start_external_segment().
+ * In addition, a transaction has an automatically-created root segment that
+ * represents the entrypoint of the transaction. In some cases, users may want
+ * to manually parent their segments with the transaction's root segment.
+ *
+ * @param [in] segment  The segment to be parented.
+ *
+ * @return True if the segment was successfully reparented; false otherwise.
+ *
+ * @warning Do not attempt to use a segment that has had newrelic_end_segment()
+ *          called on it as a segment or parent: this will result in a
+ *          use-after-free scenario, and likely a crash.
+ */
+bool newrelic_set_segment_parent_root(newrelic_segment_t* segment);
+
+/*!
  * @brief Override the timing for the given segment.
  *
  * Segments are normally timed automatically based on when they were started

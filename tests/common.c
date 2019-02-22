@@ -46,8 +46,10 @@ int txn_group_setup(void** state) {
   nr_stack_init(&txn->txn->parent_stack, NR_STACK_DEFAULT_CAPACITY);
 
   txn->txn->segment_root = nr_zalloc(sizeof(nr_segment_t));
+  txn->txn->segment_root->txn = txn->txn;
   nr_segment_children_init(&txn->txn->segment_root->children);
-  txn->txn->segment_root->start_time = nr_get_time();
+  txn->txn->segment_root->start_time = 0;
+  txn->txn->segment_root->stop_time = 0;
   nr_txn_set_current_segment(txn->txn, txn->txn->segment_root);
   txn->txn->segment_count = 1;
 

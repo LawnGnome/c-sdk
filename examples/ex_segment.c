@@ -15,6 +15,7 @@ int main(void) {
   newrelic_segment_t* seg = 0;
   newrelic_segment_t* seg_a = 0;
   newrelic_segment_t* seg_c = 0;
+  newrelic_segment_t* seg_d = 0;
 
   example_init();
 
@@ -41,6 +42,9 @@ int main(void) {
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
+  /* Manually retime the transaction with a duration of 5.5 seconds */
+  newrelic_set_transaction_timing(txn, now_us(), 5500000);
+
   /* Fake custom segments */
   seg = newrelic_start_segment(txn, NULL, NULL);
   sleep(1);
@@ -54,13 +58,13 @@ int main(void) {
    * Note that this means that seg_a must outlive (at least) the call to
    * newrelic_set_segment_parent() for seg_c.
    */
-  seg_a = newrelic_start_segment(txn, "A", "Secret");
+  seg_a = newrelic_start_segment(txn, "A", "Parented by agent");
   sleep(1);
 
-  seg = newrelic_start_segment(txn, "B", "Secret");
+  seg = newrelic_start_segment(txn, "B", "Parented by agent");
   sleep(1);
 
-  seg_c = newrelic_start_segment(txn, "C", "Secret");
+  seg_c = newrelic_start_segment(txn, "C", "Manually reparented");
   newrelic_set_segment_parent(seg_c, seg_a);
 
   /* Instead of sleeping, we'll just manually time seg_c and immediately end
@@ -69,8 +73,14 @@ int main(void) {
   newrelic_set_segment_timing(seg_c, 10, 500000);
   newrelic_end_segment(txn, &seg_c);
 
-  newrelic_end_segment(txn, &seg);
+  /* Create a new segment to be manually re-parented by the top-level segment
+   * of the transaction */
+  seg_d = newrelic_start_segment(txn, "D", "Manually reparented");
+  sleep(1);
+  newrelic_set_segment_parent_root(seg_d);
 
+  newrelic_end_segment(txn, &seg_d);
+  newrelic_end_segment(txn, &seg);
   newrelic_end_segment(txn, &seg_a);
 
   /* End web transaction */

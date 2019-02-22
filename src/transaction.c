@@ -1,7 +1,9 @@
 #include "libnewrelic.h"
-#include "transaction.h"
+
 #include "app.h"
 #include "config.h"
+#include "segment.h"
+#include "transaction.h"
 
 #include "nr_agent.h"
 #include "nr_attributes.h"

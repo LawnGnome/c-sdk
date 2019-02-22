@@ -10,6 +10,11 @@
   kind of timing allows them to achieve consistent timing values across 
   the New Relic Platform and their own internal monitoring systems.
   
+- The C agent now offers `newrelic_set_segment_parent_root()` with which users
+  may manually reparent a segment with the transaction's root segment; this is 
+  useful in scenarios in which an asynchronous segment is best represented 
+  as a top-level call in the transaction.
+
 ### Bug Fixes ###
 
 ### End of Life Notices ###

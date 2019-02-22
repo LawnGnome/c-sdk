@@ -38,13 +38,14 @@ int main(void) {
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
+  /* Manually retime the transaction with a duration of 2 seconds */
+  newrelic_set_transaction_timing(txn, now_us(), 2000000);
+
   /* Fake custom segments */
   seg = newrelic_start_segment(txn, NULL, NULL);
   sleep(1);
   newrelic_set_segment_timing(seg, 0, 500000);
   newrelic_end_segment(txn, &seg);
-
-  newrelic_set_transaction_timing(txn, now_us(), 2000000);
 
   /* End web transaction */
   newrelic_end_transaction(&txn);
