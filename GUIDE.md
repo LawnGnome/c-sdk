@@ -486,8 +486,7 @@ It is recommended that users coordinate their calls to
 so that the timing values are consistent. In the example below, the call
 to `newrelic_set_segment_timing()` sets the segment to a duration of 500 ms
 while the call to `newrelic_set_transaction_timing()` sets the transaction
-duration to 2 seconds. You can find a working version of this code sample
-in `examples/ex_timing.c`
+duration to 2 seconds.
 
 ```c
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
@@ -505,6 +504,9 @@ in `examples/ex_timing.c`
   newrelic_set_transaction_timing(txn, now_us(), 2000000);
   newrelic_end_transaction(&txn);
 ```  
+
+You can find working examples of transaction and segment timing calls 
+in `examples/ex_timing.c` and `examples/ex_segment.c`.
 
 All told, this pair of API calls offers users a powerful means to customize
 transaction and segment timing values according to their systems' needs. But

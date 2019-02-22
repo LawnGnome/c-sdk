@@ -42,6 +42,7 @@ int main(void) {
   newrelic_datastore_segment_params_t params
       = {.product = NEWRELIC_DATASTORE_MYSQL,
          .collection = "My_collection",
+         .operation = "select",
          .host = "Instance",
          .port_path_or_id = "01",
          .query
