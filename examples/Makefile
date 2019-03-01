@@ -18,6 +18,7 @@ EXAMPLES := \
 	ex_external.out \
 	ex_notice_error.out \
 	ex_segment.out \
+	ex_simple.out \
 	ex_timing.out
 
 all: $(EXAMPLES)
