@@ -15,61 +15,43 @@ Instrument your code. Consider the brief program below or look at the
 `examples` directory for source and Makefiles highlighting particular features.
 
 ```c
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <string.h>
-#include <limits.h>
-#include <float.h>
-#include <stdlib.h>
 
 #include "libnewrelic.h"
 
-int main (void) {
-  int priority = 50;
-  newrelic_app_t* app = 0;
-  newrelic_txn_t* txn = 0;
-  newrelic_app_config_t* config = 0;
-  newrelic_segment_t *segment1, *segment2;
+int main(void) {
+  newrelic_app_t* app;
+  newrelic_txn_t* txn;
+  newrelic_app_config_t* config;
+  newrelic_segment_t* seg;
 
-  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
+  config = newrelic_new_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
 
-  config = newrelic_new_config("Your Application Name", "<LICENSE_KEY_HERE>");
+  if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
+    printf("Error configuring logging.\n");
+    return -1;
+  }
+
+  if (!newrelic_init(NULL, 0)) {
+    printf("Error connecting to daemon.\n");
+    return -1;
+  }
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   free(config);
 
-  /* Start a web transaction */
-  txn = newrelic_start_web_transaction(app, "veryImportantWebTransaction");
+  /* Start a web transaction and a segment */
+  txn = newrelic_start_web_transaction(app, "Transaction name");
+  seg = newrelic_start_segment(txn, "Segment name", "Custom/Category");
 
-  /* Add attributes */
-  newrelic_add_attribute_int(txn, "my_custom_int", INT_MAX);
-  newrelic_add_attribute_string(txn, "my_custom_string",
-                                "String String String");
-
-  sleep(1);
-
-  /* Record an error */
-  newrelic_notice_error(txn, priority, "Meaningful error message",
-                        "Error.class");
-
-  /* Add segments */
-  segment1 = newrelic_start_segment(txn, "Stuff", "Secret");
-  sleep(1);
-  newrelic_end_segment(txn, &segment1);
-
-  segment2 = newrelic_start_segment(txn, "More Stuff", "Secret");
+  /* Interesting application code happens here */
   sleep(2);
-  newrelic_end_segment(txn, &segment2);
 
-  /* End web transaction */
-  newrelic_end_transaction(&txn);
-
-  /* Start and end a non-web transaction */
-  txn = newrelic_start_non_web_transaction(app,
-                                           "veryImportantOtherTransaction");
-  sleep(1);
-
+  /* End the segment and web transaction */
+  newrelic_end_segment(txn, &seg);
   newrelic_end_transaction(&txn);
 
   newrelic_destroy_app(&app);
@@ -78,8 +60,8 @@ int main (void) {
 }
 ```
 
-Compile and link your application against the static library, `libnewrelic.a`. There
-are two considerations to make during the linking step. First, because
+Compile and link your application against the static library, `libnewrelic.a`. 
+There are two considerations to make during the linking step. First, because
 `libnewrelic.a` is offered as a static library, because it is already linked
 with the `libpcre`, `libpthread`, and `lm` libraries, you must also link
 against these three libraries to avoid symbol collisions in the linking step.
@@ -89,7 +71,7 @@ dashboard, link your application using GNU's `-rdynamic` linker flag.
 Doing so means that more meaningful information appears in the stack trace
 for the error recorded on a transaction using `newrelic_notice_error()`.
 
-With these two considerations in mind, one may compile and link a simple application
+With these two considerations in mind, compile and link a simple application 
 like so:
 
 ```sh
@@ -128,7 +110,7 @@ like so.
 
 The two required values for any configuration are the application's name, or 
 `app_name` and the New Relic `license_key`.  The remaining fields are optional
-and users likely do not need to change the default values of the optional fields.
+and you likely do not need to change the default values of the optional fields.
 
 The configuation's optional fields include the application's `log_level` 
 and `log_filename`, used to configure the appliction's logging. They also 
@@ -150,7 +132,6 @@ set to `NEWRELIC_THRESHOLD_IS_APDEX_FAILING`. This default threshold is based on
 an industry standard for measuring user satisfaction. All the fields of 
 `newrelic_transaction_tracer_config_t` are detailed in `libnewrelic.h`.
 
-
 The `datastore_tracer` field configures how datastore segments are recorded
 in a transaction, whether or not the C agent reports database host names,
 database ports, and database names. By default, the configuration returned 
@@ -160,35 +141,34 @@ and `database_name_reporting` both enabled. All the fields of
 
 ### Segment Instrumentation
 
-The agent provides several API functions for creating optional *segment*
+The C agent provides several API functions for creating optional *segment*
 instrumentation.  Segments allow you to measure the time taken by specific
-portions of a transaction.  The agent allows you to create two different
-segment types.
+portions of a transaction.  The agent allows you to create three different
+segment types:
 
-* External Segments
-* Datastore Segments
+* **External Segment**. Useful for timing an external call, like an HTTP GET request.
+* **Custom Segment**. Useful for timing arbitrary application code.
+* **Datastore Segment**. Useful for timing a datastore call, like a MySQL SELECT query.
 
 ### External Segments
 
-The agent provides two functions, `newrelic_start_external_segment()` and
-`newrelic_end_external_segment()` that allows end-user-programmers to create
-external segments. External segments appear in the transaction "Breakdown
-table" and in the "External services" page in APM.
+The function `newrelic_start_external_segment()` starts the timing of an external
+segment; segment timing ends with `newrelic_end_segment()`. External segments
+appear in the transaction "Breakdown table" and in the "External services" page in
+APM.
 
 * [More info on External Services page](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/external-services-page)
 
-Timing an external segment transaction is a three-step process.
+To record an external segment on an active transaction:
 
 1. Create a `newrelic_external_segment_params_t` struct that describes the external
    segment
-
-2. Start the timer with `newrelic_start_external_segment()`
-
-3. Stop the timer with `newrelic_end_external_segment()`
+1. Start the timer with `newrelic_start_external_segment()`
+1. Stop the timer with `newrelic_end_segment()`
 
 Here are those three steps in code.  The `txn` variable below is a
 transaction, created via `newrelic_start_web_transaction()` or
-`newrelic_start_non_web_transaction()`. Segments may only be recorded on
+`newrelic_start_non_web_transaction()`. You may only record segments on
 active transactions.
 
 ```c
@@ -197,45 +177,67 @@ active transactions.
         .uri       = "https://httpbin.org/delay/1",
     };
 
-    newrelic_external_segment_t* segment = newrelic_start_external_segment(txn, &params);
+    newrelic_external_segment_t* segment = 
+       newrelic_start_external_segment(txn, &params);
 
     // The external call to be timed goes here
 
-    newrelic_end_external_segment(txn, &segment);
+    newrelic_end_segment(txn, &segment);
 ```
 
 The `newrelic_external_segment_params_t` struct contains a list of parameters
-that New Relic will use to identify a segment. These parameters also drive
+that New Relic uses to identify a segment. These parameters also drive
 the user interface in APM. Only the `.uri` field is required. Documentation
-for each field can be found in `libnewrelic.h`. You can also find a working
-code sample in `examples/ex_external.c`.
+for each field is available in `libnewrelic.h`. A working code sample 
+is available in `examples/ex_external.c`.  
 
-**IMPORTANT**:  In order to ensure accurate timing, external segments cannot
-be nested within other external segments, and cannot be nested with datastore
-segments. You **must** call `newrelic_end_external_segment()` before starting
-a new external segment with `newrelic_start_external_segment()`. Starting a
-new segment before the previous segment has ended will produce undefined
-results, and should be avoided.
+### Custom Segments
+
+The function `newrelic_start_segment()` starts the timing of an custom
+segment; segment timing ends with `newrelic_end_segment()`. Custom 
+segments appear in the transaction "Breakdown table" in APM.
+
+To record a custom segment on an active transaction:
+
+1. Start the timer with `newrelic_start_segment()`
+1. Stop the timer with `newrelic_end_segment()`
+
+Here are those two steps in code.  The `txn` variable below is a
+transaction, created via `newrelic_start_web_transaction()` or
+`newrelic_start_non_web_transaction()`. You may only record segments 
+on active transactions.
+
+```c
+    newrelic_segment_t* segment = 
+       newrelic_start_segment(txn, "Segment name", "Custom/Category");
+
+    // The application code to be timed goes here
+
+    newrelic_end_segment(txn, &segment);
+```
+
+You can also find a working code sample in `examples/ex_custom.c`.  
+
+**Important**: Start all custom segment category names with `Custom/`; for 
+example, `Custom/MyCategory/MySubCategory`. 
 
 ### Datastore Segments
 
-The agent provides two functions, `newrelic_start_datastore_segment()` and
-`newrelic_end_datastore_segment()` that allow you to create datastore
-segments.  APM uses segments recorded in this manner in the
+The function `newrelic_start_datastore_segment()` starts the timing of a
+datastore segment; segment timing ends with `newrelic_end_segment()`. 
+APM uses segments recorded in this manner in the
 [Databases and Slow Queries](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/databases-slow-queries-page)
-of APM.  Segments created with these functions
-also populate the `databaseDuration` attribute of a
+of APM.  Segments created with these functions also populate the `databaseDuration` 
+attribute of a
 [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights)
 Transaction event.
 
-To record a datastore segment on an active transaction, you'll need to
+To record a datastore segment on an active transaction:
 
 1. Create a `newrelic_datastore_segment_params_t` struct that describes the
    datastore segment
-
-2. Start the timer with `newrelic_start_datastore_segment()`
-
-3. Stop the timer with `newrelic_end_datastore_segment()`
+1. Start the timer with `newrelic_start_datastore_segment()`
+1. Stop the timer with `newrelic_end_segment()`
 
 Here are those three steps in code. The `txn` variable below is a
 transaction, created via `newrelic_start_web_transaction()` or
@@ -260,7 +262,7 @@ active transactions.
     newrelic_datastore_segment_t* segment =
         newrelic_start_datastore_segment(txn, &params);
 
-    // the code you want to time goes here
+    // The datastore call to be timed goes here
 
     newrelic_end_datastore_segment(txn, &segment);
 ```
@@ -268,16 +270,8 @@ active transactions.
 The `newrelic_datastore_segment_params_t` struct contains a list of
 parameters that New Relic uses to identify your segment. New Relic also uses
 these values to drive its user interface in APM. Only the `.product` field is
-required. You can find documentation for each field in `libnewrelic.h`. You
-can also find a working code sample in `examples/ex_datastore.c`.
-
-**IMPORTANT**:  In order to ensure accurate timing, datastore segments cannot
-be nested within other datastore segments, and cannot be nested with external
-segments. You **must** call `newrelic_end_datastore_segment()` before
-starting a new datastore or external segment. Starting a new segment before
-the previous segment has ended will produce undefined results, and should be
-avoided.
-
+required. Documentation for each field is available in `libnewrelic.h`. A 
+working code sample is available in `examples/ex_datastore.c`.
 
 #### Slow Query Tracing for Datastore Segments
 
@@ -294,7 +288,7 @@ tracing is enabled are controlled via the C-Agent's **application**
 configuration, specifically the `datastore_reporting.*` fields.
 
 ```c
-    config = newrelic_new_config("C Agent Test App", "<LICENSE_KEY_HERE>");
+    config = newrelic_new_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
     /* ... */
     config->transaction_tracer.datastore_reporting.enabled = true;
     config->transaction_tracer.datastore_reporting.threshold_us = 500000;
@@ -307,7 +301,7 @@ configuration, specifically the `datastore_reporting.*` fields.
     txn = newrelic_start_web_transaction(app, "yourTransactionName");
 
     /* datastore segments created during the `txn` transaction
-       will be eligable for slow query traces if the segment time
+       are eligible for slow query traces if the segment time
        is greater than 500,000 microseconds (0.5 seconds) */
 
     /* ...  */
@@ -483,7 +477,7 @@ Similarly, users may manually change timing for active segments using
 `newrelic_set_segment_timing()`, as shown in the example below.
 
 ```c 
-  seg_c = newrelic_start_segment(txn, "C", "Secret");
+  seg_c = newrelic_start_segment(txn, "C", "Custom/Secret");
 
   /* Manually change seg_c so that starts 10 us after the start 
    * of the transaction and lasts half a second. */
@@ -504,7 +498,7 @@ lasted a full second.
 ```c
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  seg = newrelic_start_segment(txn, "Custom Segment A", "Category");
+  seg = newrelic_start_segment(txn, "Segment A", "Custom/Category");
   sleep(1);
   newrelic_end_segment(txn, &seg);
 
@@ -534,7 +528,7 @@ duration to 2 seconds.
 ```c
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  seg = newrelic_start_segment(txn, "Custom Segment A", "Category");
+  seg = newrelic_start_segment(txn, "Segment A", "Custom/Category");
   sleep(1);
 
   /* Manually change the segment timing so that it starts at the

@@ -34,7 +34,7 @@ int main(void) {
 
   /* Start a web transaction and a segment */
   txn = newrelic_start_web_transaction(app, "Transaction name");
-  seg = newrelic_start_segment(txn, "Segment name", "Category");
+  seg = newrelic_start_segment(txn, "Segment name", "Custom/Category");
 
   /* Interesting application code happens here */
   sleep(2);

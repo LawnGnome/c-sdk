@@ -41,7 +41,7 @@ int main(void) {
   /* Manually retime the transaction with a duration of 2 seconds */
   newrelic_set_transaction_timing(txn, now_us(), 2000000);
 
-  /* Fake custom segments */
+  /* Create a custom segment */
   seg = newrelic_start_segment(txn, NULL, NULL);
   sleep(1);
   newrelic_set_segment_timing(seg, 0, 500000);

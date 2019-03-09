@@ -51,13 +51,13 @@ int main(void) {
                         "Error.class");
 
   /* Add segments */
-  segment1 = newrelic_start_segment(txn, "Stuff", "Secret");
+  segment1 = newrelic_start_segment(txn, "Stuff", "Custom/Secret");
   sleep(1);
   newrelic_end_segment(txn, &segment1);
 
-  segment2 = newrelic_start_segment(txn, "More Stuff", "Secret");
+  segment2 = newrelic_start_segment(txn, "More Stuff", "Custom/Secret");
   sleep(1);
-  segment1 = newrelic_start_segment(txn, "Nested Stuff", "Secret");
+  segment1 = newrelic_start_segment(txn, "Nested Stuff", "Custom/Secret");
   sleep(1);
   newrelic_end_segment(txn, &segment1);
   sleep(1);
