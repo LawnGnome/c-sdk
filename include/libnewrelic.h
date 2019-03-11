@@ -68,15 +68,17 @@ typedef uint64_t newrelic_time_us_t;
 
 /*!
  * @brief Log levels.  An enumeration of the possible log levels for an agent
- * configuration, or newrelic_app_config_t.
+ * configuration, or newrelic_app_config_t.  The highest priority loglevel
+ * is NEWRELIC_LOG_ERROR.  The level NEWRELIC_LOG_DEBUG offers the greatest
+ * verbosity.
  *
  * @see struct _newrelic_app_config_t
  */
 typedef enum _newrelic_loglevel_t {
+  NEWRELIC_LOG_ERROR,
+  NEWRELIC_LOG_WARNING,
   NEWRELIC_LOG_INFO,
   NEWRELIC_LOG_DEBUG,
-  NEWRELIC_LOG_ERROR,
-  NEWRELIC_LOG_VERBOSE
 } newrelic_loglevel_t;
 
 /*!
@@ -230,8 +232,8 @@ typedef struct _newrelic_app_config_t {
    * to change this from the default value except under the guidance of
    * technical support.
    *
-   * Must be one of the following values: NEWRELIC_LOG_ERROR, NEWRELIC_LOG_INFO
-   * (default), NEWRELIC_LOG_DEBUG, NEWRELIC_LOG_VERBOSE.
+   * Must be one of the following values: NEWRELIC_LOG_ERROR, NEWRELIC_LOG_WARNING
+   * NEWRELIC_LOG_INFO (default), NEWRELIC_LOG_DEBUG.
    */
   newrelic_loglevel_t log_level;
 

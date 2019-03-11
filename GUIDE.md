@@ -1,4 +1,4 @@
-#C Agent
+# C Agent
 
 Generic library to communicate with New Relic.
 
@@ -81,7 +81,7 @@ gcc -o test_app test_app.c -L. -lnewrelic -lpcre -lm -pthread -rdynamic
 Start the daemon:
 
 ```sh
-./bin/daemon -f -logfile stdout -loglevel debug
+./bin/newrelic-daemon -f -logfile stdout -loglevel debug
 ```
 
 Run your test application and check the `c-agent.log` file for output.
@@ -96,7 +96,7 @@ Run your test application and check the `c-agent.log` file for output.
   * Custom events
   * Custom metrics
   * Manual timing  
-* Logging levels
+* Logging
 
 ### Configuration
 
@@ -550,6 +550,72 @@ transaction and segment timing values according to their systems' needs. But
 with great power comes great responsibility.  Misuse of these calls can create
 summary values that are inconsistent at the New Relic user interface.
 
+## Logging
+
+The New Relic C agent and its daemon have their own logs:
+
+**C agent logs**: These logs are generated due to errors in how you've 
+instrumented your code using the New Relic C agent API calls.
+
+**Daemon logs**: These are logs related to the data transfer between the agent
+and the daemon as well as the transmission of data to New Relic.
+
+### C agent logs
+
+The C agent API calls log an error when they are supplied with ill-formed parameters.  
+By default, logs output to standard error. You may change this by calling 
+`newrelic_configure_log()`. For example, the following call to 
+`newrelic_configure_log()` sets the log file to `c-agent.log` and the 
+log level to info.
+
+```c
+  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
+```
+
+The C agent logs have four log levels, as defined by the `enum _newrelic_loglevel_t` 
+in `libnewrelic.h`.  Listed in priority order, they are:
+
+```c
+  NEWRELIC_LOG_ERROR,
+  NEWRELIC_LOG_WARNING,
+  NEWRELIC_LOG_INFO,
+  NEWRELIC_LOG_DEBUG,
+```
+
+The `NEWRELIC_LOG_DEBUG` is the most verbose level of the four log levels; 
+`NEWRELIC_LOG_INFO` is the default log level.
+
+### Daemon logs
+
+The second log file is produced by the daemon; when invoked it is supplied with 
+flags that configure logging.  The flags are:
+
+- `--logfile <file>`. Set the path to the log file.
+- `--loglevel <level>`.  Log level. Default: info.
+
+For example, the following invocation of the daemon configures logging to take
+place at `stdout` and at loglevel `debug`.
+
+```sh
+./bin/newrelic-daemon -f -logfile stdout -loglevel debug
+```
+
+The daemon also has four log levels: `error`, `warning`, `info` or `debug`.  
+The `debug` log level is the most verbose level of the four log levels.
+
+In cases where you are troubleshooting problems with your New Relic APM C agent
+performance, consider the following steps.
+
+1. Set the log level in your C agent to `NEWRELIC_LOG_DEBUG` using the API call 
+`newrelic_configure_log()`.
+1. Recompile your application with the altered call to `newrelic_configure_log()`.
+1. Restart your application.
+1. Restart the daemon, configured with a `-loglevel` of `debug`.
+1. Collect 5 to 10 minutes of logging.
+1. Examine your logs and use the information to diagnose the problem.
+1. When you are finished troubleshooting, reset the logs' levels. Do not keep 
+them at `NEWRELIC_LOG_DEBUG` and `debug`.
+
 ## About
 
 ### Thread safety
@@ -565,6 +631,3 @@ The C Agent's memory use is proportional to the amount of data sent. The libc
 calls `malloc` and `free` are used extensively. The dominant memory cost is
 user-provided data, including custom attributes, events, and metric names.
 
-### Logging
-By default, logs are output to standard error. You may change this by calling
-`newrelic_configure_log()`.

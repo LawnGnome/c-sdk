@@ -76,7 +76,7 @@ static po::variables_map parseOptions(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
   po::variables_map vm(parseOptions(argc, argv));
 
-  newrelic_configure_log("stdout", NEWRELIC_LOG_VERBOSE);
+  newrelic_configure_log("stdout", NEWRELIC_LOG_DEBUG);
 
   // Set up the agent configuration.
   Config config(vm["appname"].as<std::string>(),

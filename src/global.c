@@ -13,7 +13,7 @@ bool newrelic_log_configured = false;
 
 bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level) {
   /* Map newrelic_loglevel_t ENUM to char* */
-  static const char* level_array[] = {"info", "debug", "error", "verbose"};
+  static const char* level_array[] = {"error", "warning", "info", "verbosedebug"};
   static const size_t max_level = sizeof(level_array) / sizeof(const char*);
 
   if (NULL == filename) {

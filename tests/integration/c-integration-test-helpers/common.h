@@ -49,7 +49,7 @@ int main(int argc __attribute__((__unused__)),
   newrelic_app_config_t* cfg;
 
   newrelic_configure_log(SAFE_GETENV("NEW_RELIC_LOG_FILE", "./c_agent.log"),
-                         NEWRELIC_LOG_VERBOSE);
+                         NEWRELIC_LOG_DEBUG);
   newrelic_init(SAFE_GETENV("NEW_RELIC_DAEMON_SOCKET", "/tmp/.newrelic.sock"),
                 0);
 

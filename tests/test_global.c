@@ -61,7 +61,7 @@ static int teardown(void** state NRUNUSED) {
 }
 
 static void test_configure_log(void** state NRUNUSED) {
-  newrelic_loglevel_t out_of_bounds_level = NEWRELIC_LOG_VERBOSE + 1;
+  newrelic_loglevel_t out_of_bounds_level = NEWRELIC_LOG_DEBUG + 1;
 
   // Bad inputs.
   assert_false(newrelic_configure_log(NULL, NEWRELIC_LOG_INFO));
