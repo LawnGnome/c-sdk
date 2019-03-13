@@ -101,7 +101,8 @@ static int tlib_php_engine_ub_write(const char* str, uint len TSRMLS_DC)
  * due to improper ordering of frees on request shutdown.
  */
 #if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
-static zend_string* ZEND_FASTCALL tlib_php_new_interned_string(zend_string* str) {
+static zend_string* ZEND_FASTCALL
+tlib_php_new_interned_string(zend_string* str) {
   return str;
 }
 #elif defined PHP7
@@ -120,8 +121,8 @@ static const char* tlib_php_new_interned_string(const char* key,
 
 #if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
 static zend_string* ZEND_FASTCALL tlib_php_init_interned_string(const char* str,
-                                                  size_t size,
-                                                  int permanent) {
+                                                                size_t size,
+                                                                int permanent) {
   return zend_string_init(str, size, permanent);
 }
 #endif /* PHP >= 7.3 */
@@ -439,6 +440,46 @@ int tlib_php_require_extension(const char* extension TSRMLS_DC) {
   zend_error_handling_t prev_error;
 #endif /* PHP >= 7.3 */
 
+  /*
+   * PHP 7.2.7 changed the behaviour of zend_register_class_alias_ex() to always
+   * use an interned string for the class alias name, which fixed
+   * https://bugs.php.net/bug.php?id=76337. This function is invoked by the
+   * redis MINIT function, which means that we need to have the interned string
+   * system in a functional state when that extension is loaded.
+   *
+   * On PHP 7.1 and older, this is the case, because we set
+   * zend_new_interned_string in tlib_php_engine_create().
+   *
+   * On PHP 7.2 and newer, however, we use the
+   * zend_interned_strings_set_request_storage_handler() function, as
+   * php_module_startup() switches the storage handler by resetting
+   * zend_new_interned_string directly whenever a request starts or ends. (See
+   * also the commentary in tlib_php_engine_create().)
+   *
+   * This works well for interned strings created within a request context, but
+   * doesn't help us for interned strings created outside a request context. The
+   * Zend Engine does not allow us to set a global non-request handler in the
+   * same way, so instead, we'll temporarily set the handler before invoking
+   * php_load_extension() and put it back at the end of this function.
+   *
+   * For PHP 7.3 and newer, we also need to do the same for
+   * zend_string_init_interned to cover all possible interned string scenarios.
+   */
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  zend_new_interned_string_func_t saved_new_interned_string;
+  zend_string_init_interned_func_t saved_string_init_interned;
+
+  saved_new_interned_string = zend_new_interned_string;
+  zend_new_interned_string = tlib_php_new_interned_string;
+  saved_string_init_interned = zend_string_init_interned;
+  zend_string_init_interned = tlib_php_init_interned_string;
+#elif ZEND_MODULE_API_NO >= ZEND_7_2_X_API_NO
+  zend_string* (*saved_new_interned_string)(zend_string * str);
+
+  saved_new_interned_string = zend_new_interned_string;
+  zend_new_interned_string = tlib_php_new_interned_string;
+#endif
+
   if (nr_php_extension_loaded(extension)) {
     loaded = 1;
     goto end;
@@ -474,6 +515,14 @@ int tlib_php_require_extension(const char* extension TSRMLS_DC) {
 
 end:
   nr_free(file);
+
+#if ZEND_MODULE_API_NO >= ZEND_7_2_X_API_NO
+  zend_new_interned_string = saved_new_interned_string;
+#endif /* PHP >= 7.2 */
+
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  zend_string_init_interned = saved_string_init_interned;
+#endif /* PHP >= 7.3 */
 
   return loaded;
 }

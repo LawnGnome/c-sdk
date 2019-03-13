@@ -5,6 +5,7 @@
 #ifndef PHP_PDO_HDR
 #define PHP_PDO_HDR
 
+#include "nr_datastore.h"
 #include "nr_datastore_instance.h"
 
 /*
@@ -92,15 +93,13 @@ extern nr_datastore_instance_t* nr_php_pdo_get_datastore_instance(
  * Purpose : Create a new SQL trace node for a PDO query.
  *
  * Params  : 1. The segment to end.
- *           2. The query end time.
- *           3. The SQL string that was executed.
- *           4. The length of the SQL string.
- *           5. The PDOStatement object that was executed, if any.
- *           6. The parameters that were bound to the PDOStatement, if any.
- *           7. true to enable explain plans, false otherwise.
+ *           2. The SQL string that was executed.
+ *           3. The length of the SQL string.
+ *           4. The PDOStatement object that was executed, if any.
+ *           5. The parameters that were bound to the PDOStatement, if any.
+ *           6. true to enable explain plans, false otherwise.
  */
 extern void nr_php_pdo_end_segment_sql(nr_segment_t* segment,
-                                       const nrtxntime_t* stop,
                                        const char* sqlstr,
                                        size_t sqlstrlen,
                                        zval* stmt_obj,

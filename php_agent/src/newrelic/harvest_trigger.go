@@ -57,7 +57,7 @@ func startGroupMember(f func(chan HarvestType, chan bool), trigger chan HarvestT
 	return cancel
 }
 
-// In some cases, four different kinds of data are harvested at four different periods.  In such cases,
+// In some cases, five different kinds of data are harvested at five different periods.  In such cases,
 // build the comprehensive harvest trigger that adheres to such a configuration.
 func customTriggerBuilder(reply *ConnectReply, reportPeriod int, units time.Duration) func(chan HarvestType, chan bool) {
 	methods := reply.DataMethods
@@ -70,6 +70,8 @@ func customTriggerBuilder(reply *ConnectReply, reportPeriod int, units time.Dura
 		time.Duration(methods.GetValueOrDefault("CustomEventData"))*units)
 	errorTrigger := triggerBuilder(HarvestErrorEvents,
 		time.Duration(methods.GetValueOrDefault("ErrorEventData"))*units)
+	spanTrigger := triggerBuilder(HarvestSpanEvents,
+		time.Duration(methods.GetValueOrDefault("SpanEventData"))*units)
 
 	return func(trigger chan HarvestType, cancel chan bool) {
 		broadcastGroup := make([]chan bool, 0)
@@ -78,6 +80,7 @@ func customTriggerBuilder(reply *ConnectReply, reportPeriod int, units time.Dura
 		broadcastGroup = append(broadcastGroup, startGroupMember(analyticTrigger, trigger))
 		broadcastGroup = append(broadcastGroup, startGroupMember(customTrigger, trigger))
 		broadcastGroup = append(broadcastGroup, startGroupMember(errorTrigger, trigger))
+		broadcastGroup = append(broadcastGroup, startGroupMember(spanTrigger, trigger))
 
 		// This function listens for the cancel message and then broadcasts it to
 		// all members of the broadcastGroup.
@@ -99,19 +102,67 @@ func customTriggerBuilder(reply *ConnectReply, reportPeriod int, units time.Dura
 	}
 }
 
+// A map of hashed license keys.  If a customer's license key
+// is found in this map, then the daemon will perform a harvest
+// every n seconds, where n is the integer value associated
+// with the hashed key
+var customAppEventHarvestTimesInSeconds = map[string]int{
+
+	// license "94a0ba329358e811a5aed99cac701a0ec77bbf67" Production Account 1691007
+	"aftOtVDkwtCw4vNec1bf4FCMEoOC5kQhBGxOx9+J16Y=": 10,
+
+	// license "5e454a7d7f634b0466e58602c66d5dd01c578e92" Production Account 98015
+	"rASS5ixM/mo2hW+9P0r07nJ2BZrCHIfRjUNyNxrYl88=": 10,
+}
+
+// This function creates a connect reply for
+// the customTriggerBuilder function.
+func fasterHarvestWhitelistReplyBuilder(seconds int) *ConnectReply {
+	reply := &ConnectReply{}
+	methods := &collector.DataMethods{
+		ErrorEventData:    &collector.ReportPeriod{InSeconds: seconds},
+		AnalyticEventData: &collector.ReportPeriod{InSeconds: seconds},
+		CustomEventData:   &collector.ReportPeriod{InSeconds: seconds},
+		SpanEventData:     &collector.ReportPeriod{InSeconds: seconds},
+	}
+	reply.DataMethods = methods
+	return reply
+}
+
+// This function checks the customAppEventHarvestTimesInSeconds map for a key
+// match.  If none is found, return nil to indicate the customer is not on
+// the whitelist.  If we do have a key match, return a custom trigger function.
+// The report period for events will be the value in customAppEventHarvestTimesInSeconds,
+// the report period of other harvests (i.e. non-events) will be the value passed
+// in via the reportPeriod paramater.
+func getCustomLicenseHarvestTrigger(key collector.LicenseKey, reportPeriod int) HarvestTriggerFunc {
+	encoded := key.Sha256()
+	if seconds, ok := customAppEventHarvestTimesInSeconds[encoded]; ok {
+		reply := fasterHarvestWhitelistReplyBuilder(seconds)
+		return customTriggerBuilder(reply, reportPeriod, time.Second)
+	}
+	return nil
+}
+
 // This function returns the harvest trigger function that should be used for this agent.  In priority order:
 //   1. Either it uses the ConnectReply to build custom triggers as specified by the New Relic server-side collector.
 //   2. Or it creates a default harvest trigger, harvesting all data at the default period.
 func getHarvestTrigger(key collector.LicenseKey, reply *ConnectReply) HarvestTriggerFunc {
 
-	var trigger func(chan HarvestType, chan bool)
+	// First, check the whitelist for faster harvest, passing the the default report
+	// period
+	trigger := getCustomLicenseHarvestTrigger(key, collector.DefaultReportPeriod)
 
-	// Build a trigger from the server-side collector configuration.
-	if reply.isHarvestAll() {
-		trigger = triggerBuilder(HarvestAll,
-			time.Duration(collector.DefaultReportPeriod)*time.Second)
-	} else {
-		trigger = customTriggerBuilder(reply, collector.DefaultReportPeriod, time.Second)
+	// If not on the whitelist, build a trigger from the
+	// server-side collector configuration.
+	if nil == trigger {
+		// Build a trigger from the server-side collector configuration.
+		if reply.isHarvestAll() {
+			trigger = triggerBuilder(HarvestAll,
+				time.Duration(collector.DefaultReportPeriod)*time.Second)
+		} else {
+			trigger = customTriggerBuilder(reply, collector.DefaultReportPeriod, time.Second)
+		}
 	}
 
 	// Something in the server-side collector configuration was not well-formed.

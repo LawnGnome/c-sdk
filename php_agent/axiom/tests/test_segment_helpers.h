@@ -12,41 +12,100 @@
 
 #define test_txn_untouched(X1, X2) \
   test_txn_untouched_fn((X1), (X2), __FILE__, __LINE__)
-#define test_metric_created(...) \
-  test_segment_helper_metric_created_fn(__VA_ARGS__, __FILE__, __LINE__)
+#define test_metric_created(TESTNAME, METRICS, FLAGS, DURATION, NAME) \
+  do {                                                                \
+    nrtime_t test_metric_duration = (DURATION);                       \
+                                                                      \
+    test_segment_helper_metric_created_fn(                            \
+        (TESTNAME), (METRICS), (FLAGS), test_metric_duration,         \
+        test_metric_duration, (NAME), __FILE__, __LINE__);            \
+  } while (0)
+#define test_metric_created_ex(TESTNAME, METRICS, FLAGS, DURATION, EXC, NAME) \
+  test_segment_helper_metric_created_fn((TESTNAME), (METRICS), (FLAGS),       \
+                                        (DURATION), (EXC), (NAME), __FILE__,  \
+                                        __LINE__)
 #define test_metric_table_size(...) \
   test_metric_table_size_fn(__VA_ARGS__, __FILE__, __LINE__)
+#define test_metric_vector_size(VEC, EXPECTED_SIZE)                  \
+  do {                                                               \
+    size_t test_metric_vector_size_actual = nr_vector_size(VEC);     \
+    tlib_pass_if_size_t_equal("metric vector size", (EXPECTED_SIZE), \
+                              test_metric_vector_size_actual);       \
+  } while (0)
 #define test_segment_metric_created(...) \
   test_segment_metric_created_fn(__VA_ARGS__, __FILE__, __LINE__)
 #define test_txn_metric_created(...) \
   test_txn_metric_created_fn(__VA_ARGS__, __FILE__, __LINE__)
+#define test_txn_metric_is(...) \
+  test_txn_metric_is_fn(__VA_ARGS__, __FILE__, __LINE__)
+#define test_metric_values_are(...) \
+  test_metric_values_are_fn(__VA_ARGS__, __FILE__, __LINE__)
 
 /*
  * These functions are all marked as unused, as they likely won't all be
  * exercised by a single set of unit tests.
  */
 
+static NRUNUSED void test_metric_values_are_fn(const char* testname,
+                                               const nrmetric_t* actual,
+                                               uint32_t flags,
+                                               nrtime_t count,
+                                               nrtime_t total,
+                                               nrtime_t exclusive,
+                                               nrtime_t min,
+                                               nrtime_t max,
+                                               nrtime_t sumsquares,
+                                               const char* file,
+                                               int line) {
+  test_pass_if_true_file_line(testname, 0 != actual, file, line, "actual=%p",
+                              actual);
+
+  if (actual) {
+    test_pass_if_true_file_line(testname, flags == actual->flags, file, line,
+                                "flags=%u actual->flags=%u", flags,
+                                actual->flags);
+    test_pass_if_true_file_line(
+        testname, nrm_count(actual) == count, file, line,
+        "nrm_count (actual)=" NR_TIME_FMT " count=" NR_TIME_FMT,
+        nrm_count(actual), count);
+    test_pass_if_true_file_line(
+        testname, nrm_total(actual) == total, file, line,
+        "nrm_total (actual)=" NR_TIME_FMT " total=" NR_TIME_FMT,
+        nrm_total(actual), total);
+    test_pass_if_true_file_line(
+        testname, nrm_exclusive(actual) == exclusive, file, line,
+        "nrm_exclusive (actual)=" NR_TIME_FMT " exclusive=" NR_TIME_FMT,
+        nrm_exclusive(actual), exclusive);
+    test_pass_if_true_file_line(testname, nrm_min(actual) == min, file, line,
+                                "nrm_min (actual)=" NR_TIME_FMT
+                                " min=" NR_TIME_FMT,
+                                nrm_min(actual), min);
+    test_pass_if_true_file_line(testname, nrm_max(actual) == max, file, line,
+                                "nrm_max (actual)=" NR_TIME_FMT
+                                " max=" NR_TIME_FMT,
+                                nrm_max(actual), max);
+    test_pass_if_true_file_line(
+        testname, nrm_sumsquares(actual) == sumsquares, file, line,
+        "nrm_sumsquares (actual)=" NR_TIME_FMT " sumsquares=" NR_TIME_FMT,
+        nrm_sumsquares(actual), sumsquares);
+  }
+}
+
 static NRUNUSED void test_txn_untouched_fn(const char* testname,
                                            const nrtxn_t* txn,
                                            const char* file,
                                            int line) {
-  test_pass_if_true(testname, 0 == txn->root_kids_duration,
-                    "txn->root_kids_duration=" NR_TIME_FMT,
-                    txn->root_kids_duration);
-  test_pass_if_true(testname, 0 == nrm_table_size(txn->scoped_metrics),
-                    "nrm_table_size (txn->scoped_metrics)=%d",
-                    nrm_table_size(txn->scoped_metrics));
-  test_pass_if_true(testname, 0 == nrm_table_size(txn->unscoped_metrics),
-                    "nrm_table_size (txn->unscoped_metrics)=%d",
-                    nrm_table_size(txn->unscoped_metrics));
-  test_pass_if_true(testname, 0 == txn->nodes_used, "txn->nodes_used=%d",
-                    txn->nodes_used);
-}
+  test_pass_if_true_file_line(testname,
+                              0 == nrm_table_size(txn->scoped_metrics), file,
+                              line, "nrm_table_size (txn->scoped_metrics)=%d",
+                              nrm_table_size(txn->scoped_metrics));
+  test_pass_if_true_file_line(testname,
+                              0 == nrm_table_size(txn->unscoped_metrics), file,
+                              line, "nrm_table_size (txn->unscoped_metrics)=%d",
+                              nrm_table_size(txn->unscoped_metrics));
 
-static NRUNUSED void test_metric_vector_size(const nr_vector_t* metrics,
-                                             size_t expected_size) {
-  size_t actual_size = nr_vector_size(metrics);
-  tlib_pass_if_size_t_equal("metric vector size", expected_size, actual_size);
+  // An empty transaction will have a root segment.
+  tlib_pass_if_size_t_equal(testname, 1, txn->segment_count);
 }
 
 static NRUNUSED void test_segment_metric_created_fn(const char* testname,
@@ -64,8 +123,9 @@ static NRUNUSED void test_segment_metric_created_fn(const char* testname,
     }
   }
 
-  test_pass_if_true(testname, passed, "metric %s (scoped %d) not created",
-                    metric_name, scoped);
+  test_pass_if_true_file_line(testname, passed, file, line,
+                              "metric %s (scoped %d) not created", metric_name,
+                              scoped);
 }
 
 static NRUNUSED void test_txn_metric_created_fn(const char* testname,
@@ -73,8 +133,8 @@ static NRUNUSED void test_txn_metric_created_fn(const char* testname,
                                                 const char* expected,
                                                 const char* file,
                                                 int line) {
-  test_pass_if_true(testname, NULL != nrm_find(metrics, expected),
-                    "expected=%s", expected);
+  test_pass_if_true_file_line(testname, NULL != nrm_find(metrics, expected),
+                              file, line, "expected=%s", expected);
 }
 
 static NRUNUSED void test_metric_table_size_fn(const char* testname,
@@ -84,51 +144,77 @@ static NRUNUSED void test_metric_table_size_fn(const char* testname,
                                                int line) {
   int actual_size = nrm_table_size(metrics);
 
-  test_pass_if_true(testname, expected_size == actual_size,
-                    "expected_size=%d actual_size=%d", expected_size,
-                    actual_size);
+  test_pass_if_true_file_line(testname, expected_size == actual_size, file,
+                              line, "expected_size=%d actual_size=%d",
+                              expected_size, actual_size);
 }
 
 static NRUNUSED void test_segment_helper_metric_created_fn(const char* testname,
                                                            nrmtable_t* metrics,
                                                            uint32_t flags,
                                                            nrtime_t duration,
+                                                           nrtime_t exclusive,
                                                            const char* name,
                                                            const char* file,
                                                            int line) {
   const nrmetric_t* m = nrm_find(metrics, name);
   const char* nm = nrm_get_name(metrics, m);
 
-  test_pass_if_true(testname, 0 != m, "m=%p", m);
-  test_pass_if_true(testname, 0 == nr_strcmp(nm, name), "nm=%s name=%s",
-                    NRSAFESTR(nm), NRSAFESTR(name));
+  test_pass_if_true_file_line(testname, 0 != m, file, line, "m=%p", m);
+  test_pass_if_true_file_line(testname, 0 == nr_strcmp(nm, name), file, line,
+                              "nm=%s name=%s", NRSAFESTR(nm), NRSAFESTR(name));
 
   if (0 != m) {
-    test_pass_if_true(testname, flags == m->flags,
-                      "name=%s flags=%u m->flags=%u", name, flags, m->flags);
-    test_pass_if_true(testname, nrm_count(m) == 1,
-                      "name=%s nrm_count (m)=" NR_TIME_FMT, name, nrm_count(m));
-    test_pass_if_true(testname, nrm_total(m) == duration,
-                      "name=%s nrm_total (m)=" NR_TIME_FMT
-                      " duration=" NR_TIME_FMT,
-                      name, nrm_total(m), duration);
-    test_pass_if_true(testname, nrm_exclusive(m) == duration,
-                      "name=%s nrm_exclusive (m)=" NR_TIME_FMT
-                      " duration=" NR_TIME_FMT,
-                      name, nrm_exclusive(m), duration);
-    test_pass_if_true(testname, nrm_min(m) == duration,
-                      "name=%s nrm_min (m)=" NR_TIME_FMT
-                      " duration=" NR_TIME_FMT,
-                      name, nrm_min(m), duration);
-    test_pass_if_true(testname, nrm_max(m) == duration,
-                      "name=%s nrm_max (m)=" NR_TIME_FMT
-                      " duration=" NR_TIME_FMT,
-                      name, nrm_max(m), duration);
-    test_pass_if_true(testname, nrm_sumsquares(m) == (duration * duration),
-                      "name=%s nrm_sumsquares (m)=" NR_TIME_FMT
-                      " duration=" NR_TIME_FMT,
-                      name, nrm_sumsquares(m), duration);
+    test_pass_if_true_file_line(testname, flags == m->flags, file, line,
+                                "name=%s flags=%u m->flags=%u", name, flags,
+                                m->flags);
+    test_pass_if_true_file_line(testname, nrm_count(m) == 1, file, line,
+                                "name=%s nrm_count (m)=" NR_TIME_FMT, name,
+                                nrm_count(m));
+    test_pass_if_true_file_line(testname, nrm_total(m) == duration, file, line,
+                                "name=%s nrm_total (m)=" NR_TIME_FMT
+                                " duration=" NR_TIME_FMT,
+                                name, nrm_total(m), duration);
+    test_pass_if_true_file_line(
+        testname, nrm_exclusive(m) == exclusive, file, line,
+        "name=%s nrm_exclusive (m)=" NR_TIME_FMT " exclusive=" NR_TIME_FMT,
+        name, nrm_exclusive(m), exclusive);
+    test_pass_if_true_file_line(testname, nrm_min(m) == duration, file, line,
+                                "name=%s nrm_min (m)=" NR_TIME_FMT
+                                " duration=" NR_TIME_FMT,
+                                name, nrm_min(m), duration);
+    test_pass_if_true_file_line(testname, nrm_max(m) == duration, file, line,
+                                "name=%s nrm_max (m)=" NR_TIME_FMT
+                                " duration=" NR_TIME_FMT,
+                                name, nrm_max(m), duration);
+    test_pass_if_true_file_line(
+        testname, nrm_sumsquares(m) == (duration * duration), file, line,
+        "name=%s nrm_sumsquares (m)=" NR_TIME_FMT " duration=" NR_TIME_FMT,
+        name, nrm_sumsquares(m), duration);
   }
+}
+
+static NRUNUSED void test_txn_metric_is_fn(const char* testname,
+                                           nrmtable_t* table,
+                                           uint32_t flags,
+                                           const char* name,
+                                           nrtime_t count,
+                                           nrtime_t total,
+                                           nrtime_t exclusive,
+                                           nrtime_t min,
+                                           nrtime_t max,
+                                           nrtime_t sumsquares,
+                                           const char* file,
+                                           int line) {
+  const nrmetric_t* m = nrm_find(table, name);
+  const char* nm = nrm_get_name(table, m);
+
+  test_pass_if_true_file_line(testname, 0 != m, file, line, "m=%p", m);
+  test_pass_if_true_file_line(testname, 0 == nr_strcmp(nm, name), file, line,
+                              "nm=%s name=%s", nm, name);
+
+  test_metric_values_are_fn(testname, m, flags, count, total, exclusive, min,
+                            max, sumsquares, file, line);
 }
 
 static NRUNUSED nrtxn_t* new_txn(int background) {
@@ -148,9 +234,6 @@ static NRUNUSED nrtxn_t* new_txn(int background) {
   if (0 == txn) {
     return txn;
   }
-
-  txn->root.start_time.when
-      = 0; /* So that we can have arbitrary node start times */
 
   nr_free(app.info.license);
   nro_delete(app.connect_reply);

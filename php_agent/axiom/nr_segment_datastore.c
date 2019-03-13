@@ -276,6 +276,14 @@ end:
   nr_free(datastore.sql_obfuscated);
 }
 
+bool nr_segment_potential_explain_plan(const nrtxn_t* txn, nrtime_t duration) {
+  if (NULL == txn) {
+    return false;
+  }
+
+  return txn->options.ep_enabled && nr_segment_potential_slowsql(txn, duration);
+}
+
 bool nr_segment_potential_slowsql(const nrtxn_t* txn, nrtime_t duration) {
   if (NULL == txn || NR_SQL_NONE == txn->options.tt_recordsql
       || 0 == txn->options.tt_slowsql) {

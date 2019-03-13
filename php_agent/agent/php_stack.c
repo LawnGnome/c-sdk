@@ -9,6 +9,7 @@
 #include "util_number_converter.h"
 #include "util_strings.h"
 #include "util_syscalls.h"
+#include "util_logging.h"
 
 #ifdef PHP7
 #include "zend_generators.h"
@@ -24,9 +25,13 @@ static int nr_php_stack_iterator(zval* frame,
   zval* line;
 
   NR_UNUSED_TSRMLS;
-
   if (!nr_php_is_zval_valid_array(frame)) {
     return ZEND_HASH_APPLY_KEEP;
+  }
+
+  if (NULL != key && NR_PHP_STACKTRACE_LIMIT <= key->h) {
+    nrl_debug(NRL_API, "Stack trace was too large, truncating");
+    return ZEND_HASH_APPLY_STOP;
   }
 
   file = nr_php_zend_hash_find(Z_ARRVAL_P(frame), "file");
@@ -86,6 +91,7 @@ static int nr_php_stack_iterator(zval* frame,
 static char* nr_php_backtrace_to_json_internal(zval* trace TSRMLS_DC) {
   nrobj_t* arr;
   char* json;
+  int stack_trace_size = 0;
 
   if (0 == nr_php_is_zval_valid_array(trace)) {
     return NULL;
@@ -96,6 +102,23 @@ static char* nr_php_backtrace_to_json_internal(zval* trace TSRMLS_DC) {
   nr_php_zend_hash_zval_apply(Z_ARRVAL_P(trace),
                               (nr_php_zval_apply_t)nr_php_stack_iterator,
                               arr TSRMLS_CC);
+
+  stack_trace_size = nr_php_zend_hash_num_elements(Z_ARRVAL_P(trace));
+  if (NR_PHP_STACKTRACE_LIMIT <= stack_trace_size) {
+    char buf[100];
+    int lines_removed = stack_trace_size - NR_PHP_STACKTRACE_LIMIT;
+    nrtxn_t* txn = NRPRG(txn);
+
+    snprintf(
+        buf, 100,
+        "*** The stack trace was truncated here - %d line(s) were removed ***",
+        lines_removed);
+    nro_set_array_string(arr, 0, buf);
+    if (NULL != txn) {
+      nrm_force_add(txn->unscoped_metrics,
+                    "Supportability/PHP/StackFramesRemoved", lines_removed);
+    }
+  }
 
   json = nro_to_json(arr);
 

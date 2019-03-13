@@ -380,15 +380,28 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ;newrelic.error_collector.ignore_exceptions = ""
 
 ; Setting: newrelic.error_collector.ignore_errors
-; Type:    string
+; Type:    int or a bitwise expression of PHP-defined error constants
 ; Scope:   per-directory
 ; Default: none
 ; Info:    Sets the error levels that the agent should ignore.
 ;
+;          The value for this setting uses similar syntax to the error syntax
+;          for the PHP error reporting.  For example, to configure the PHP Agent
+;          to ignore E_WARNING and E_ERROR level errors, use:
+;
+;          newrelic.error_collector.ignore_errors = E_WARNING | E_ERROR
+;
+;          or
+;
+;          newrelic.error_collector.ignore_errors = 3
+;
+;          The list of constants are available at:
+;          http://php.net/manual/en/errorfunc.constants.php
+;
 ;          Please note that this setting does not apply to errors recorded
 ;          using the newrelic_notice_error API.
 ;
-;newrelic.error_collector.ignore_errors = ""
+;newrelic.error_collector.ignore_errors = 0
 
 ; Setting: newrelic.error_collector.record_database_errors
 ; Type   : boolean

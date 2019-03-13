@@ -129,6 +129,8 @@ typedef struct _nrtxnstatus_t {
                      */
   int background;   /* Set if this is a background job */
   int recording;    /* Set to 1 if we are recording, 0 if not */
+  bool complete; /* Set to true if the transaction is complete; false otherwise
+                  */
   int rum_header;
   /* 0 = header not sent, 1 = sent manually, 2 = auto */ /* TODO(rrh): use
                                                             an enumeration
@@ -141,54 +143,14 @@ typedef struct _nrtxnstatus_t {
   nrtxnstatus_cross_process_t cross_process;
 } nrtxnstatus_t;
 
-typedef struct _nrtxntime_t {
-  int stamp;     /* Ever-increasing sequence stamp */
-  nrtime_t when; /* When did this event occur */
-} nrtxntime_t;
-
-typedef enum _nr_txnnode_type_t {
-  NR_CUSTOM,
-  NR_DATASTORE,
-  NR_EXTERNAL
-} nr_txnnode_type_t;
-
 /*
- * The union type can only hold one struct at a time. This insures that we will
- * not reserve memory for variables that are not applicable for this type of
- * node. Example: A datastore node will not need to store a method and an
- * external node will not need to store a component.
- *
- * You must check the nr_txnnode_type to determine which struct is being used.
+ * Data products generated at the end of a transaction.
  */
-
-typedef struct {
-  nr_txnnode_type_t type;
-  struct {
-    char* component; /* The name of the database vendor or driver */
-  } datastore;
-} nr_txnnode_attributes_t;
-
-typedef struct _nrtxnnode_t {
-  nrtxntime_t start_time; /* Start time for node */
-  nrtxntime_t stop_time;  /* Stop time for node */
-  int count;              /* N+1 rollup count */
-  int name;               /* Node name (pooled string index) */
-  int async_context;      /* Execution context (pooled string index) */
-  char* id;               /* Node id.
-
-                             If this is NULL, a new id will be created when a
-                             span event is created from this trace node.
-
-                             If this is not NULL, this id will be used for
-                             creating a span event from this trace node. This
-                             id set indicates that the node represents an
-                             external segment and the id of the segment was use
-                             as current span id in an outgoing DT payload. */
-  nrobj_t* data_hash;     /* Other node specific data */
-  nr_txnnode_attributes_t*
-      attributes; /* Category-dependent attributes required for some
-                          categories of span events, e.g. datastore. */
-} nrtxnnode_t;
+typedef struct _nrtxnfinal_t {
+  char* trace_json;
+  nr_vector_t* span_events;
+  nrtime_t total_time;
+} nrtxnfinal_t;
 
 /*
  * Members of this enumeration are used as an index into an array.
@@ -228,12 +190,7 @@ typedef struct _nrtxn_t {
   nrtxnopt_t options;   /* Options for this transaction */
   nrtxnstatus_t status; /* Status for the transaction */
   nrtxncat_t cat;       /* Incoming CAT fields */
-  nr_random_t* rnd;     /* Random number generator, owned by the application */
-  int nodes_used;       /* Number of nodes used */
-  nrtxnnode_t root;     /* Root node */
-  nrtxnnode_t nodes[NR_TXN_MAX_NODES];
-  nrtxnnode_t* pq[NR_TXN_MAX_NODES];
-  nrtxnnode_t* last_added; /* Pointer to last node added (rollup metrics) */
+  nr_random_t* rnd;     /* Random number generator, owned by the application. */
 
   nr_stack_t parent_stack; /* A stack to track the current parent in the tree of
                               segments */
@@ -256,16 +213,7 @@ typedef struct _nrtxn_t {
                           and errors */
   nr_attributes_t* attributes; /* Key+value pair tags put in txn event, txn
                                   trace, error, and browser */
-  nrtime_t* cur_kids_duration; /* Points to variable to increment for a child's
-                                  duration */
-  nrtime_t root_kids_duration; /* Duration of children of root */
   nr_file_naming_t* match_filenames; /* Filenames to match on for txn naming */
-
-  /*
-   * This is the amount of time spent within Guzzle external calls: This time
-   * is not truly asynchronous, but the async UI is used for web transactions.
-   */
-  nrtime_t async_duration;
 
   nr_analytics_events_t*
       custom_events; /* Custom events created through the API. */
@@ -299,6 +247,12 @@ typedef struct _nrtxn_t {
     uint8_t show_sql_parsing; /* show various steps in SQL feature parsing */
     uint8_t debug_cat;        /* extra logging for CAT */
   } special_flags;
+
+  /*
+   * Data products created in nr_txn_end() that are used when transmitting the
+   * transaction.
+   */
+  nrtxnfinal_t final_data;
 } nrtxn_t;
 
 static inline int nr_txn_recording(const nrtxn_t* txn) {
@@ -415,84 +369,6 @@ extern nr_status_t nr_txn_set_path(const char* whence,
  *           setting and remove trailing '?' parameters correctly.
  */
 extern void nr_txn_set_request_uri(nrtxn_t* txn, const char* uri);
-
-/*
- * Purpose : Set up a timing structure for a potential new node.
- *
- * Params  : 1. The transaction pointer.
- *           2. Pointer to the timing structure.
- *
- * Returns : Nothing.
- *
- * Notes   : This is a frequently called function that should be as optimized
- *           as possible. It is called by the agent specific code whenever a
- *           function is being instrumented, immediately before executing the
- *           function. When the function returns, the agent code must call one
- *           of the node termination functions, defined below. The agnostic
- *           code will do all the work to determine whether or not the node is
- *           kept.
- */
-static inline void nr_txn_set_time(nrtxn_t* txn, nrtxntime_t* t) {
-  if (nrunlikely(0 == t)) {
-    return;
-  }
-  if (nrunlikely(0 == txn)) {
-    t->when = 0;
-    t->stamp = 0;
-    return;
-  } else {
-    t->when = nr_get_time();
-    t->stamp = txn->stamp;
-    txn->stamp += 1;
-  }
-}
-
-/*
- * Purpose : Populate the stop timing structure after a call has ended, and
- *           verify using the transaction and start structure that the
- *           transaction has not changed during the course of the call.
- *
- * Params  : 1. The current transaction.
- *           2. The start timing structure of the call (previously populated).
- *           3. The stop timing structure to be populated.
- *
- * Returns : NR_SUCCESS or NR_FAILURE.  If NR_FAILURE is returned, then
- *           no data about the completed call should be recorded.
- */
-extern nr_status_t nr_txn_set_stop_time(nrtxn_t* txn,
-                                        const nrtxntime_t* start,
-                                        nrtxntime_t* stop);
-
-static inline void nr_txn_copy_time(const nrtxntime_t* src, nrtxntime_t* dest) {
-  if (nrlikely((0 != src) && (0 != dest))) {
-    dest->stamp = src->stamp;
-    dest->when = src->when;
-  }
-}
-
-/*
- * Purporse : Save a node within the transaction's trace.
- *
- * Params   : 1. The current transaction.
- *            2. The node's start time.
- *            3. The node's stop time.
- *            4. The name of the node.
- *            5. The execution context, or NULL if the node is on the main
- *               "thread".
- *            6. Hash containing extra node information.
- *            7. Category-dependent attributes required for some  categories of
- *               span events, e.g. datastore.
- */
-extern void nr_txn_save_trace_node(nrtxn_t* txn,
-                                   const nrtxntime_t* start,
-                                   const nrtxntime_t* stop,
-                                   const char* name,
-                                   const char* async_context,
-                                   const nrobj_t* data_hash,
-                                   const nr_txnnode_attributes_t* attributes);
-
-#include "node_datastore.h"
-#include "node_external.h"
 
 /*
  * Purpose : Indicate whether or not an error with the given priority level
@@ -770,30 +646,6 @@ extern int nr_txn_should_create_apdex_metrics(const nrtxn_t* txn);
 extern int nr_txn_should_save_trace(const nrtxn_t* txn, nrtime_t duration);
 
 /*
- * Purpose : The exclusive times of all scoped metrics should sum to the
- *           transaction's duration.  Therefore, when a scoped metric is
- *           made this function must be called with the duration of the metric
- *           so that the parent's exclusive time can be calculated.
- */
-extern void nr_txn_adjust_exclusive_time(nrtxn_t* txn, nrtime_t duration);
-
-/*
- * Purpose : Increment the async duration of the transaction.
- *
- * Params  : 1. The transaction.
- *           2. The amount of time to add to the async duration.
- */
-extern void nr_txn_add_async_duration(nrtxn_t* txn, nrtime_t duration);
-
-/*
- * Purpose : Validate that the transaction is recording and that the start
- *           and stop times comprise a valid call in the current transaction.
- */
-extern int nr_txn_valid_node_end(const nrtxn_t* txn,
-                                 const nrtxntime_t* start,
-                                 const nrtxntime_t* stop);
-
-/*
  * Purpose : Return 1 if the txn's nr.guid should be added as an
  *           intrinsic to the txn's analytics event, and 0 otherwise.
  */
@@ -1031,32 +883,10 @@ extern void nr_txn_set_current_segment(nrtxn_t* txn, nr_segment_t* segment);
 extern void nr_txn_retire_current_segment(nrtxn_t* txn);
 
 /*
- * Purpose : Allocate memory for the type dependant attributes of a transaction
- * trace node.
+ * Purpose : Destroy the fields within an nrtxnfinal_t.
  *
- * Params : None.
- *
- * Returns : The allocated memory.
+ * Params  : 1. A pointer to the nrtxnfinal_t to destroy.
  */
-extern nr_txnnode_attributes_t* nr_txnnode_attributes_create(void);
-
-/*
- * Purpose : Assign the type dependant attributes to a trace node. This assigns
- * the node a custom type if the attributes are NULL.
- *
- * Params : 1. The node that you would like updated.
- *          2. The struct that contains the attributes you would like in the
- * node.
- */
-extern void nr_txnnode_set_attributes(
-    nrtxnnode_t* node,
-    const nr_txnnode_attributes_t* attributes);
-
-/*
- * Purpose : Release the memory that has been allocated.
- *
- * Params : 1. The struct that contains memory you would like released.
- */
-extern void nr_txnnode_attributes_destroy(nr_txnnode_attributes_t* attributes);
+extern void nr_txn_final_destroy_fields(nrtxnfinal_t* tf);
 
 #endif /* NR_TXN_HDR */

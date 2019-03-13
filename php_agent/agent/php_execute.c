@@ -559,34 +559,6 @@ static nr_library_table_t libraries[] = {
 
 static size_t num_libraries = sizeof(libraries) / sizeof(nr_library_table_t);
 
-static int nr_php_op_array_has_wraprec(const zend_op_array* op_array) {
-  int offset = NR_PHP_PROCESS_GLOBALS(zend_offset);
-
-  if (0 == op_array) {
-    return 0;
-  }
-  if (0 == op_array->function_name) {
-    return 0;
-  }
-#ifndef PHP7
-  /*
-   * In PHP 5, we set a function flag, as the reserved pointer may not be
-   * initialised to NULL in ancient versions of PHP 5.2. In PHP 7, we don't
-   * touch the function flags.
-   */
-  if (0 == (op_array->fn_flags & NR_PHP_ACC_INSTRUMENTED)) {
-    return 0;
-  }
-#endif /* !PHP7 */
-  if (offset < 0) {
-    return 0;
-  }
-  if (0 == op_array->reserved[offset]) {
-    return 0;
-  }
-  return 1;
-}
-
 /*
  * This const char[] provides enough white space to indent functions to
  * (sizeof (nr_php_indentation_spaces) / NR_EXECUTE_INDENTATION_WIDTH) deep.
@@ -647,25 +619,25 @@ static void nr_php_show_exec(NR_EXECUTE_PROTO TSRMLS_DC) {
         NRSAFELEN(nr_php_class_entry_name_length(NR_OP_ARRAY->scope)),
         nr_php_class_entry_name(NR_OP_ARRAY->scope),
         NRP_PHP(function_name ? function_name : "?"), NRP_ARGSTR(argstr),
-        nr_php_op_array_has_wraprec(NR_OP_ARRAY) ? " *" : "",
+        nr_php_op_array_get_wraprec(NR_OP_ARRAY TSRMLS_CC) ? " *" : "",
         NRP_FILENAME(filename), NR_OP_ARRAY->line_start);
   } else if (NR_OP_ARRAY->function_name) {
     /*
      * function
      */
     nr_show_execute_params(NR_EXECUTE_ORIG_ARGS, argstr TSRMLS_CC);
-    nrl_verbosedebug(NRL_AGENT,
-                     "execute: %.*s function={" NRP_FMT_UQ
-                     "}"
-                     " params={" NRP_FMT_UQ
-                     "}"
-                     " %.5s"
-                     "@ " NRP_FMT_UQ ":%d",
-                     nr_php_show_exec_indentation(TSRMLS_C),
-                     nr_php_indentation_spaces, NRP_PHP(function_name),
-                     NRP_ARGSTR(argstr),
-                     nr_php_op_array_has_wraprec(NR_OP_ARRAY) ? " *" : "",
-                     NRP_FILENAME(filename), NR_OP_ARRAY->line_start);
+    nrl_verbosedebug(
+        NRL_AGENT,
+        "execute: %.*s function={" NRP_FMT_UQ
+        "}"
+        " params={" NRP_FMT_UQ
+        "}"
+        " %.5s"
+        "@ " NRP_FMT_UQ ":%d",
+        nr_php_show_exec_indentation(TSRMLS_C), nr_php_indentation_spaces,
+        NRP_PHP(function_name), NRP_ARGSTR(argstr),
+        nr_php_op_array_get_wraprec(NR_OP_ARRAY TSRMLS_CC) ? " *" : "",
+        NRP_FILENAME(filename), NR_OP_ARRAY->line_start);
   } else if (NR_OP_ARRAY->filename) {
     /*
      * file
@@ -1053,9 +1025,9 @@ static inline void nr_php_execute_segment_add_metric(
 }
 
 /*
- * Purpose : Evaluate whether a custom metric and/or trace node should be added
- *           for the given function, and adjust the duration of this function's
- *           parent accordingly.
+ * Purpose : Evaluate what the disposition of the given segment is: do we
+ *           discard or keep it, and if the latter, do we need to create a
+ *           custom metric?
  *
  * Params  : 1. The segment to end.
  *           2. The function naming metadata.
@@ -1067,16 +1039,18 @@ static inline void nr_php_execute_segment_end(
     bool create_metric) {
   nrtime_t duration;
 
+  if (NULL == segment) {
+    return;
+  }
+
   nr_segment_end(segment);
 
   duration = nr_time_duration(segment->start_time, segment->stop_time);
 
   if (create_metric || (duration >= NR_PHP_PROCESS_GLOBALS(expensive_min))) {
     nr_php_execute_segment_add_metric(segment, metadata, create_metric);
-  } else {
-    if (NULL != segment) {
-      nr_segment_discard(&segment);
-    }
+  } else if (0 == nr_vector_size(segment->metrics)) {
+    nr_segment_discard(&segment);
   }
 }
 
@@ -1089,9 +1063,10 @@ static inline void nr_php_execute_segment_end(
  */
 static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
   int zcaught = 0;
-  nrtxn_t* txn = NRPRG(txn);
+  nrtime_t txn_start_time;
   nr_php_execute_metadata_t metadata;
   nr_segment_t* segment = NULL;
+  nruserfn_t* wraprec;
 
   NRPRG(execute_count) += 1;
 
@@ -1104,11 +1079,13 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
    * The function name needs to be checked before the NR_OP_ARRAY->fn_flags
    * since in PHP 5.1 fn_flags is not initialized for files.
    */
-  if (nr_php_op_array_has_wraprec(NR_OP_ARRAY)) {
+
+  wraprec = nr_php_op_array_get_wraprec(NR_OP_ARRAY TSRMLS_CC);
+
+  if (NULL != wraprec) {
     /*
      * This is the case for specifically requested custom instrumentation.
      */
-    nruserfn_t* wraprec = nr_php_op_array_get_wraprec(NR_OP_ARRAY);
     bool create_metric = wraprec->create_metric;
 
     nr_php_execute_metadata_init(&metadata, NR_OP_ARRAY);
@@ -1139,22 +1116,25 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
           "Uncaught exception ", &NRPRG(exception_filters) TSRMLS_CC);
     }
 
-    txn = NRPRG(txn);
-    segment = nr_segment_start(txn, NULL, NULL);
+    txn_start_time = nr_txn_start_time(NRPRG(txn));
 
-    zcaught = nr_zend_call_orig_execute_special(wraprec,
+    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+
+    zcaught = nr_zend_call_orig_execute_special(wraprec, segment,
                                                 NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
 
     /*
      * During this call, the transaction may have been ended and/or a new
-     * transaction may have started.  Therefore, we must check recording status
-     * and that this function call started during the current transaction.
+     * transaction may have started.  To detect this, we compare the
+     * currently active transaction's start time with the transaction
+     * start time we saved before.
+     *
+     * Just comparing the transaction pointer is not enough, as a newly
+     * started transaction might actually obtain the same address as a
+     * transaction freed before.
      */
-    if (txn != NRPRG(txn)) {
-      if (zcaught) {
-        zend_bailout();
-      }
-      return;
+    if (nrunlikely(nr_txn_start_time(NRPRG(txn)) != txn_start_time)) {
+      segment = NULL;
     }
 
     nr_php_execute_segment_end(segment, &metadata, create_metric);
@@ -1171,8 +1151,10 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
      * This is the case for transaction_tracer.detail >= 1 requested custom
      * instrumentation.
      */
-    txn = NRPRG(txn);
-    segment = nr_segment_start(txn, NULL, NULL);
+
+    txn_start_time = nr_txn_start_time(NRPRG(txn));
+
+    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
     /*
      * Here we use orig_execute rather than nr_zend_call_orig_execute to avoid
@@ -1189,11 +1171,12 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
 
     /*
      * During this call, the transaction may have been ended and/or a new
-     * transaction may have started. Therefore, we must check recording status
-     * and that this function call started during the current transaction.
+     * transaction may have started.  To detect this, we compare the
+     * currently active transaction's start time with the transaction
+     * start time we saved before.
      */
-    if (txn != NRPRG(txn)) {
-      return;
+    if (nrunlikely(nr_txn_start_time(NRPRG(txn)) != txn_start_time)) {
+      segment = NULL;
     }
 
     nr_php_execute_segment_end(segment, &metadata, false);

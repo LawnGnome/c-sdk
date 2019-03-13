@@ -1,6 +1,7 @@
 #include "php_agent.h"
 #include "php_api_distributed_trace.h"
 #include "php_call.h"
+#include "php_error.h"
 #include "php_hash.h"
 #include "php_user_instrument.h"
 #include "php_wrapper.h"
@@ -521,6 +522,47 @@ NR_PHP_WRAPPER(nr_laravel_queue_worker_process) {
   }
 
   NR_PHP_WRAPPER_CALL;
+
+  /*
+   * We need to report any uncaught exceptions now, so that they're on the
+   * transaction we're about to end. We can see if there's an exception waiting
+   * to be caught by looking at EG(exception).
+   */
+  if (EG(exception)) {
+    zval* exception_zval = NULL;
+
+#ifdef PHP7
+    /*
+     * On PHP 7, EG(exception) is stored as a zend_object, and is only wrapped
+     * in a zval when it actually needs to be. Unfortunately, our error handling
+     * code assumes that an exception is always provided as a zval, and
+     * unravelling that would make PHP 5 support more difficult. So we'll just
+     * set up a zval here for now.
+     *
+     * We don't particularly want to use nr_php_zval_alloc() and
+     * nr_php_zval_free() here: nr_php_zval_free() will destroy the exception
+     * object, and that's bad news for when it's caught in a few frames.
+     * Instead, we'll do the exact same thing the Zend Engine itself does when
+     * it needs to wrap an in-flight exception in a full zval: we'll create a
+     * zval on the stack, set its object to EG(exception), and then just let the
+     * zval disappear into the aether without any destructors being run.
+     */
+    zval exception;
+
+    ZVAL_OBJ(&exception, EG(exception));
+    exception_zval = &exception;
+#else
+    /*
+     * On PHP 5, the exception is just a regular old zval.
+     */
+    exception_zval = EG(exception);
+#endif /* PHP7 */
+
+    nr_php_error_record_exception(
+        NRPRG(txn), exception_zval, NR_PHP_ERROR_PRIORITY_UNCAUGHT_EXCEPTION,
+        "Unhandled exception within Laravel Queue job: ",
+        &NRPRG(exception_filters) TSRMLS_CC);
+  }
 
   nr_php_arg_release(&connection);
   nr_php_arg_release(&job);

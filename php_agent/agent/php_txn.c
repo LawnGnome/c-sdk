@@ -11,7 +11,6 @@
 #include "php_user_instrument.h"
 #include "php_txn_private.h"
 #include "nr_agent.h"
-#include "nr_async_context.h"
 #include "nr_commands.h"
 #include "nr_header.h"
 #include "nr_rum.h"
@@ -709,7 +708,6 @@ nr_status_t nr_php_txn_begin(const char* appnames,
 
   NRPRG(generating_explain_plan) = 0;
 
-  NRPRG(guzzle_ctx) = 0;
   NRPRG(guzzle_objs) = 0;
 
   NRPRG(mysqli_links) = nr_mysqli_metadata_create();
@@ -743,6 +741,9 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   if ((0 != NR_PHP_PROCESS_GLOBALS(cli))) {
     nr_txn_set_as_background_job(NRPRG(txn), "CLI SAPI");
   }
+
+  NRPRG(user_function_wrappers) = nr_vector_create(64, NULL, NULL);
+  NRPRG(pid) = getpid();
 
   nr_php_add_user_instrumentation(TSRMLS_C);
   nr_php_resource_usage_sampler_start(TSRMLS_C);
@@ -797,7 +798,7 @@ nr_status_t nr_php_txn_begin(const char* appnames,
               "newrelic.transaction_tracer.enabled must be enabled in order "
               "to use distributed tracing");
   }
-  
+
   if (NRPRG(txn)->options.distributed_tracing_enabled && NRINI(tt_detail)) {
     NRINI(tt_detail) = 0;
 
@@ -937,10 +938,9 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
 
   nr_txn_destroy(&NRPRG(txn));
 
-  nr_async_context_destroy(&NRPRG(guzzle_ctx));
   nr_hashmap_destroy(&NRPRG(guzzle_objs));
 
-  nr_async_context_destroy(&NRPRG(predis_ctx));
+  nr_free(NRPRG(predis_ctx));
   nr_hashmap_destroy(&NRPRG(predis_commands));
 
   nr_hashmap_destroy(&NRPRG(prepared_statements));
@@ -950,6 +950,8 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
   nr_mysqli_metadata_destroy(&NRPRG(mysqli_links));
 
   nr_free(NRPRG(curl_exec_x_newrelic_app_data));
+
+  nr_vector_destroy(&NRPRG(user_function_wrappers));
 
   return NR_SUCCESS;
 }

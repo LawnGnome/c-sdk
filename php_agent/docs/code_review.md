@@ -32,12 +32,14 @@ Here's how it works:
    pick someone who doesn't seem totally stressed out and ask them to review
    your pull request. You may want to sweeten the deal with pie.
 6. Once your reviewer is convinced that the code meets our standards, they will
-   add the "sidekick:approved" label (per [company policy][sidekick]) and you
-   are clear to merge. If changes are requested, make them (or push back), get
-   re-signed-off if required, and merge!
+   approve the PR (per [company policy][sidekick]) and you are clear to merge.
+   If changes are requested, make them or discuss why they're unnecessary, get
+   re-approved if any changes are made, and merge!
 
 Our team's feeling is that it's better to submit pull requests early; add the
-"ready for review" label when you're confident the pull request is ready.
+"ready for review" label when you're confident the pull request is ready. You
+can use the "prototype" label to more strongly indicate that your PR isn't
+ready for prying eyes, if needed.
 
 The main PR comment can hold a living document that changes as changes are
 added to the pull request, but you may want to consider keeping old and
@@ -51,12 +53,11 @@ issues.
 
 ## Approving and Merging
 We used to use comments with "+1" or "lgtm" for code review; now things are a
-little bit more complicated. Anyone is welcome to review a pull
-request, but one person must [sidekick the PR][sidekick] by adding the
-"sidekick:approved" label. Adding this label means that you have reviewed the
-PR and believe it to be of high enough quality to join our codebase. Alas, this
-label only applies to the commit on which it was applied, so even minor changes
-must be re-approved, per company policy.
+little bit more complicated. Anyone is welcome to review a pull request, but
+one person must [sidekick the PR][sidekick] by approving the PR. Doing so means
+that you have reviewed the PR and believe it to be of high enough quality to
+join our codebase. Alas, this label only applies to the commit on which it was
+applied, so even minor changes must be re-approved, per company policy.
 
 The reviewer(s) may also ask that you get them to re-review a change before
 merging to master. This is likely for more fundamental issues. Make the change,

@@ -121,7 +121,6 @@ TESTS := \
   test_apdex \
   test_app \
   test_app_harvest \
-  test_async_context \
   test_attributes \
   test_base64 \
   test_buffer \
@@ -151,8 +150,6 @@ TESTS := \
   test_minmax_heap \
   test_mysqli_metadata \
   test_network \
-  test_node_datastore \
-  test_node_external \
   test_number_converter \
   test_obfuscate \
   test_object \
@@ -185,7 +182,6 @@ TESTS := \
   test_text \
   test_threads \
   test_time \
-  test_traces \
   test_txn \
   test_url \
   test_vector
@@ -209,15 +205,11 @@ RUNNABLE_TESTS = $(filter-out $(SKIP_TESTS),$(TESTS))
 # Objects that will be built into the libtlib.a utility library that all tests
 # link against.
 #
-# TODO(aharvey): test_node_helpers.o should either be imported specifically
-# into the tests that need it, or (probably better) turned into a tlib_* file.
-#
 TLIB_OBJS := \
 	tlib_bool.o \
 	tlib_exec.o \
 	tlib_files.o \
-	tlib_main.o \
-	test_node_helpers.o
+	tlib_main.o
 
 #
 # The rule to actually build the library.

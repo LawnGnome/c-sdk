@@ -6,9 +6,8 @@
 
 ### New Features ###
 
-* Added support for PHP 7.3.
-* Http Span Events in Distributed Tracing now include the "http.method".
-* We expanded [PHPUnit support](https://blog.newrelic.com/product-news/create-phpunit-dashboard/) to include PHPUnit 6, PHPUnit 7, and PHPUnit 8.
+* Requests for Laravel's built-in automatic handling of CORS HTTP OPTIONS requests
+  will now be given the transaction name `_CORS_HTTP`
 
 ### Upgrade Notices ###
 
@@ -16,7 +15,24 @@
 
 ### Bug Fixes ###
 
+* A potential segfault when using PHP 7.3, opcache and multiple PHP workers has
+  been fixed.
+
+* Uncaught exceptions within a job being executed by a Laravel Queue worker are
+  now reported correctly.
+
+* Invoking [`function_exists()`](https://secure.php.net/function_exists) on a
+  function disabled with the
+  [`disable_functions`](https://secure.php.net/manual/en/ini.core.php#ini.disable-functions)
+  configuration directive will now correctly return `false`.
+
 ### Internal Changes ###
+
+* Nodes are no more!
+
+  Segments are now represented internally using a segment data type that
+  provides better support for distributed tracing, asynchronous execution, and
+  metric creation.
 
 ### Acquia-only Notes ###
 
@@ -24,6 +40,7 @@
 
 | Release Number | Release Date |
 | ------------- |-------------|
+| [8.5.0](#850) | 2018-12-19 |
 | [8.4.0](#840) | 2018-12-05 |
 | [8.3.0](#830) | 2018-10-08 |
 | [8.2.0](#820) | 2018-08-29 |
@@ -91,6 +108,28 @@
 | [4.5.5.38](#45538) | 2014-02-13 |
 | [4.4.5.35](#44535) | 2014-01-08 |
 | [4.3.5.33](#43533) | 2013-12-11 |
+
+## 8.5 ##
+
+### End of Life Notices ###
+
+### New Features ###
+
+* Added support for PHP 7.3.
+* Http Span Events in Distributed Tracing now include the "http.method".
+* We expanded [PHPUnit support](https://blog.newrelic.com/product-news/create-phpunit-dashboard/) to include PHPUnit 6, PHPUnit 7, and PHPUnit 8.
+
+### Upgrade Notices ###
+
+### Notes ###
+
+### Bug Fixes ###
+
+### Internal Changes ###
+
+### Acquia-only Notes ###
+
+## Contents ##
 
 ## 8.4 ##
 

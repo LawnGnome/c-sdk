@@ -11,58 +11,19 @@
 
 int nr_drupal_do_view_execute(const char* name,
                               int name_len,
+                              nr_segment_t* segment,
                               NR_EXECUTE_PROTO TSRMLS_DC) {
-  int zcaught;
-  nrtxntime_t start;
-  nrtxntime_t stop;
-  nrtime_t duration;
-  nrtime_t exclusive;
-  nrtime_t kids_duration = 0;
-  nrtime_t* kids_duration_save = NRPRG(cur_drupal_view_kids_duration);
+  nr_drupal_create_metric(segment, NR_PSTR(NR_DRUPAL_VIEW_PREFIX), name,
+                          name_len);
 
-  start.stamp = 0;
-  start.when = 0;
-  nr_txn_set_time(NRPRG(txn), &start);
-
-  NRPRG(cur_drupal_view_kids_duration) = &kids_duration;
-  zcaught = nr_zend_call_orig_execute(NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
-  NRPRG(cur_drupal_view_kids_duration) = kids_duration_save;
-
-  stop.stamp = 0;
-  stop.when = 0;
-  if (NR_SUCCESS != nr_txn_set_stop_time(NRPRG(txn), &start, &stop)) {
-    return zcaught;
-  }
-
-  if (stop.when > start.when) {
-    duration = stop.when - start.when;
-  } else {
-    duration = 0;
-  }
-
-  if (duration > kids_duration) {
-    exclusive = duration - kids_duration;
-  } else {
-    exclusive = 0;
-  }
-
-  if (kids_duration_save) {
-    *kids_duration_save += duration;
-  }
-
-  nr_drupal_create_metric(NRPRG(txn), NR_PSTR(NR_DRUPAL_VIEW_PREFIX), name,
-                          name_len, duration, exclusive);
-
-  return zcaught;
+  return nr_zend_call_orig_execute(NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
 }
 
-void nr_drupal_create_metric(nrtxn_t* txn,
+void nr_drupal_create_metric(nr_segment_t* segment,
                              const char* prefix,
                              int prefix_len,
                              const char* suffix,
-                             int suffix_len,
-                             nrtime_t duration,
-                             nrtime_t exclusive) {
+                             int suffix_len) {
   char* name = 0;
   char* nm = 0;
 
@@ -70,7 +31,7 @@ void nr_drupal_create_metric(nrtxn_t* txn,
   nm = nr_strxcpy(name, prefix, prefix_len);
   nr_strxcpy(nm, suffix, suffix_len);
 
-  nrm_add_ex(txn->unscoped_metrics, name, duration, exclusive);
+  nr_segment_add_metric(segment, name, false);
 }
 
 int nr_drupal_is_framework(nrframework_t fw) {
@@ -85,55 +46,18 @@ NR_PHP_WRAPPER(nr_drupal_wrap_module_hook) {
     NR_PHP_WRAPPER_LEAVE;
   }
 
+  NR_PHP_WRAPPER_CALL;
+
   /*
    * We can't infer the module and hook names from the function name, since a
    * function such as a_b_c is ambiguous (is the module a or a_b?). Instead,
    * we'll see if they're defined in the wraprec.
    */
   if ((NULL != wraprec->drupal_hook) && (NULL != wraprec->drupal_module)) {
-    nrtxntime_t start;
-    nrtxntime_t stop;
-    nrtime_t duration;
-    nrtime_t exclusive;
-    nrtime_t kids_duration = 0;
-    nrtime_t* kids_duration_save = NRPRG(cur_drupal_module_kids_duration);
-
-    nr_txn_set_time(NRPRG(txn), &start);
-
-    NRPRG(cur_drupal_module_kids_duration) = &kids_duration;
-    NR_PHP_WRAPPER_CALL;
-    NRPRG(cur_drupal_module_kids_duration) = kids_duration_save;
-
-    stop.stamp = 0;
-    stop.when = 0;
-    if (NR_SUCCESS != nr_txn_set_stop_time(NRPRG(txn), &start, &stop)) {
-      NR_PHP_WRAPPER_LEAVE;
-    }
-
-    if (nrlikely(stop.when > start.when)) {
-      duration = stop.when - start.when;
-    } else {
-      duration = 0;
-    }
-
-    if (nrlikely(duration > kids_duration)) {
-      exclusive = duration - kids_duration;
-    } else {
-      exclusive = 0;
-    }
-
-    if (kids_duration_save) {
-      *kids_duration_save += duration;
-    }
-
-    nr_drupal_create_metric(NRPRG(txn), NR_PSTR(NR_DRUPAL_MODULE_PREFIX),
-                            wraprec->drupal_module, wraprec->drupal_module_len,
-                            duration, exclusive);
-    nr_drupal_create_metric(NRPRG(txn), NR_PSTR(NR_DRUPAL_HOOK_PREFIX),
-                            wraprec->drupal_hook, wraprec->drupal_hook_len,
-                            duration, exclusive);
-  } else {
-    NR_PHP_WRAPPER_CALL;
+    nr_drupal_create_metric(auto_segment, NR_PSTR(NR_DRUPAL_MODULE_PREFIX),
+                            wraprec->drupal_module, wraprec->drupal_module_len);
+    nr_drupal_create_metric(auto_segment, NR_PSTR(NR_DRUPAL_HOOK_PREFIX),
+                            wraprec->drupal_hook, wraprec->drupal_hook_len);
   }
 }
 NR_PHP_WRAPPER_END

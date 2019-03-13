@@ -101,8 +101,9 @@
  *   carrot                  05Sep2018 (8.3) (Alan)
  *   dill                    17Oct2018 (8.4) (Tanya and Amanda)
  *   eggplant                01Dec2018 (8.5) (Alan)
+ *   flax                    21Dec2018 (8.6) (Alan)
  */
-#define NR_CODENAME "eggplant"
+#define NR_CODENAME "flax"
 
 const char* nr_version(void) {
   return NR_STR2(NR_VERSION);

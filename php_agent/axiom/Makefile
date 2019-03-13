@@ -56,6 +56,7 @@ AXIOM_CFLAGS += -Wswitch-enum
 AXIOM_CFLAGS += -Wuninitialized
 AXIOM_CFLAGS += -Wunused-label
 AXIOM_CFLAGS += -Wno-typedef-redefinition
+AXIOM_CFLAGS += -Wno-missing-field-initializers
 endif
 
 # TODO(msl): OS X 10.11 (at least) does not provide pcre-config by default.
@@ -74,13 +75,10 @@ VERSION_FLAGS := -DNR_VERSION=$(AGENT_VERSION) -DNR_COMMIT=$(GIT_COMMIT)
 OBJS := \
 	cmd_appinfo_transmit.o \
 	cmd_txndata_transmit.o \
-	node_datastore.o \
-	node_external.o \
 	nr_agent.o \
 	nr_analytics_events.o \
 	nr_app.o \
 	nr_app_harvest.o \
-	nr_async_context.o \
 	nr_attributes.o \
 	nr_banner.o \
 	nr_configstrings.o \
@@ -109,7 +107,6 @@ OBJS := \
 	nr_slowsqls.o \
 	nr_span_event.o \
 	nr_synthetics.o \
-	nr_traces.o \
 	nr_txn.o \
 	nr_version.o \
 	util_apdex.o \

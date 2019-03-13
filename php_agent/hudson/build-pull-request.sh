@@ -194,4 +194,17 @@ for PHP in $PHPS; do
   fi
 done
 
+#
+# Remove the workspace (only on Centos) after each build. This insures that the build nodes
+# will not run out of free space.
+#
+
+
+if [ "$(uname)" = Linux ] && [ ! -e /etc/alpine-release ]; then
+  rm -rf $PWD
+  printf 'workspace cleared'
+else
+  printf 'skipping workspace clear - not Centos'
+fi
+
 printf \\n   # put a blank line before jenkins epilogue

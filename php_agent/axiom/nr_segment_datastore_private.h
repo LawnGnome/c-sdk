@@ -33,16 +33,4 @@ char* nr_segment_sql_get_operation_and_table(
     const char* sql,
     nr_modify_table_name_fn_t modify_table_name_fn);
 
-/*
- * Purpose : Decide if an SQL node of the given duration would be considered as
- *           a potential explain plan.
- *
- * Params  : 1. The current transaction.
- *           2. The duration of the SQL query.
- *
- * Returns : True if the node is above the relevant threshold and explain plans
- *           are enabled; false otherwise.
- */
-bool nr_segment_potential_slowsql(const nrtxn_t* txn, nrtime_t duration);
-
 #endif /* NR_SEGMENT_DATASTORE_PRIVATE_H */

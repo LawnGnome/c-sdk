@@ -9,8 +9,6 @@
 * [Promoting a Build from Testing to Production](#testing-2-production)
 * [Rolling Back the Current Release](#rollback)
 * [Git Branches](#git-branches)
-* [Promoting a Release Build to Testing](#release-2-testing)
-* [Promoting a Build from Testing to Production](#testing-2-production)
 
 ## Additional Resources
 * [PHP Agent FAQ](https://docs.newrelic.com/docs/php/new-relic-for-php)
@@ -52,7 +50,7 @@ You will need to have the following:
 |-----------|-----------------------------|--------|---------|
 |[Cross-Platform Installation and Sanity Testing](https://newrelic.atlassian.net/browse/PHP-1767) | Installation and sanity on various platforms. Make sure it's green, or has a good reason for being yellow. | [xPlatform Jenkins Results](https://phpagent-build.pdx.vm.datanerd.us/view/QA/job/QAPhpAutotest_xPlatform/) | Start manually [from Jenkins](https://phpagent-build.pdx.vm.datanerd.us/view/QA/job/QAPhpAutotest_xPlatform/). |
 |[Stability](https://newrelic.atlassian.net/browse/PHP-1768) | Three-day burn-in test.  Check memory and CPU use of daemon and agent. Look for ramp-ups in resource use over time. | Currently [Linux Server Monitor](https://staging.newrelic.com/accounts/432507/applications/4793110), looking for a new home. | Run manually. |
-|[Performance](https://newrelic.atlassian.net/browse/PHP-1769) | Performance measured over a twelve hour period comparing the agent under test with the last few releases. | Shell output. | See [`docker_cross_agent_tester`](https://source.datanerd.us/php-agent/php_test_tools/tree/master/applications/docker_cross_agent_tester). |
+|[Performance](https://newrelic.atlassian.net/browse/PHP-1896) | Performance measured over an extended period comparing the agent under test with the last few releases. | Shell output. | See [`docker_cross_version_arena`](https://source.datanerd.us/php-agent/php_test_tools/tree/master/applications/docker_cross_version_arena). |
 |BETA: Multiverse (no ticket to clone) | Feature regression across various PHPs and frameworks run via integration runner. | Standard integration runner output.  | See [GitHub project](https://source.datanerd.us/php-agent/multiverse) -- BETA due to not having a standard environment for consistent clean APDEX.  |
 
 * Other non-automated tests can be run, depending on what's changed in the release:
@@ -136,7 +134,7 @@ Wait for those jobs to complete before proceeding with the next (likely) step:
 
 The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the
 download site and the pdx-util replica. There is currently no means that
-absolutely guarantees this exclusivity. The Native Agent team is currently the
+absolutely guarantees this exclusivity. The PHP and C Agents team is currently the
 owner of the LSM agent; ask your team members whether they are currently
 deploying LSM. To determine whether the .NET Core agent is deploying, contact
 their `@hero` on Slack.
@@ -226,32 +224,46 @@ https://phpagent-build.pdx.vm.datanerd.us/view/QA/job/QAPhpAutotest_xPlatform/
 
 
 ## <a name="testing-2-production"></a>Promoting a Build from Testing to Production
+
 #### 0. Is is OK to release?
 Releasing in the morning gives us more work hours to monitor for problems and
 quickly react. Releasing before the weekend makes life more difficult for our Support
 Team, and much more difficult for you if there's something wrong with the release.
 
-#### 1. Verify LSM and .NET Core are not deploying
+#### 1. Create Public Release Notes
+View the release notes in our GitHub changelog. Check with your Product Manager to see
+if they have any changes to the release notes sent to them when this release was
+pushed into the testing repository.
+
+To publish to the external documentation site, make sure you're authenticated
+via [Okta][okta] then use the Okta link to log into the Drupal externally-facing
+documentation site [at docs.newrelic.com](http://docs.newrelic.com) and visit
+the release notes page. Click the most recent entry's title, click the "Clone
+content" link, and have at it.  Be sure to change the previously set version
+number(s) and release date. Also, you'll probably want to remove anything under the
+"Internal Changes" section.
+
+After you're happy with it, go down to the very bottom of the editing page,
+click the "Revision information" tab on the left, and set the "Moderation
+state" to "Ready for Publication." Then save it and revisit the release notes
+page to make sure it's all correct.
+
+#### 2. Verify LSM and .NET Core are not deploying
 
 The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the download
 site and the pdx-util replica. There is currently no means that absolutely guarantees
-this exclusivity. The Native Agent team is currently the owner of the LSM agent; ask
+this exclusivity. The PHP and C Agents team is currently the owner of the LSM agent; ask
 your team members whether they are currently deploying LSM. To determine whether the
 .NET Core agent is deploying, contact their `@hero` on Slack.
 
-#### 2. Get a co-pilot
+#### 3. Get a co-pilot
 The The Change Acceptance Board (CAB) needs somebody to watch you type and follow our "runbook," which is
 this checklist. See the [CAB process documentation][CAB-process].
 
-#### 3. Get version number
+#### 4. Get version number
 You need to know the full version number of the build you want to deploy.
 Typically this is a version you previously pushed to testing. Consult the
 [testing download site][testing-download-site] for this typical case.
-
-#### 4. Verify LSM is not deploying
-The PHP and LSM agents conceptually share a global "lock" on the download site and the
-pdx-util replica. There is currently no means that absolutely guarantees this
-exclusivity. Reach out to that team (they may be you) and coordinate.
 
 #### 5. Run "testing-2-production" action
 
@@ -291,33 +303,18 @@ Bring up an Ubuntu/Debian machine and a Red Hat/CentOS machine. Download the
 agent and make sure the installation step works.
 
 #### 9. Make New & Noteworthy
-Remind your Product Manager to add
-New & Noteworthy entries for the key feature(s) or improvement(s) in the release.
-* Include a descriptive title so that it is identifiable across all possible
-N&Ns (e,g., "High-Security Mode for PHP" rather than simply "High-Security
-Mode")
-* Include an image - something memorable, iconic, or screen-captured is
-great
+
+Remind your Product Manager to add [New & Noteworthy](https://newrelic.jiveon.com/search.jspa?q=new_and_noteworthy) entries for the
+key feature(s) or improvement(s) in the release.
+
+* Include a descriptive title so that it is identifiable across all possible N&Ns (e,g.,
+  "High-Security Mode for PHP" rather than simply "High-Security Mode")
+* Include an image - something memorable, iconic, or screen-captured is great
 * Don't include details about specific engineers
+* Review the [New and Noteworthy Guidelines]
+  (https://docs.google.com/document/d/1F-JVeOcJomQG4I1mt6V1SEs9naQPbyD9NiXExrIJSKA/)
 
-#### 10. Create Public Release Notes
-View the release notes in our GitHub changelog. Check with your Product Manager to see
-if they have any changes to the release notes sent to them when this release was
-pushed into the testing repository.
-
-To publish to the external documentation site, make sure you're authenticated
-via [Okta][okta] then use the Okta link to log into the Drupal externally-facing
-documentation site [at docs.newrelic.com](http://docs.newrelic.com) and visit
-the release notes page. Click the most recent entry's title, click the "Clone
-content" link, and have at it. You'll probably want to remove anything under the
-"Internal Changes" section.
-
-After you're happy with it, go down to the very bottom of the editing page,
-click the "Revision information" tab on the left, and set the "Moderation
-state" to "Ready for Publication." Then save it and revisit the release notes
-page to make sure it's all correct.
-
-#### 11. Update Core Configuration Version Number
+#### 10. Update Core Configuration Version Number
 
 Update the `php_agent_version` configuration variable in the
 [Core App system configuration](https://rpm-admin.newrelic.com/admin/system_configurations?utf8=%E2%9C%93&q%5Bkey_contains%5D=php&commit=Filter&order=key_asc)
@@ -325,7 +322,7 @@ Update the `php_agent_version` configuration variable in the
 Also note the existence of the related `min_php_agent_version` ... which is not
 typically updated.
 
-#### 12. Email agent-releases@newrelic.com
+#### 11. Email agent-releases@newrelic.com
 We need to contact our partners to get
 the agent version upgraded for their offerings. Send an email to
 [agent-releases@newrelic.com](mailto:agent-releases@newrelic.com) notifying
@@ -337,30 +334,33 @@ public release notes in there.
 If possible, set reply-to: `agent-team@newrelic.com`. (This is pretty hard to
 do in Gmail, and I skipped it for the 5.0.0.115 release.)
 
-#### 13. Update feature flags
+#### 12. Update feature flags
 If any new functionality was gated by feature flags in APM, make sure that they
 are set to the right value for release.
 
-#### 14. Push Documentation Changes
+#### 13. Push Documentation Changes
 Push any related documentation changes to production. This includes any drafts
 waiting in the wings for agent release, setting their status to "Ready for
-Publication."
+Publication."  Once docs are set with the "Ready for Publication" status, let
+the hero in the [#documentation](https://newrelic.slack.com/messages/C0DSGL3FZ)
+room know the release related docs are ready to be released.
 
-One particular documentation update that may be easy to overlook is changes to
-the Heroku-specific template INI file that we have posted to the Docs site.
+If the only document to publish is the release notes, Agent engineers should be able to
+do this without help from the docs team.  Once you've set a release note's status as
+"Ready for Publication" and saved it, you should have access to set its status to "Published".
 
-#### 15. Notify Heroku
+#### 14. Notify Heroku
 The Heroku buildpack will need to be updated in order to have it consume the
 new version.
 
 Email David Zuelke ([dz@heroku.com](mailto:dz@heroku.com)), letting Heroku know of
 new agent availability so that the Heroku PHP buildpack will be updated.
 
-#### 16. Track Patch Releases
+#### 15. Track Patch Releases
 If this was a patch release, add it to the [Rollbacks and Patch
 Releases][rollbacks-patch-releases] on the wiki for tracking.
 
-#### 17. Notify Customers and the Product Manager
+#### 16. Notify Customers and the Product Manager
 Contact all the customers whose stories and bugs are labeled with "from
 customer" in the current release. Once contacted, add the label "customer
 notified". The [PHP Support Team](https://newrelic.atlassian.net/wiki/display/SUP/Cephalopod+Specialty+Group)
@@ -369,14 +369,15 @@ often helps us with this task, or performs it entirely.
 Tell the team's Product Manager about the release so they can manage feature
 requests.
 
-#### 18. Mark release in JIRA
+#### 17. Mark release in JIRA
 Visit
 [https://newrelic.atlassian.net/projects/PHP](https://newrelic.atlassian.net/projects/PHP),
 click the "Releases" icon on the left, locate the release, click the little ellipsis
 which is invisible until you roll over it, and use the drop-down menu to mark the
-release as released.
+release as released.  If issues tagged with this release are not closed, follow up with
+the assigned engineer and/or your engineering manager.
 
-Currently (2/2016) only Rich and Chris Pine have access to change this.
+Currently (12/2018) all team engineers should  have access to this.
 
 ## <a name="rollback"></a><a name="rolling-back-the-current-release"></a> Rolling Back the Current Release
 
@@ -384,7 +385,7 @@ Currently (2/2016) only Rich and Chris Pine have access to change this.
 
 The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the download
 site and the pdx-util replica. There is currently no means that absolutely guarantees
-this exclusivity.  The Native Agent team is currently the owner of the LSM agent; ask
+this exclusivity.  The PHP and C Agents team is currently the owner of the LSM agent; ask
 your team members whether they are currently deploying LSM. To determine whether the
 .NET Core agent is deploying, contact their `@hero` on Slack.
 

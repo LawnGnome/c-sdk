@@ -12,12 +12,13 @@
 #include "nr_guid.h"
 #include "nr_segment.h"
 #include "nr_segment_private.h"
+#include "nr_segment_traces.h"
+#include "nr_segment_tree.h"
 #include "nr_slowsqls.h"
 #include "nr_synthetics.h"
 #include "nr_distributed_trace.h"
 #include "nr_txn.h"
 #include "nr_txn_private.h"
-#include "node_datastore.h"
 #include "util_base64.h"
 #include "util_cpu.h"
 #include "util_hash.h"
@@ -396,8 +397,6 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
   nt->scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
   nt->attributes = nr_attributes_create(attribute_config);
   nt->intrinsics = nro_new_hash();
-  nt->root_kids_duration = 0;
-  nt->cur_kids_duration = &nt->root_kids_duration;
 
 #define NR_TXN_MAX_CUSTOM_EVENTS (10 * 1000)
   nt->custom_events = nr_analytics_events_create(NR_TXN_MAX_CUSTOM_EVENTS);
@@ -436,8 +435,6 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
     nt->status.cross_process = NR_STATUS_CROSS_PROCESS_DISABLED;
   }
   nt->status.recording = 1;
-
-  nr_txn_set_time(nt, &nt->root.start_time);
 
   /* Create the absolute start timestamp for this transaction.
    * All of its segments' times are relative to this value. */
@@ -501,176 +498,6 @@ nrtxn_t* nr_txn_begin(nrapp_t* app,
   nr_free(guid);
 
   return nt;
-}
-
-void nr_txn_node_dispose_fields(nrtxnnode_t* node) {
-  if (nrunlikely(0 == node)) {
-    return;
-  }
-
-  nro_delete(node->data_hash);
-  nr_txnnode_attributes_destroy(node->attributes);
-  nr_free(node->id);
-  nr_memset(node, 0, sizeof(*node));
-}
-
-/*
- * This function returns 1 if A is faster, and 0 otherwise.
- * Faster nodes should be replaced before slower nodes.
- */
-static inline int pq_data_compare(const nrtxnnode_t* a, const nrtxnnode_t* b) {
-  nrtime_t duration_a = a->stop_time.when - a->start_time.when;
-  nrtime_t duration_b = b->stop_time.when - b->start_time.when;
-
-  return duration_a < duration_b;
-}
-
-int nr_txn_pq_data_compare_wrapper(const nrtxnnode_t* a, const nrtxnnode_t* b) {
-  return pq_data_compare(a, b);
-}
-
-nrtxnnode_t* nr_txn_save_if_slow_enough(nrtxn_t* txn, nrtime_t duration) {
-  int n;
-  int parent;
-  int priority_child;
-  nrtxnnode_t* node;
-
-  if (0 == txn) {
-    return 0;
-  }
-
-  /*
-   * Does the TT have room for a new node?
-   */
-  if (txn->nodes_used < NR_TXN_NODE_LIMIT) {
-    node = txn->nodes + txn->nodes_used;
-
-    txn->nodes_used++;
-    node->start_time.when = 0;
-    node->stop_time.when = duration;
-
-    n = txn->nodes_used;
-    parent = n / 2;
-    while (parent && pq_data_compare(node, txn->pq[parent])) {
-      txn->pq[n] = txn->pq[parent];
-      n /= 2;
-      parent /= 2;
-    }
-    txn->pq[n] = node;
-    return node;
-  }
-
-  /*
-   * If the TT is full of nodes, we replace an existing node
-   * if the new node is slower.
-   */
-  {
-    nrtxnnode_t fakenode;
-
-    fakenode.start_time.when = 0;
-    fakenode.stop_time.when = duration;
-
-    if (0 == pq_data_compare(txn->pq[1], &fakenode)) {
-      return 0;
-    }
-  }
-
-  node = txn->pq[1];
-  nr_txn_node_dispose_fields(node);
-  node->start_time.when = 0;
-  node->stop_time.when = duration;
-
-  for (n = 1;;) {
-    int childl = n * 2;
-    int childr = childl + 1;
-
-    /* no children */
-    if (childl > NR_TXN_NODE_LIMIT) {
-      break;
-    }
-
-    /* one child */
-    if (childr > NR_TXN_NODE_LIMIT) {
-      if (pq_data_compare(txn->pq[childl], node)) {
-        txn->pq[n] = txn->pq[childl];
-        n = childl;
-        break;
-      } else {
-        break;
-      }
-    }
-
-    /* two children */
-    if (pq_data_compare(txn->pq[childr], txn->pq[childl])) {
-      priority_child = childr;
-    } else {
-      priority_child = childl;
-    }
-    if (pq_data_compare(node, txn->pq[priority_child])) {
-      break;
-    }
-
-    txn->pq[n] = txn->pq[priority_child];
-    n = priority_child;
-  }
-  txn->pq[n] = node;
-  return node;
-}
-
-void nr_txn_save_trace_node(nrtxn_t* txn,
-                            const nrtxntime_t* start,
-                            const nrtxntime_t* stop,
-                            const char* name,
-                            const char* async_context,
-                            const nrobj_t* data_hash,
-                            const nr_txnnode_attributes_t* attributes) {
-  nrtime_t duration;
-  nrtxnnode_t* node;
-
-  if ((0 == txn) || (0 == start) || (0 == stop) || (0 == name)) {
-    return;
-  }
-
-  if (0 == txn->status.recording) {
-    return;
-  }
-  if (0 == txn->options.tt_enabled) {
-    return;
-  }
-  if (stop->when < start->when) {
-    return;
-  }
-  if (stop->stamp <= start->stamp) {
-    return;
-  }
-
-  duration = stop->when - start->when;
-
-  node = nr_txn_save_if_slow_enough(txn, duration);
-
-  if (0 == node) {
-    return;
-  }
-  txn->last_added = node;
-
-  nr_txn_copy_time(start, &node->start_time);
-  nr_txn_copy_time(stop, &node->stop_time);
-  node->count = 0;
-  node->name = nr_string_add(txn->trace_strings, name);
-  if (data_hash) {
-    node->data_hash = nro_copy(data_hash);
-  } else {
-    node->data_hash = 0;
-  }
-  nr_txnnode_set_attributes(node, attributes);
-
-  if (NULL != async_context) {
-    /* Async node */
-    node->async_context = nr_string_add(txn->trace_strings, async_context);
-  } else {
-    /* Regular node */
-    node->async_context = 0;
-  }
 }
 
 /*
@@ -1050,18 +877,20 @@ void nr_txn_create_error_metrics(nrtxn_t* txn, const char* txnname) {
 
 #define TOTAL_TIME_SUFFIX "TotalTime"
 void nr_txn_create_duration_metrics(nrtxn_t* txn,
-                                    const char* txnname,
-                                    nrtime_t duration) {
-  nrtime_t exclusive = 0;
-  nrtime_t total_duration = 0;
+                                    nrtime_t duration,
+                                    nrtime_t total_time) {
+  nrtime_t root_exclusive;
   const char* rollup_metric = NULL;
   const char* rollup_total_metric = NULL;
   const char* txnname_slash = NULL;
   char* total_metric = NULL;
 
-  if (nrunlikely((0 == txn) || (0 == txnname) || (0 == txnname[0]))) {
+  if (nrunlikely(NULL == txn)) {
     return;
   }
+
+  root_exclusive
+      = nr_exclusive_time_calculate(txn->segment_root->exclusive_time);
 
   if (txn->status.background) {
     rollup_metric = "OtherTransaction/all";
@@ -1077,45 +906,35 @@ void nr_txn_create_duration_metrics(nrtxn_t* txn,
     nrm_force_add_ex(txn->unscoped_metrics, "HttpDispatcher", duration, 0);
   }
 
+  nrm_force_add_ex(txn->unscoped_metrics, txn->name, duration, root_exclusive);
+  nrm_force_add_ex(txn->unscoped_metrics, rollup_metric, duration,
+                   root_exclusive);
+
   /* Name the total time version of the Web/Other transaction name. */
-  txnname_slash = nr_strchr(txnname, '/');
+  txnname_slash = nr_strchr(txn->name, '/');
 
   if (NULL == txnname_slash) {
-    total_metric = nr_formatf("%s%s", txnname, TOTAL_TIME_SUFFIX);
+    total_metric = nr_formatf("%s%s", txn->name, TOTAL_TIME_SUFFIX);
   } else {
-    total_metric = nr_formatf("%.*s%s%s", (int)(txnname_slash - txnname),
-                              txnname, TOTAL_TIME_SUFFIX, txnname_slash);
-  }
-
-  /* Calculate exclusive time for transaction metric */
-  if (duration > txn->root_kids_duration) {
-    exclusive = duration - txn->root_kids_duration;
+    total_metric = nr_formatf("%.*s%s%s", (int)(txnname_slash - txn->name),
+                              txn->name, TOTAL_TIME_SUFFIX, txnname_slash);
   }
 
   /*
    * For Total metrics, the exclusive field should match the total field.
    *
    * https://newrelic.atlassian.net/wiki/display/eng/Reporting+asynchronous+transactions
-   *
-   * NOTE: Here we use the async_duration only for the web transaction not for
-   * the rollup:  It is only being used for Guzzle, which is not truly
-   * asynchronous, and therefore we want the overview charts to be synchronous.
    */
-  total_duration = duration + txn->async_duration;
-
-  nrm_force_add_ex(txn->unscoped_metrics, txnname, duration, exclusive);
-  nrm_force_add_ex(txn->unscoped_metrics, total_metric, total_duration,
-                   total_duration);
-  nrm_force_add_ex(txn->unscoped_metrics, rollup_metric, duration, exclusive);
-  nrm_force_add_ex(txn->unscoped_metrics, rollup_total_metric, total_duration,
-                   total_duration);
+  nrm_force_add_ex(txn->unscoped_metrics, total_metric, total_time, total_time);
+  nrm_force_add_ex(txn->unscoped_metrics, rollup_total_metric, total_time,
+                   total_time);
 
   if (txn->options.distributed_tracing_enabled) {
     nr_txn_create_dt_metrics(txn, "DurationByCaller", duration);
   }
 
   nro_set_hash_double(txn->intrinsics, "totalTime",
-                      ((double)total_duration) / NR_TIME_DIVISOR_D);
+                      ((double)total_time) / NR_TIME_DIVISOR_D);
 
   nr_free(total_metric);
 }
@@ -1137,11 +956,11 @@ void nr_txn_create_queue_metric(nrtxn_t* txn) {
     return;
   }
 
-  if (txn->status.http_x_start > txn->root.start_time.when) {
+  if (txn->status.http_x_start > nr_txn_start_time(txn)) {
     nrl_verbosedebug(NRL_TXN,
                      "X-Request-Start is in the future: " NR_TIME_FMT
                      " vs " NR_TIME_FMT,
-                     txn->status.http_x_start, txn->root.start_time.when);
+                     txn->status.http_x_start, nr_txn_start_time(txn));
   }
 
   /*
@@ -1163,7 +982,7 @@ void nr_txn_create_queue_metric(nrtxn_t* txn) {
  * time differently it will at least use the rolled up value and display it as
  * "CPU burn" in the transaction trace details.
  */
-static void nr_txn_create_cpu_metrics(nrtxn_t* txn) {
+static void nr_txn_create_cpu_intrinsics(nrtxn_t* txn) {
   nrtime_t user;
   nrtime_t sys;
   nrtime_t combined;
@@ -1254,8 +1073,6 @@ void nr_txn_create_rollup_metrics(nrtxn_t* txn) {
 }
 
 void nr_txn_destroy_fields(nrtxn_t* txn) {
-  int i;
-
   nr_analytics_events_destroy(&txn->custom_events);
   nr_attributes_destroy(&txn->attributes);
   nro_delete(txn->intrinsics);
@@ -1269,10 +1086,6 @@ void nr_txn_destroy_fields(nrtxn_t* txn) {
   nrm_table_destroy(&txn->scoped_metrics);
   nr_string_pool_destroy(&txn->trace_strings);
   nr_file_namer_destroy(&txn->match_filenames);
-
-  for (i = 0; i < txn->nodes_used; i++) {
-    nr_txn_node_dispose_fields(&txn->nodes[i]);
-  }
 
   nr_free(txn->license);
 
@@ -1290,6 +1103,17 @@ void nr_txn_destroy_fields(nrtxn_t* txn) {
   nro_delete(txn->app_connect_reply);
   nr_free(txn->primary_app_name);
   nr_synthetics_destroy(&txn->synthetics);
+
+  nr_txn_final_destroy_fields(&txn->final_data);
+}
+
+void nr_txn_final_destroy_fields(nrtxnfinal_t* tf) {
+  if (nrunlikely(NULL == tf)) {
+    return;
+  }
+
+  nr_free(tf->trace_json);
+  nr_vector_destroy(&tf->span_events);
 }
 
 void nr_txn_destroy(nrtxn_t** txnptr) {
@@ -1303,26 +1127,19 @@ void nr_txn_destroy(nrtxn_t** txnptr) {
 }
 
 nrtime_t nr_txn_duration(const nrtxn_t* txn) {
-  if (NULL == txn) {
-    return 0;
-  }
-#ifdef NR_CAGENT
-  if (NULL == txn->segment_root) {
+  if (NULL == txn || NULL == txn->segment_root) {
     return 0;
   }
 
   return nr_time_duration(txn->segment_root->start_time,
                           txn->segment_root->stop_time);
-#else
-  return nr_time_duration(txn->root.start_time.when, txn->root.stop_time.when);
-#endif /* NR_CAGENT */
 }
 
 nrtime_t nr_txn_unfinished_duration(const nrtxn_t* txn) {
   if (NULL == txn) {
     return 0;
   }
-  return nr_time_duration(txn->root.start_time.when, nr_get_time());
+  return nr_time_duration(nr_txn_start_time(txn), nr_get_time());
 }
 
 void nr_txn_add_error_attributes(nrtxn_t* txn) {
@@ -1359,71 +1176,23 @@ int nr_txn_should_create_apdex_metrics(const nrtxn_t* txn) {
   return 1;
 }
 
-void nr_txn_end(nrtxn_t* txn) {
-  nrtime_t duration;
-
-  if (0 == txn) {
-    return;
-  }
-
-  txn->status.recording = 0;
-
-  if (txn->root.stop_time.when) {
-    /* The txn has already been stopped. */
-    return;
-  }
-
-  if (txn->status.ignore) {
-    return;
-  }
-  if (NR_SUCCESS != nr_txn_freeze_name_update_apdex(txn)) {
-    return;
-  }
+void nr_txn_handle_total_time(nrtxn_t* txn,
+                              nrtime_t total_time,
+                              void* userdata NRUNUSED) {
+  nrtime_t duration = nr_txn_duration(txn);
 
   /*
-   * Populate the root node's with the txn's name for use in creating
-   * the transaction trace json.
-   */
-  txn->root.name = nr_string_add(txn->trace_strings, txn->name);
-
-  nr_get_cpu_usage(&txn->user_cpu[NR_CPU_USAGE_END],
-                   &txn->sys_cpu[NR_CPU_USAGE_END]);
-  nr_txn_set_time(txn, &txn->root.stop_time);
-
-  /* Similarly, for the segment root node, set its name and stop time,
-   * needed for creating the transaction trace json. */
-  txn->segment_root->name = txn->root.name;
-
-  if (0 == txn->segment_root->stop_time) {
-    /* If the transaction wasn't manually retimed, set its stop time. */
-    txn->segment_root->stop_time
-        = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
-  }
-
-  duration = nr_txn_duration(txn);
-
-#ifdef NR_CAGENT
-  /* The number of nodes_used is one of the characteristics
-   * used to determine whether a transaction is trace-worthy.
-   * In the C agent, the segment_count is used to keep track
-   * of the number of segments.  In such a case, at the end
-   * of the transaction, update the nodes_used to correctly
-   * reflect this characteristic */
-  txn->nodes_used = txn->segment_count;
-#endif
-
-  /*
-   * Create the transaction, rollup, and queue metrics. Done in a separate
-   * functions to facilitate testing.
+   * Create the duration, rollup, and queue metrics. Done in separate functions
+   * to facilitate testing.
    */
   nr_txn_create_rollup_metrics(txn);
-  nr_txn_create_duration_metrics(txn, txn->name, duration);
+  nr_txn_create_duration_metrics(txn, duration, total_time);
   nr_txn_create_queue_metric(txn);
 
   /*
-   * Add the CPU times to the agent_customparams hash.
+   * Add the CPU time intrinsics.
    */
-  nr_txn_create_cpu_metrics(txn);
+  nr_txn_create_cpu_intrinsics(txn);
 
   /*
    * Add CAT intrinsics.
@@ -1466,6 +1235,45 @@ void nr_txn_end(nrtxn_t* txn) {
     nr_txn_create_error_metrics(txn, txn->name);
     nr_txn_add_error_attributes(txn);
   }
+}
+
+void nr_txn_end(nrtxn_t* txn) {
+  if (0 == txn) {
+    return;
+  }
+
+  if (txn->status.complete) {
+    /* The txn has already been stopped. */
+    return;
+  }
+
+  txn->status.complete = true;
+  txn->status.recording = 0;
+
+  if (txn->status.ignore) {
+    return;
+  }
+  if (NR_SUCCESS != nr_txn_freeze_name_update_apdex(txn)) {
+    return;
+  }
+
+  /*
+   * Set the root segment's name and timing.
+   */
+  txn->segment_root->name = nr_string_add(txn->trace_strings, txn->name);
+
+  if (0 == txn->segment_root->stop_time) {
+    /* If the transaction wasn't manually retimed, set its stop time. */
+    txn->segment_root->stop_time
+        = nr_time_duration(nr_txn_start_time(txn), nr_get_time());
+  }
+
+  /*
+   * Finalise the segment tree.
+   */
+  txn->final_data
+      = nr_segment_tree_finalise(txn, NR_TXN_MAX_NODES, NR_SPAN_EVENTS_MAX,
+                                 nr_txn_handle_total_time, NULL);
 }
 
 bool nr_txn_set_timing(nrtxn_t* txn, nrtime_t start, nrtime_t duration) {
@@ -1737,17 +1545,6 @@ void nr_txn_add_request_parameter(nrtxn_t* txn,
   nr_free(buf);
 }
 
-nr_status_t nr_txn_set_stop_time(nrtxn_t* txn,
-                                 const nrtxntime_t* start,
-                                 nrtxntime_t* stop) {
-  nr_txn_set_time(txn, stop);
-
-  if (0 == nr_txn_valid_node_end(txn, start, stop)) {
-    return NR_FAILURE;
-  }
-  return NR_SUCCESS;
-}
-
 void nr_txn_set_request_referer(nrtxn_t* txn, const char* request_referer) {
   char* clean_referer;
 
@@ -1793,17 +1590,8 @@ nrtime_t nr_txn_queue_time(const nrtxn_t* txn) {
   if (0 == txn->status.http_x_start) {
     return 0;
   }
-  /*
-   * This comparison prevents overflow in the case that the queue timestamp
-   * is after the start of the transaction.  This defensive check could be
-   * performed when http_x_start is assigned in nr_txn_set_queue_start: The
-   * choice is arbitrary.  In any case, a check is necessary, since the value
-   * comes from an HTTP header and is therefore unsafe.
-   */
-  if (txn->root.start_time.when < txn->status.http_x_start) {
-    return 0;
-  }
-  return txn->root.start_time.when - txn->status.http_x_start;
+
+  return nr_time_duration(txn->status.http_x_start, nr_txn_start_time(txn));
 }
 
 void nr_txn_set_queue_start(nrtxn_t* txn, const char* x_request_start) {
@@ -2031,7 +1819,7 @@ void nr_txn_add_distributed_tracing_intrinsics(const nrtxn_t* txn,
 
     nro_set_hash_double(intrinsics, "parent.transportDuration",
                         nr_distributed_trace_inbound_get_timestamp_delta(
-                            dt, txn->root.start_time.when)
+                            dt, nr_txn_start_time(txn))
                             / NR_TIME_DIVISOR);
 
     parent_guid = nr_distributed_trace_inbound_get_guid(dt);
@@ -2259,11 +2047,7 @@ int nr_txn_should_save_trace(const nrtxn_t* txn, nrtime_t duration) {
     return 0;
   }
 
-#ifdef NR_CAGENT
   if (txn->segment_count < 1) {
-#else
-  if (txn->nodes_used < 1) {
-#endif /* NR_CAGENT */
     return 0;
   }
 
@@ -2278,57 +2062,6 @@ int nr_txn_should_save_trace(const nrtxn_t* txn, nrtime_t duration) {
    * Otherwise, let's check the duration against threshold.
    */
   return (duration >= txn->options.tt_threshold);
-}
-
-void nr_txn_adjust_exclusive_time(nrtxn_t* txn, nrtime_t duration) {
-  if (NULL == txn) {
-    return;
-  }
-  if (NULL == txn->cur_kids_duration) {
-    return;
-  }
-  *(txn->cur_kids_duration) += duration;
-}
-
-void nr_txn_add_async_duration(nrtxn_t* txn, nrtime_t duration) {
-  if (NULL == txn) {
-    return;
-  }
-
-  txn->async_duration += duration;
-}
-
-int nr_txn_valid_node_end(const nrtxn_t* txn,
-                          const nrtxntime_t* start,
-                          const nrtxntime_t* stop) {
-  if (NULL == txn) {
-    return 0;
-  }
-  if (NULL == start) {
-    return 0;
-  }
-  if (NULL == stop) {
-    return 0;
-  }
-  if (0 == txn->status.recording) {
-    return 0;
-  }
-  if (start->when < txn->root.start_time.when) {
-    /*
-     * If the start time is after the transaction has started then the
-     * transaction has been changed during the the course of the call.
-     * We do not record information about function calls which span
-     * transactions.
-     */
-    return 0;
-  }
-  if (start->when > stop->when) {
-    return 0;
-  }
-  if (start->stamp > stop->stamp) {
-    return 0;
-  }
-  return 1;
 }
 
 int nr_txn_event_should_add_guid(const nrtxn_t* txn) {
@@ -2368,17 +2101,11 @@ double nr_txn_start_time_secs(const nrtxn_t* txn) {
 }
 
 nrtime_t nr_txn_start_time(const nrtxn_t* txn) {
-#ifdef NR_CAGENT
   if (NULL == txn) {
     return 0;
   }
+
   return txn->abs_start_time;
-#else
-  if (NULL == txn) {
-    return 0;
-  }
-  return txn->root.start_time.when;
-#endif /* NR_CAGENT */
 }
 
 nrtime_t nr_txn_time_rel_to_abs(const nrtxn_t* txn,
@@ -2500,7 +2227,8 @@ static void nr_txn_add_metric_count_as_attribute(nrobj_t* attributes,
 /*
  * This implements the agent Error Events spec:
  * https://source.datanerd.us/agents/agent-specs/blob/master/Error-Events.md
- * We only omit 'gcCumulative' which doesn't apply and 'port' which is too hard.
+ * We only omit 'gcCumulative' which doesn't apply and 'port' which is too
+ * hard.
  */
 nr_analytics_event_t* nr_error_to_event(const nrtxn_t* txn) {
   nr_analytics_event_t* event;
@@ -2590,9 +2318,8 @@ nrobj_t* nr_txn_event_intrinsics(const nrtxn_t* txn) {
   nro_set_hash_double(params, "duration",
                       ((double)duration) / NR_TIME_DIVISOR_D);
 
-  nro_set_hash_double(
-      params, "totalTime",
-      ((double)duration + txn->async_duration) / NR_TIME_DIVISOR_D);
+  nro_set_hash_double(params, "totalTime",
+                      ((double)txn->final_data.total_time) / NR_TIME_DIVISOR_D);
 
   if (nr_txn_event_should_add_guid(txn)) {
     nro_set_hash_string(params, "nr.guid", nr_txn_get_guid(txn));
@@ -2936,7 +2663,7 @@ bool nr_txn_accept_distributed_trace_payload(nrtxn_t* txn,
 
   nr_txn_create_dt_metrics(txn, "TransportDuration",
                            nr_distributed_trace_inbound_get_timestamp_delta(
-                               dt, txn->root.start_time.when)
+                               dt, nr_txn_start_time(txn))
                                / NR_TIME_DIVISOR);
 
   txn->type |= NR_TXN_TYPE_DT_INBOUND;
@@ -2964,48 +2691,4 @@ void nr_txn_retire_current_segment(nrtxn_t* txn) {
     return;
   }
   nr_stack_pop(&txn->parent_stack);
-}
-
-nr_txnnode_attributes_t* nr_txnnode_attributes_create() {
-  return (nr_txnnode_attributes_t*)nr_zalloc(sizeof(nr_txnnode_attributes_t));
-}
-
-void nr_txnnode_attributes_destroy(nr_txnnode_attributes_t* attributes) {
-  if (NULL == attributes) {
-    return;
-  }
-  switch (attributes->type) {
-    case NR_DATASTORE:
-      nr_free(attributes->datastore.component);
-      break;
-    case NR_EXTERNAL:
-      break;
-    case NR_CUSTOM:
-    default:
-      break;
-  }
-  nr_free(attributes);
-}
-
-void nr_txnnode_set_attributes(nrtxnnode_t* node,
-                               const nr_txnnode_attributes_t* attributes) {
-  node->attributes = nr_txnnode_attributes_create();
-  if (NULL == attributes) {
-    node->attributes->type = NR_CUSTOM;
-    return;
-  }
-  switch (attributes->type) {
-    case NR_DATASTORE:
-      node->attributes->type = NR_DATASTORE;
-      node->attributes->datastore.component
-          = nr_strdup(attributes->datastore.component);
-      break;
-    case NR_EXTERNAL:
-      node->attributes->type = NR_EXTERNAL;
-      break;
-    case NR_CUSTOM:
-    default:
-      node->attributes->type = NR_CUSTOM;
-      break;
-  }
 }
