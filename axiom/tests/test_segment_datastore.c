@@ -1018,18 +1018,18 @@ static void test_segment_potential_explain_plan(void) {
   txn->options.ep_threshold = 15;
   txn->options.tt_recordsql = NR_SQL_OBFUSCATED;
 
-  rv = nr_txn_node_potential_explain_plan(NULL, 0);
+  rv = nr_segment_potential_explain_plan(NULL, 0);
   tlib_pass_if_int_equal("NULL txn", 0, rv);
 
-  rv = nr_txn_node_potential_explain_plan(txn, 20);
+  rv = nr_segment_potential_explain_plan(txn, 20);
   tlib_pass_if_int_equal("explain plan disabled", 0, rv);
 
   txn->options.ep_enabled = 1;
 
-  rv = nr_txn_node_potential_explain_plan(txn, 10);
+  rv = nr_segment_potential_explain_plan(txn, 10);
   tlib_pass_if_int_equal("explain plan below threshold", 0, rv);
 
-  rv = nr_txn_node_potential_explain_plan(txn, 20);
+  rv = nr_segment_potential_explain_plan(txn, 20);
   tlib_fail_if_int_equal("explain plan enabled", 0, rv);
 }
 

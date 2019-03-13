@@ -1,41 +1,34 @@
 #include "nr_segment_traces.h"
 #include "nr_segment_tree.h"
 
-void nr_segment_tree_assemble_data(const nrtxn_t* txn,
-                                   nr_segment_tree_result_t* result,
-                                   const size_t trace_limit,
-                                   const size_t span_limit) {
+nrtxnfinal_t nr_segment_tree_finalise(nrtxn_t* txn,
+                                      const size_t trace_limit,
+                                      const size_t span_limit,
+                                      void (*total_time_cb)(nrtxn_t* txn,
+                                                            nrtime_t total_time,
+                                                            void* userdata),
+                                      void* callback_userdata) {
   bool should_save_trace = false;
   bool should_sample_trace = false;
   bool should_save_spans = false;
   bool should_sample_spans = false;
-
+  nrtxnfinal_t result = {
+      .trace_json = NULL,
+      .span_events = NULL,
+      .total_time = 0,
+  };
   nr_segment_tree_to_heap_metadata_t first_pass_metadata = {
       .trace_heap = NULL,
       .span_heap = NULL,
-      .scoped_metrics = NULL,
-      .unscoped_metrics = NULL,
+      .total_time = 0,
   };
-  nr_segment_tree_sampling_metadata_t metadata
-      = {.trace_set = NULL, .span_set = NULL};
-
-  nrobj_t* agent_attributes;
-  nrobj_t* user_attributes;
   nrtime_t duration;
 
-  if (NULL == txn || NULL == result || NULL == txn->segment_root) {
-    return;
+  if (NULL == txn || NULL == txn->segment_root) {
+    return result;
   }
 
-  metadata.out = result;
-
-  result->scoped_metrics = first_pass_metadata.scoped_metrics
-      = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
-  result->unscoped_metrics = first_pass_metadata.unscoped_metrics
-      = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
-
-  duration = nr_time_duration(txn->segment_root->start_time,
-                              txn->segment_root->stop_time);
+  duration = nr_txn_duration(txn);
 
   should_save_trace
       = (trace_limit > 0) && nr_txn_should_save_trace(txn, duration);
@@ -54,19 +47,38 @@ void nr_segment_tree_assemble_data(const nrtxn_t* txn,
   }
 
   /*
-   * Generate the two heaps of traces and span events that represent the
-   * highest-priority segments for this transaction.
+   * Do the first pass over the tree: we need to generate the heaps tracking the
+   * segments that will be used in any transaction trace or span event
+   * reservoir and calculate the total time for the transaction.
    */
   nr_segment_tree_to_heap(txn->segment_root, &first_pass_metadata);
 
   /*
-   * Do the first iteration of the tree.
-   *
-   * Future work will see metric generation in the first iteration of
-   * the tree.
+   * We always need to set the total time.
    */
+  result.total_time = first_pass_metadata.total_time;
 
+  /*
+   * If the caller wants an opportunity to do things to the transaction with the
+   * total time before the trace or span events are generated, now is the time.
+   */
+  if (total_time_cb) {
+    (total_time_cb)(txn, first_pass_metadata.total_time, callback_userdata);
+  }
+
+  /*
+   * Now we do a second pass if needed. If we don't need to generate a trace or
+   * span events, then there's no need.
+   */
   if (should_save_trace || should_save_spans) {
+    nrobj_t* agent_attributes;
+    nrobj_t* user_attributes;
+    nr_segment_tree_sampling_metadata_t metadata = {
+        .trace_set = NULL,
+        .span_set = NULL,
+        .out = &result,
+    };
+
     if (should_sample_trace) {
       /* Prepare for the second pass of the tree; convert the heap to a set. */
       metadata.trace_set = nr_set_create();
@@ -88,20 +100,19 @@ void nr_segment_tree_assemble_data(const nrtxn_t* txn,
     nr_segment_traces_create_data(txn, duration, &metadata, agent_attributes,
                                   user_attributes, txn->intrinsics,
                                   should_save_trace, should_save_spans);
-    result->trace_json = metadata.out->trace_json;
-    result->span_events = metadata.out->span_events;
+    result.trace_json = metadata.out->trace_json;
+    result.span_events = metadata.out->span_events;
 
     nro_delete(agent_attributes);
     nro_delete(user_attributes);
 
     nr_set_destroy(&metadata.trace_set);
-
     nr_set_destroy(&metadata.span_set);
     nr_minmax_heap_destroy(&first_pass_metadata.trace_heap);
     nr_minmax_heap_destroy(&first_pass_metadata.span_heap);
   }
 
-  return;
+  return result;
 }
 
 nr_segment_t* nr_segment_tree_get_nearest_sampled_ancestor(

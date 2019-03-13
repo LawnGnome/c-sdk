@@ -10,17 +10,16 @@
 #include "util_time.h"
 
 extern char* nr_txn_create_guid(nr_random_t* rnd);
-extern nrtxnnode_t* nr_txn_save_if_slow_enough(nrtxn_t* txn, nrtime_t duration);
-extern void nr_txn_node_dispose_fields(nrtxnnode_t* node);
+extern void nr_txn_handle_total_time(nrtxn_t* txn,
+                                     nrtime_t total_time,
+                                     void* userdata);
 extern void nr_txn_create_rollup_metrics(nrtxn_t* txn);
 extern void nr_txn_create_queue_metric(nrtxn_t* txn);
 extern void nr_txn_create_duration_metrics(nrtxn_t* txn,
-                                           const char* txnname,
-                                           nrtime_t duration);
+                                           nrtime_t duration,
+                                           nrtime_t total_time);
 extern void nr_txn_create_error_metrics(nrtxn_t* txn, const char* txnname);
 extern void nr_txn_create_apdex_metrics(nrtxn_t* txn, nrtime_t duration);
-extern int nr_txn_pq_data_compare_wrapper(const nrtxnnode_t* a,
-                                          const nrtxnnode_t* b);
 extern void nr_txn_add_error_attributes(nrtxn_t* txn);
 extern void nr_txn_record_custom_event_internal(nrtxn_t* txn,
                                                 const char* type,

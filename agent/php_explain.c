@@ -5,6 +5,7 @@
 #include "php_explain.h"
 #include "php_explain_pdo_mysql.h"
 #include "php_pdo.h"
+#include "nr_segment_datastore.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_object.h"
@@ -144,17 +145,16 @@ int nr_php_explain_mysql_query_is_explainable(const char* query, int length) {
 nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
                                                 zval* stmt,
                                                 zval* parameters,
-                                                const nrtxntime_t* start,
-                                                const nrtxntime_t* stop
-                                                    TSRMLS_DC) {
+                                                nrtime_t start,
+                                                nrtime_t stop TSRMLS_DC) {
   nrtime_t duration;
   nr_explain_plan_t* plan = NULL;
 
-  if ((NULL == txn) || (NULL == stmt) || (NULL == start) || (NULL == stop)) {
+  if ((NULL == txn) || (NULL == stmt)) {
     return NULL;
   }
 
-  duration = nr_time_duration(start->when, stop->when);
+  duration = nr_time_duration(start, stop);
   if (!nr_php_explain_wanted(txn, duration TSRMLS_CC)) {
     return NULL;
   }
@@ -168,15 +168,15 @@ nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
    */
   if (0
       == nr_strncmp(nr_php_pdo_get_driver(stmt TSRMLS_CC), NR_PSTR("mysql"))) {
-    nrtxntime_t explain_start;
-    nrtxntime_t explain_stop;
+    nrtime_t explain_start;
+    nrtime_t explain_stop;
 
     NRPRG(generating_explain_plan) = 1;
-    nr_txn_set_time(txn, &explain_start);
+    explain_start = nr_get_time();
 
     plan = nr_php_explain_pdo_mysql_statement(stmt, parameters TSRMLS_CC);
 
-    nr_txn_set_time(txn, &explain_stop);
+    explain_stop = nr_get_time();
     NRPRG(generating_explain_plan) = 0;
 
     /*
@@ -185,7 +185,7 @@ nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
      */
     nrm_force_add(txn->unscoped_metrics,
                   "Supportability/DatabaseUtils/Calls/explain_plan",
-                  nr_time_duration(explain_start.when, explain_stop.when));
+                  nr_time_duration(explain_start, explain_stop));
   }
 
   return plan;
@@ -193,5 +193,5 @@ nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
 
 int nr_php_explain_wanted(const nrtxn_t* txn, nrtime_t duration TSRMLS_DC) {
   return ((0 == NRPRG(generating_explain_plan))
-          && nr_txn_node_potential_explain_plan(txn, duration));
+          && nr_segment_potential_explain_plan(txn, duration));
 }

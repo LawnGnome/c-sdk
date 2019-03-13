@@ -5,7 +5,7 @@
 #include "nr_datastore_instance.h"
 #include "nr_header.h"
 #include "nr_segment_traces.h"
-#include "nr_traces.h"
+#include "nr_segment_tree.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_system.h"
@@ -148,13 +148,40 @@ end:
   nr_free(json);
 }
 
+typedef struct _saved_txn_metric_tables_t {
+  nrmtable_t* scoped_metrics;
+  nrmtable_t* unscoped_metrics;
+} saved_txn_metric_tables_t;
+
+static saved_txn_metric_tables_t save_txn_metric_tables(nrtxn_t* txn) {
+  saved_txn_metric_tables_t saved = {
+      .scoped_metrics = txn->scoped_metrics,
+      .unscoped_metrics = txn->unscoped_metrics,
+  };
+
+  txn->scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn->unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+
+  return saved;
+}
+
+static void restore_txn_metric_tables(nrtxn_t* txn,
+                                      saved_txn_metric_tables_t* saved) {
+  nrm_table_destroy(&txn->scoped_metrics);
+  nrm_table_destroy(&txn->unscoped_metrics);
+
+  txn->scoped_metrics = saved->scoped_metrics;
+  txn->unscoped_metrics = saved->unscoped_metrics;
+}
+
 PHP_FUNCTION(newrelic_get_metric_table) {
   char* json = NULL;
   zval* json_zv = NULL;
   const nrmtable_t* metrics;
   zend_bool scoped = 0;
   zval* table = NULL;
-  nr_segment_tree_result_t segment_result = {0};
+  nrtxnfinal_t final_data;
+  saved_txn_metric_tables_t saved;
 
   NR_UNUSED_RETURN_VALUE_PTR;
   NR_UNUSED_RETURN_VALUE_USED;
@@ -175,16 +202,15 @@ PHP_FUNCTION(newrelic_get_metric_table) {
   array_init(table);
 
   /* transaction metrics */
-
   metrics = scoped ? NRTXN(scoped_metrics) : NRTXN(unscoped_metrics);
   add_metrics_to_array(&table, metrics TSRMLS_CC);
 
   /* segment metrics */
-
-  nr_segment_tree_assemble_data(NRPRG(txn), &segment_result, 0, 0);
-  metrics = scoped ? segment_result.scoped_metrics
-                   : segment_result.unscoped_metrics;
+  saved = save_txn_metric_tables(NRPRG(txn));
+  final_data = nr_segment_tree_finalise(NRPRG(txn), 0, 0, NULL, NULL);
+  metrics = scoped ? NRTXN(scoped_metrics) : NRTXN(unscoped_metrics);
   add_metrics_to_array(&table, metrics TSRMLS_CC);
+  restore_txn_metric_tables(NRPRG(txn), &saved);
 
   RETVAL_ZVAL(table, 1, 0);
 
@@ -192,8 +218,7 @@ end:
   nr_free(json);
   nr_php_zval_free(&json_zv);
   nr_php_zval_free(&table);
-  nrm_table_destroy(&segment_result.scoped_metrics);
-  nrm_table_destroy(&segment_result.unscoped_metrics);
+  nr_txn_final_destroy_fields(&final_data);
 }
 
 PHP_FUNCTION(newrelic_get_slowsqls) {
@@ -282,9 +307,10 @@ static nr_segment_iter_return_t reset_active_segments(
 }
 
 PHP_FUNCTION(newrelic_get_trace_json) {
-  nr_segment_tree_result_t assembly_result = {0};
   find_active_segments_metadata_t fas_metadata;
+  nrtxnfinal_t final_data;
   nrtime_t orig_tt_threshold;
+  saved_txn_metric_tables_t saved;
   nrtxn_t* txn = NRPRG(txn);
 
   NR_UNUSED_HT;
@@ -320,13 +346,11 @@ PHP_FUNCTION(newrelic_get_trace_json) {
   nr_segment_iterate(txn->segment_root, (nr_segment_iter_t)find_active_segments,
                      &fas_metadata);
 
-  nr_segment_tree_assemble_data(txn, &assembly_result, NR_TXN_MAX_NODES, 0);
-  nr_php_zval_str(return_value, assembly_result.trace_json);
-
-  nrm_table_destroy(&assembly_result.scoped_metrics);
-  nrm_table_destroy(&assembly_result.unscoped_metrics);
-  nr_vector_destroy(&assembly_result.span_events);
-  nr_free(assembly_result.trace_json);
+  saved = save_txn_metric_tables(txn);
+  final_data = nr_segment_tree_finalise(txn, NR_TXN_MAX_NODES, 0, NULL, NULL);
+  restore_txn_metric_tables(txn, &saved);
+  nr_php_zval_str(return_value, final_data.trace_json);
+  nr_txn_final_destroy_fields(&final_data);
 
   /*
    * Let's put things back how they were. Nobody will ever know that we had

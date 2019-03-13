@@ -1037,6 +1037,72 @@ leave:
 }
 NR_PHP_WRAPPER_END
 
+NR_PHP_WRAPPER(nr_laravel_routes_get_route_for_methods) {
+  zval* arg_request = NULL;
+  zval* http_method = NULL;
+  zval* new_name = NULL;
+  zval* route_name = NULL;
+  zval** route = NULL;
+
+  NR_UNUSED_SPECIALFN;
+  (void)wraprec;
+
+  // we'll start by calling the original method, and if it doesn't return a
+  // route then we don't need to do any extra work.
+  route = nr_php_get_return_value_ptr(TSRMLS_C);
+  NR_PHP_WRAPPER_CALL;
+
+  // if the method did not return a route then we do not want to be here.
+  if (NULL == route || !nr_php_is_zval_valid_object(*route)) {
+    goto end;
+  }
+
+  // grab the first argument, which should be a request
+  arg_request = nr_php_arg_get(1, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
+  if (!nr_php_is_zval_valid_object(arg_request)) {
+    goto end;
+  }
+
+  // call the ->method() method on the request and marshall the
+  // string to something we can compare
+  http_method = nr_php_call(arg_request, "method");
+  if (NULL == http_method || !nr_php_is_zval_valid_string(http_method)) {
+    goto end;
+  }
+
+  // now that we have a response from ->method, check if this is an HTTP OPTIONS
+  // request and bail out if it isn't
+  if (0
+      != nr_strnicmp("OPTIONS", Z_STRVAL_P(http_method),
+                     Z_STRLEN_P(http_method))) {
+    goto end;
+  }
+
+  // if the route name is NOT a null php value, that means some future Laravel
+  // version or user customizations has started naming these CORS HTTP OPTIONS
+  // requests. This means there's no MGI risk and we should respect their naming
+  route_name = nr_php_call(*route, "getName");
+  if (!nr_php_is_zval_null(route_name)) {
+    goto end;
+  }
+
+  // If we're still around, that means this is an CORS HTTP OPTIONS request
+  // that will generate an MGI unless we do something to name the transaction.
+  // To prevent the MGI, we name the route _CORS_OPTIONS, which will result in
+  // a transaction with the same name.
+  new_name = nr_php_zval_alloc();
+  nr_php_zval_str(new_name, "_CORS_OPTIONS");
+
+  nr_php_call(*route, "name", new_name);
+
+end:
+  nr_php_arg_release(&arg_request);
+  nr_php_zval_free(&http_method);
+  nr_php_zval_free(&new_name);
+  nr_php_zval_free(&route_name);
+}
+NR_PHP_WRAPPER_END
+
 static nr_status_t nr_laravel_should_assign_generic_path(const nrtxn_t* txn,
                                                          zval* request
                                                              TSRMLS_DC) {
@@ -1097,6 +1163,17 @@ void nr_laravel_enable(TSRMLS_D) {
   nr_php_wrap_user_function(
       NR_PSTR("Illuminate\\Foundation\\Application::__construct"),
       nr_laravel_application_construct TSRMLS_CC);
+
+  /**
+   * The getRouteForMethods method can end up generating a laravel route
+   * for an OPTIONS request on a URL that has a handler for another HTTP
+   * verb.  We need to detect this condition and generate a reasonable
+   * name for these OPTIONS routes, as the default naming will often
+   * end up creating an MGI.
+   */
+  nr_php_wrap_user_function(
+      NR_PSTR("Illuminate\\Routing\\RouteCollection::getRouteForMethods"),
+      nr_laravel_routes_get_route_for_methods TSRMLS_CC);
 
   /*
    * Listen for Artisan commands so we can name those appropriately.

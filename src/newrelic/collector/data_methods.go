@@ -17,6 +17,7 @@ type DataMethods struct {
 	ErrorEventData    *ReportPeriod `json:"error_event_data"`
 	AnalyticEventData *ReportPeriod `json:"analytic_event_data"`
 	CustomEventData   *ReportPeriod `json:"custom_event_data"`
+	SpanEventData     *ReportPeriod `json:"span_event_data"`
 }
 
 // Get values by name from a DataMethods type. Since the DataMethods are coming from the collector over the

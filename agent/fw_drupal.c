@@ -182,12 +182,13 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
         method = nr_php_zend_hash_find(Z_ARRVAL_P(arg2), "method");
         if (nr_php_is_zval_valid_string(method)) {
           external_params.procedure
-              = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+              = nr_strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
         }
       }
     } else if (nr_php_is_zval_valid_string(arg3)) {
       // This is drupal 6, the method is the third arg.
-      external_params.procedure = strndup(Z_STRVAL_P(arg3), Z_STRLEN_P(arg3));
+      external_params.procedure
+          = nr_strndup(Z_STRVAL_P(arg3), Z_STRLEN_P(arg3));
     }
     // If the method is not set, Drupal will default to GET
     if (NULL == external_params.procedure) {
@@ -349,7 +350,7 @@ NR_PHP_WRAPPER(nr_drupal_wrap_view_execute) {
   name_len = Z_STRLEN_P(name_property);
   name = nr_strndup(Z_STRVAL_P(name_property), name_len);
 
-  zcaught = nr_drupal_do_view_execute(name, name_len,
+  zcaught = nr_drupal_do_view_execute(name, name_len, auto_segment,
                                       NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
   was_executed = 1;
 
@@ -472,16 +473,10 @@ static void nr_drupal_replace_http_request(TSRMLS_D) {
 }
 
 NR_PHP_WRAPPER(nr_drupal_wrap_module_invoke) {
-  nrtxntime_t start;
-  nrtxntime_t stop;
   int module_len;
   int hook_len;
   char* module = 0;
   char* hook = 0;
-  nrtime_t duration;
-  nrtime_t exclusive;
-  nrtime_t kids_duration = 0;
-  nrtime_t* kids_duration_save = NRPRG(cur_drupal_module_kids_duration);
   zval* arg1 = 0;
   zval* arg2 = 0;
 
@@ -502,40 +497,12 @@ NR_PHP_WRAPPER(nr_drupal_wrap_module_invoke) {
   hook_len = Z_STRLEN_P(arg2);
   hook = nr_strndup(Z_STRVAL_P(arg2), hook_len);
 
-  start.stamp = 0;
-  start.when = 0;
-  nr_txn_set_time(NRPRG(txn), &start);
-
-  NRPRG(cur_drupal_module_kids_duration) = &kids_duration;
   NR_PHP_WRAPPER_CALL;
-  NRPRG(cur_drupal_module_kids_duration) = kids_duration_save;
 
-  stop.stamp = 0;
-  stop.when = 0;
-  if (NR_SUCCESS != nr_txn_set_stop_time(NRPRG(txn), &start, &stop)) {
-    goto leave;
-  }
-
-  if (nrlikely(stop.when > start.when)) {
-    duration = stop.when - start.when;
-  } else {
-    duration = 0;
-  }
-
-  if (nrlikely(duration > kids_duration)) {
-    exclusive = duration - kids_duration;
-  } else {
-    exclusive = 0;
-  }
-
-  if (kids_duration_save) {
-    *kids_duration_save += duration;
-  }
-
-  nr_drupal_create_metric(NRPRG(txn), NR_PSTR(NR_DRUPAL_MODULE_PREFIX), module,
-                          module_len, duration, exclusive);
-  nr_drupal_create_metric(NRPRG(txn), NR_PSTR(NR_DRUPAL_HOOK_PREFIX), hook,
-                          hook_len, duration, exclusive);
+  nr_drupal_create_metric(auto_segment, NR_PSTR(NR_DRUPAL_MODULE_PREFIX),
+                          module, module_len);
+  nr_drupal_create_metric(auto_segment, NR_PSTR(NR_DRUPAL_HOOK_PREFIX), hook,
+                          hook_len);
 
 leave:
   nr_free(module);

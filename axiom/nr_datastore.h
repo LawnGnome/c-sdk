@@ -6,11 +6,11 @@
 /*
  * This is the list of datastore types supported.
  * This exists to ensure that the datastore types included in metrics are
- * consistent with other agents.  That is why nr_txn_end_node_datastore takes
+ * consistent with other agents.  That is why nr_segment_datastore_end() takes
  * a nr_datastore_t rather than a string.
  *
  * When an item is added to this list, it needs to be added to
- * datastore_mappings in node_datastore.c as well.
+ * datastore_mappings in nr_datastore_private.h as well.
  */
 typedef enum {
   NR_DATASTORE_OTHER = 0,

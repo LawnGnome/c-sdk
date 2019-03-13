@@ -31,17 +31,17 @@ typedef enum _nr_segment_type_t {
 } nr_segment_type_t;
 
 /*
- * The first iteration over the tree will put segments into two heaps :one for
- * span events, and the other for traces. It also creates segments on the
- * transaction that rely on the segment's exclusive time.
+ * The first iteration over the tree will put segments into two heaps: one for
+ * span events, and the other for traces. It keeps a running total of the
+ * transaction's total time, which is the sum of all exclusive time.
  *
- * This struct is used to pass in the two heaps, along with the transaction.
+ * This struct is used to pass in the two heaps, along with the field to track
+ * the total time.
  */
 typedef struct {
   nr_minmax_heap_t* span_heap;
   nr_minmax_heap_t* trace_heap;
-  nrmtable_t* scoped_metrics;
-  nrmtable_t* unscoped_metrics;
+  nrtime_t total_time;
 } nr_segment_tree_to_heap_metadata_t;
 
 /*
@@ -106,10 +106,10 @@ typedef struct _nr_segment_t {
   int name;             /* Node name (pooled string index) */
   int async_context;    /* Execution context (pooled string index) */
   char* id;             /* Node id.
-            
+
                            If this is NULL, a new id will be created when a
                            span event is created from this trace node.
-            
+
                            If this is not NULL, this id will be used for
                            creating a span event from this trace node. This
                            id set indicates that the node represents an
@@ -120,11 +120,8 @@ typedef struct _nr_segment_t {
   nr_exclusive_time_t* exclusive_time; /* Exclusive time.
 
                                        This is only calculated after the
-                                       transaction has ended; in general, this
-                                       field should be ignored outside of
-                                       nr_segment_stoh_iterator_callback() and
-                                       nr_segment_stoh_post_iterator_callback().
-                                       */
+                                       transaction has ended; before then, this
+                                       will be NULL. */
   nrobj_t* user_attributes;            /* User attributes */
 
   /*

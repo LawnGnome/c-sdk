@@ -1,8 +1,7 @@
 <?php
 
 /*DESCRIPTION
-Test that DT works with curl_exec when curl_setopt+CURLOPT_HTTPHEADER is called
-with a non-empty array.
+Test that the correct span event is external.
  */
 
 /*INI

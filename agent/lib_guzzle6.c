@@ -103,17 +103,13 @@ static zval* nr_guzzle6_requesthandler_get_request(zval* obj TSRMLS_DC) {
 static void nr_guzzle6_requesthandler_handle_response(zval* handler,
                                                       zval* response
                                                           TSRMLS_DC) {
-  nrtxntime_t start;
-  nrtxntime_t stop;
-  char* async_context;
-  nr_segment_t* segment;
+  nr_segment_t* segment = NULL;
   nr_segment_external_params_t external_params = {.library = "Guzzle 6"};
   zval* request;
   zval* method;
 
-  nr_txn_set_time(NRPRG(txn), &stop);
-
-  if (NR_FAILURE == nr_guzzle_obj_find_and_remove(handler, &start TSRMLS_CC)) {
+  if (NR_FAILURE
+      == nr_guzzle_obj_find_and_remove(handler, &segment TSRMLS_CC)) {
     return;
   }
 
@@ -144,23 +140,15 @@ static void nr_guzzle6_requesthandler_handle_response(zval* handler,
         X_NEWRELIC_APP_DATA, NRP_CAT(external_params.encoded_response_header));
   }
 
-  /*
-   * Create a context name.
-   */
-  async_context = nr_guzzle_create_async_context_name("Guzzle 6", response);
-
   method = nr_php_call(request, "getMethod");
 
   if (nr_php_is_zval_valid_string(method)) {
-    external_params.procedure = strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
+    external_params.procedure
+        = nr_strndup(Z_STRVAL_P(method), Z_STRLEN_P(method));
   }
 
-  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
-  segment->start_time = nr_txn_time_abs_to_rel(NRPRG(txn), start.when);
-  segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop.when);
   nr_segment_external_end(segment, &external_params);
 
-  nr_free(async_context);
   nr_free(external_params.encoded_response_header);
   nr_free(external_params.uri);
   nr_free(external_params.procedure);
@@ -201,7 +189,7 @@ static PHP_NAMED_FUNCTION(nr_guzzle6_requesthandler_construct) {
   zend_update_property(Z_OBJCE_P(this_obj), this_obj, NR_PSTR("request"),
                        request TSRMLS_CC);
 
-  nr_guzzle_obj_add(this_obj TSRMLS_CC);
+  nr_guzzle_obj_add(this_obj, "Guzzle 6" TSRMLS_CC);
 }
 
 /*
