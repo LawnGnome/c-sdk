@@ -193,7 +193,6 @@ bool newrelic_end_datastore_segment(newrelic_segment_t* segment) {
     char* backtrace_json = newrelic_get_stack_trace_as_json();
 
     if (backtrace_json) {
-      // TODO: this needs a proper setter in axiom.
       nro_set_hash_jstring(segment->segment->user_attributes, "backtrace",
                            backtrace_json);
       nr_free(backtrace_json);
