@@ -6,6 +6,10 @@
 
 ### Bug Fixes ###
 
+- Calculation of transaction total time and metric exclusive time in an
+  asynchronous context has been improved, which should prevent issues resulting
+  in broken transaction charts in APM.
+
 ### End of Life Notices ###
 
 ### Upgrade Notices ###
