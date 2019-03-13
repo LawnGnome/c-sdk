@@ -20,7 +20,8 @@ void __wrap_nr_txn_set_as_web_transaction(nrtxn_t* txn,
   check_expected(txn);
 }
 
-static void test_set_transaction_timing_null_transaction(void** state NRUNUSED) {
+static void test_set_transaction_timing_null_transaction(
+    void** state NRUNUSED) {
   bool result;
 
   result = newrelic_set_transaction_timing(NULL, 123, 456);

@@ -25,11 +25,11 @@ User defined attributes should be added to the transaction.
         "error": false
       },
       {
-	"attrInt": 19,
-	"attrLong": 23, 
-	"attrDouble": 3.14159,
+        "attrInt": 19,
+        "attrLong": 23,
+        "attrDouble": 3.14159,
         "attrString": "Attribute string."
-      }, 
+      },
       "?? agent attributes"
     ]
   ]
@@ -55,7 +55,7 @@ User defined attributes should be added to the transaction.
               "attrDouble": 3.14159,
               "attrLong": 23,
               "attrInt": 19
-            },	
+            },
             "intrinsics": {
               "totalTime": "??",
               "cpu_time": "??",

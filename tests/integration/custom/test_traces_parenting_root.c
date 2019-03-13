@@ -1,6 +1,7 @@
 /*DESCRIPTION
-A coordinated use of newrelic_get_transaction_root() and newrelic_set_segment_parent() must
-override the default segment parentage for segment 2.
+A coordinated use of newrelic_get_transaction_root() and
+newrelic_set_segment_parent() must override the default segment parentage for
+segment 2.
 */
 
 /*CONFIG
@@ -92,8 +93,8 @@ RUN_NONWEB_TXN("basic") {
   s1 = newrelic_start_segment(txn, "s1", "other");
   s2 = newrelic_start_segment(txn, "s2", "other");
 
-  newrelic_set_segment_timing(s1, 0, 2000*1000);
-  newrelic_set_segment_timing(s2, 500*1000, 1000*1000);
+  newrelic_set_segment_timing(s1, 0, 2000 * 1000);
+  newrelic_set_segment_timing(s2, 500 * 1000, 1000 * 1000);
 
   /* Because s2 was created while s1 was active, s1 is its parent.
    * Manually reparent s2 by making its parent the root segment */

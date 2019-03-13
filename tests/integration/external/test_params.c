@@ -92,10 +92,9 @@ ok - external != NULL
 
 RUN_NONWEB_TXN("basic") {
   newrelic_segment_t* external = newrelic_start_external_segment(
-      txn, &(newrelic_external_segment_params_t){
-               .uri = "http://example.com",
-               .procedure = "GET",
-               .library = "curl"});
+      txn,
+      &(newrelic_external_segment_params_t){
+          .uri = "http://example.com", .procedure = "GET", .library = "curl"});
   TAP_ASSERT(external != NULL);
   newrelic_end_segment(txn, &external);
 }

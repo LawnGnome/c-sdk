@@ -138,23 +138,26 @@ bool newrelic_set_segment_parent(newrelic_segment_t* segment,
 }
 
 bool newrelic_set_segment_parent_root(newrelic_segment_t* segment) {
-
   if (NULL == segment) {
-     nrl_error(NRL_INSTRUMENT, "unable to set the parent on a NULL segment");
-     return false;
-   }
+    nrl_error(NRL_INSTRUMENT, "unable to set the parent on a NULL segment");
+    return false;
+  }
 
   if (NULL == segment->transaction) {
-     nrl_error(NRL_INSTRUMENT, "unable to set the parent on a segment without a transaction");
+    nrl_error(NRL_INSTRUMENT,
+              "unable to set the parent on a segment without a transaction");
     return false;
   }
 
   if (NULL == segment->transaction->segment_root) {
-     nrl_error(NRL_INSTRUMENT, "unable to set the parent on a segment with a malformed transaction");
+    nrl_error(
+        NRL_INSTRUMENT,
+        "unable to set the parent on a segment with a malformed transaction");
     return false;
   }
 
-  return nr_segment_set_parent(segment->segment, segment->transaction->segment_root);
+  return nr_segment_set_parent(segment->segment,
+                               segment->transaction->segment_root);
 }
 
 bool newrelic_set_segment_timing(newrelic_segment_t* segment,

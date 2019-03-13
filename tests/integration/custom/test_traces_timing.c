@@ -54,11 +54,11 @@ newrelic_set_segment_timing() should override the default segment timing.
                       [
                         500, 1500, "`2", "?? node attributes",
                         [
-			  [
+                          [
                             1000, 1500, "`3", "?? node attributes",
                             []
-			  ]
-			]
+                          ]
+                        ]
                       ]
                     ]
                   ]
@@ -98,13 +98,13 @@ RUN_NONWEB_TXN("basic") {
   newrelic_segment_t* s1;
   newrelic_segment_t* s2;
   newrelic_segment_t* s3;
-     
+
   s1 = newrelic_start_segment(txn, "s1", "other");
   s2 = newrelic_start_segment(txn, "s2", "other");
   s3 = newrelic_start_segment(txn, "s3", "other");
-  newrelic_set_segment_timing(s1, 0, 2000*1000);
-  newrelic_set_segment_timing(s2, 500*1000, 1000*1000);
-  newrelic_set_segment_timing(s3, 1000*1000, 500*1000);
+  newrelic_set_segment_timing(s1, 0, 2000 * 1000);
+  newrelic_set_segment_timing(s2, 500 * 1000, 1000 * 1000);
+  newrelic_set_segment_timing(s3, 1000 * 1000, 500 * 1000);
   newrelic_end_segment(txn, &s2);
   newrelic_end_segment(txn, &s3);
   newrelic_end_segment(txn, &s1);

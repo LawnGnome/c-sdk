@@ -232,8 +232,8 @@ typedef struct _newrelic_app_config_t {
    * to change this from the default value except under the guidance of
    * technical support.
    *
-   * Must be one of the following values: NEWRELIC_LOG_ERROR, NEWRELIC_LOG_WARNING
-   * NEWRELIC_LOG_INFO (default), NEWRELIC_LOG_DEBUG.
+   * Must be one of the following values: NEWRELIC_LOG_ERROR,
+   * NEWRELIC_LOG_WARNING NEWRELIC_LOG_INFO (default), NEWRELIC_LOG_DEBUG.
    */
   newrelic_loglevel_t log_level;
 

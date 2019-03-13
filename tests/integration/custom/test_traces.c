@@ -1,5 +1,5 @@
 /*DESCRIPTION
-newrelic_start_segment() should record a custom segment and nest segments 
+newrelic_start_segment() should record a custom segment and nest segments
 correctly.
 */
 
@@ -98,7 +98,7 @@ RUN_NONWEB_TXN("basic") {
   newrelic_segment_t* s1;
   newrelic_segment_t* s2;
   newrelic_segment_t* s3;
-     
+
   s1 = newrelic_start_segment(txn, "s1", "other");
   s2 = newrelic_start_segment(txn, "s2", "other");
   newrelic_end_segment(txn, &s2);

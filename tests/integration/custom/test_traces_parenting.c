@@ -97,7 +97,7 @@ RUN_NONWEB_TXN("basic") {
   newrelic_segment_t* s1;
   newrelic_segment_t* s2;
   newrelic_segment_t* s3;
-     
+
   s1 = newrelic_start_segment(txn, "s1", "other");
   s2 = newrelic_start_segment(txn, "s2", "other");
   s3 = newrelic_start_segment(txn, "s3", "other");
