@@ -217,24 +217,23 @@ static void test_end_datastore_segment_invalid_txn(void** state) {
 }
 
 /*
- * Purpose: Test that newrelic_end_segment() handles a
- * valid segment but a different transaction than which the segment
- * was started.
+ * Purpose: Test that newrelic_end_segment() handles a valid segment but a
+ * different transaction than the one the segment started with.
  */
 static void test_end_datastore_segment_different_txn(void** state) {
   newrelic_txn_t other_txn = {0};
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
   newrelic_segment_t* segment_ptr = mock_datastore_segment(txn);
 
-  /* A different transaction should result in failure and destroy the segment.
+  /*
+   * A different transaction should result in failure and destroy the segment.
    */
   assert_false(newrelic_end_segment(&other_txn, &segment_ptr));
   assert_null(segment_ptr);
 }
 
 /*
- * Purpose: Test that newrelic_end_segment() handles
- * valid inputs.
+ * Purpose: Test that newrelic_end_segment() handles valid inputs.
  */
 static void test_end_datastore_segment_valid(void** state) {
   newrelic_txn_t* txn = (newrelic_txn_t*)*state;
