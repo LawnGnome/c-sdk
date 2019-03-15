@@ -18,8 +18,6 @@ nr_status_t __wrap_nr_cmd_txndata_tx(int daemon_fd, const nrtxn_t* txn);
 /**
  * Purpose: Mock to catch transaction calls to the daemon.  The mock()
  * function used inside this function returns a queued value.
- * The testing programmer (us!) uses the will_return function
- * to queue values (see tests below)
  */
 nr_status_t __wrap_nr_cmd_txndata_tx(int daemon_fd NRUNUSED,
                                      const nrtxn_t* txn NRUNUSED) {

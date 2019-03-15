@@ -319,6 +319,6 @@ int main(void) {
           test_get_transaction_options_datastore_segment_database_name_reporting),
   };
 
-  return cmocka_run_group_tests(options_tests,  // our tests
+  return cmocka_run_group_tests(options_tests,
                                 NULL, NULL);
 }

@@ -1,8 +1,6 @@
 /*DESCRIPTION
-It's not clear who is responsible for the string memory once the char* passes
-into nr_txn_add_custom_metric, so this test is here to make sure we can allocate
-a string, used it to create a metric, and then free it before the transaction
-sends without ill effect.
+Affirm that the agent can allocate a string, used it to create a metric,
+and then free it before the transaction sends without ill effect.
 */
 
 // clang-format off
