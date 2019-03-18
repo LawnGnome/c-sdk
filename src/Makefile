@@ -1,7 +1,6 @@
 #
 # This is not a standalone Makefile in its current form; it depends on a bunch
-# of variables that are defined by the top level Makefile. We could revisit
-# this later if we wanted to.
+# of variables that are defined by the top level Makefile.
 #
 
 .PHONY: clean static
@@ -39,9 +38,8 @@ version.o: version.c Makefile .deps/compile_flags .deps/version_flags $(C_AGENT_
 
 #
 # Note that this rule only builds the C agent object files into the static
-# library. In practice, users will also need to link against axiom, or bundle
-# this static library with the axiom static library. (Spoilers for what we do
-# in the parent Makefile.)
+# library. The parent Makefile takes care of bundling this static library with
+# the axiom static library.
 #
 libnewrelic.a: $(OBJS)
 	$(AR) rcs $@ $^
