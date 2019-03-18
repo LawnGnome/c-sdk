@@ -4,11 +4,12 @@
 #ifndef PHP_NEWRELIC_HDR
 #define PHP_NEWRELIC_HDR
 
-#include "nr_async_context.h"
 #include "nr_mysqli_metadata.h"
+#include "nr_segment.h"
 #include "nr_txn.h"
 #include "php_extension.h"
 #include "util_hashmap.h"
+#include "util_vector.h"
 
 #define PHP_NEWRELIC_EXT_NAME "newrelic"
 #define PHP_NEWRELIC_EXT_URL "https://newrelic.com/docs/php/new-relic-for-php"
@@ -33,9 +34,10 @@ extern zend_module_entry newrelic_module_entry;
  * and not have to take the different APIs into account.
  */
 #ifdef PHP7
-#define NR_SPECIALFNPTR_PROTO \
-  struct _nruserfn_t *wraprec, zend_execute_data *execute_data
-#define NR_SPECIALFNPTR_ORIG_ARGS wraprec, execute_data
+#define NR_SPECIALFNPTR_PROTO                              \
+  struct _nruserfn_t *wraprec, nr_segment_t *auto_segment, \
+      zend_execute_data *execute_data
+#define NR_SPECIALFNPTR_ORIG_ARGS wraprec, auto_segment, execute_data
 #define NR_SPECIALFN_PROTO nruserfn_t *wraprec, zend_execute_data *execute_data
 #define NR_OP_ARRAY (&execute_data->func->op_array)
 #define NR_EXECUTE_PROTO zend_execute_data* execute_data
@@ -43,9 +45,10 @@ extern zend_module_entry newrelic_module_entry;
 #define NR_UNUSED_SPECIALFN (void)execute_data
 #define NR_ZEND_EXECUTE_HOOK zend_execute_ex
 #elif ZEND_MODULE_API_NO >= ZEND_5_5_X_API_NO
-#define NR_SPECIALFNPTR_PROTO \
-  struct _nruserfn_t *wraprec, zend_execute_data *execute_data
-#define NR_SPECIALFNPTR_ORIG_ARGS wraprec, execute_data
+#define NR_SPECIALFNPTR_PROTO                              \
+  struct _nruserfn_t *wraprec, nr_segment_t *auto_segment, \
+      zend_execute_data *execute_data
+#define NR_SPECIALFNPTR_ORIG_ARGS wraprec, auto_segment, execute_data
 #define NR_SPECIALFN_PROTO nruserfn_t *wraprec, zend_execute_data *execute_data
 #define NR_OP_ARRAY (execute_data->op_array)
 #define NR_EXECUTE_PROTO zend_execute_data* execute_data
@@ -53,9 +56,10 @@ extern zend_module_entry newrelic_module_entry;
 #define NR_UNUSED_SPECIALFN (void)execute_data
 #define NR_ZEND_EXECUTE_HOOK zend_execute_ex
 #else /* PHP < 5.5 */
-#define NR_SPECIALFNPTR_PROTO \
-  struct _nruserfn_t *wraprec, zend_op_array *op_array_arg
-#define NR_SPECIALFNPTR_ORIG_ARGS wraprec, op_array_arg
+#define NR_SPECIALFNPTR_PROTO                              \
+  struct _nruserfn_t *wraprec, nr_segment_t *auto_segment, \
+      zend_op_array *op_array_arg
+#define NR_SPECIALFNPTR_ORIG_ARGS wraprec, auto_segment, op_array_arg
 #define NR_SPECIALFN_PROTO nruserfn_t *wraprec, zend_op_array *op_array_arg
 #define NR_OP_ARRAY (op_array_arg)
 #define NR_EXECUTE_PROTO zend_op_array* op_array_arg
@@ -362,10 +366,9 @@ int framework_version; /* Current framework version */
 nrtime_t* cur_drupal_module_kids_duration; /* Points to variable to increment
                                               for a Drupal Module child's
                                               duration */
-nrtime_t*
-    cur_drupal_view_kids_duration;   /* Points to variable to increment for a
-                                        Drupal View child's duration */
-char* drupal_module_invoke_all_hook; /* The current Drupal hook */
+nrtime_t* cur_drupal_view_kids_duration;  /* Points to variable to increment for
+                                             a  Drupal View child's duration */
+char* drupal_module_invoke_all_hook;      /* The current Drupal hook */
 size_t drupal_module_invoke_all_hook_len; /* The length of the current Drupal
                                              hook */
 size_t drupal_http_request_depth; /* The current depth of drupal_http_request()
@@ -418,7 +421,6 @@ int generating_explain_plan; /* Are we currently working on an explain plan? */
 nrinibool_t guzzle_enabled; /* newrelic.guzzle.enabled */
 nr_hashmap_t* guzzle_objs;  /* Guzzle request object storage: requests that are
                                currently in progress are stored here */
-nr_async_context_t* guzzle_ctx; /* Guzzle async context */
 
 nr_mysqli_metadata_t* mysqli_links; /* MySQLi link metadata storage */
 nr_hashmap_t* mysqli_queries;       /* MySQLi query metadata storage */
@@ -426,7 +428,7 @@ nr_hashmap_t* mysqli_queries;       /* MySQLi query metadata storage */
 nr_hashmap_t* pdo_link_options; /* PDO link option storage */
 
 nr_hashmap_t* predis_commands;
-nr_async_context_t* predis_ctx;
+char* predis_ctx; /* The current Predis pipeline context name, if any */
 
 nr_hashmap_t* curl_headers;
 
@@ -484,6 +486,10 @@ nrinibool_t custom_parameters_enabled; /* newrelic.custom_parameters_enabled */
 nrinibool_t
     distributed_tracing_enabled; /* newrelic.distributed_tracing_enabled */
 nrinibool_t span_events_enabled; /* newrelic.span_events_enabled */
+
+nr_vector_t* user_function_wrappers;
+uint64_t pid;
+
 ZEND_END_MODULE_GLOBALS(newrelic)
 
 /*

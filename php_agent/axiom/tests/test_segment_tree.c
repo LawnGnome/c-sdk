@@ -3,77 +3,50 @@
 #include "nr_segment_traces.h"
 #include "nr_segment_tree.h"
 #include "nr_segment_private.h"
-#include "test_node_helpers.h"
+#include "nr_txn_private.h"
+#include "test_segment_helpers.h"
 #include "util_number_converter.h"
 #include "util_set.h"
 
 #include "tlib_main.h"
 
-static void test_assemble_data_bad_params(void) {
+#define assert_null_result(M, RESULT)                \
+  do {                                               \
+    const char* anr_msg = (M);                       \
+    const nrtxnfinal_t anr_res = (RESULT);           \
+                                                     \
+    tlib_pass_if_null(anr_msg, anr_res.trace_json);  \
+    tlib_pass_if_null(anr_msg, anr_res.span_events); \
+  } while (0)
+
+static void test_finalise_bad_params(void) {
   nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 1;
   size_t span_limit = 1;
-  nr_segment_tree_result_t result = {.trace_json = NULL};
 
   /*
    * Test : Bad parameters
    */
-  nr_segment_tree_assemble_data(&txn, NULL, trace_limit, span_limit);
-
-  nr_segment_tree_assemble_data(NULL, &result, trace_limit, span_limit);
-  tlib_pass_if_null(
+  assert_null_result(
       "Traversing the segments of a NULL transaction must NOT populate a "
       "result",
-      result.trace_json);
+      nr_segment_tree_finalise(NULL, trace_limit, span_limit, NULL, NULL));
 
-  tlib_pass_if_null(
-      "Traversing the segments of a segment-less transaction must NOT create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-
-  tlib_pass_if_null(
-      "Traversing the segments of a segment-less transaction must NOT create "
-      "a scoped metric table",
-      result.scoped_metrics);
-
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
-  tlib_pass_if_null(
-      "Traversing a segment-less transaction must NOT populate a "
-      "result",
-      result.trace_json);
-
-  tlib_pass_if_null(
-      "Traversing the segments of a segment-less transaction must NOT create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-
-  tlib_pass_if_null(
-      "Traversing the segments of a segment-less transaction must NOT create "
-      "a scoped metric table",
-      result.scoped_metrics);
-
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, 0);
-
-  tlib_pass_if_null(
-      "Traversing the segments of a segment-less transaction must NOT create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-
-  tlib_pass_if_null(
-      "Traversing the segments of a segment-less transaction must NOT create "
-      "a scoped metric table",
-      result.scoped_metrics);
+  assert_null_result(
+      "Traversing a segment-less transaction must NOT populate a result",
+      nr_segment_tree_finalise(&txn, trace_limit, span_limit, NULL, NULL));
 }
 
-static void test_assemble_data_one_only_with_metrics(void) {
+static void test_finalise_one_only_with_metrics(void) {
   nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 1;
   size_t span_limit = 0;
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result;
   nrobj_t* obj;
 
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
 
+  root->txn = &txn;
   root->start_time = 0;
   root->stop_time = 3000;
 
@@ -81,6 +54,8 @@ static void test_assemble_data_one_only_with_metrics(void) {
   txn.segment_count = 1;
   txn.segment_root = root;
   txn.trace_strings = nr_string_pool_create();
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
 
   /* Mock up the segment */
   root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
@@ -92,41 +67,25 @@ static void test_assemble_data_one_only_with_metrics(void) {
   /*
    * Test : A too-short transaction does not yield a trace.
    */
-
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
+  result = nr_segment_tree_finalise(&txn, trace_limit, span_limit, NULL, NULL);
   tlib_pass_if_null(
       "Traversing the segments of a should-not-trace transaction must NOT "
       "populate a trace JSON result",
       result.trace_json);
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "unscoped metrics as needed",
-      1, nrm_table_size(result.unscoped_metrics));
-  tlib_pass_if_not_null(
+  test_metric_created(
       "Traversing the segments of a should-not-trace transaction must create a "
       "specific unscoped metric",
-      nrm_find(result.unscoped_metrics, "Custom/Unscoped"));
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "scoped metrics as needed",
-      1, nrm_table_size(result.scoped_metrics));
-  tlib_pass_if_not_null(
+      txn.unscoped_metrics, 0, 3000, "Custom/Unscoped");
+  test_metric_created(
       "Traversing the segments of a should-not-trace transaction must create a "
       "specific scoped metric",
-      nrm_find(result.scoped_metrics, "Custom/Scoped"));
+      txn.scoped_metrics, 0, 3000, "Custom/Scoped");
 
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
 
   /*
    * Test : A zero limit does not yield a trace.
@@ -135,51 +94,31 @@ static void test_assemble_data_one_only_with_metrics(void) {
   /* Make the transaction long enough so that a trace should be made */
   root->stop_time = 9000;
 
-  /* The necessity for mocking up nodes_used will be eliminated when
-   * the notion of nodes is removed from nrtxn_t.  For now, mock
-   * this up so that nr_txn_should_save_trace() returns true.  */
-  txn.nodes_used = 1;
-
-  nr_segment_tree_assemble_data(&txn, &result, 0, span_limit);
+  result = nr_segment_tree_finalise(&txn, 0, span_limit, NULL, NULL);
   tlib_pass_if_null(
       "Traversing the segments of a 0-limit trace must NOT populate a trace "
       "JSON result",
       result.trace_json);
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a 0-limit transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a 0-limit transaction must create "
-      "unscoped metrics as needed",
-      1, nrm_table_size(result.unscoped_metrics));
-  tlib_pass_if_not_null(
+  test_metric_created(
       "Traversing the segments of a 0-limit transaction must create a "
       "specific unscoped metric",
-      nrm_find(result.unscoped_metrics, "Custom/Unscoped"));
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a 0-limit transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a 0-limit transaction must create "
-      "scoped metrics as needed",
-      1, nrm_table_size(result.scoped_metrics));
-  tlib_pass_if_not_null(
+      txn.unscoped_metrics, 0, 9000, "Custom/Unscoped");
+  test_metric_created(
       "Traversing the segments of a 0-limit transaction must create a "
       "specific scoped metric",
-      nrm_find(result.scoped_metrics, "Custom/Scoped"));
+      txn.scoped_metrics, 0, 9000, "Custom/Scoped");
 
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
 
   /*
    * Test : Normal operation
    */
 
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
+  result = nr_segment_tree_finalise(&txn, trace_limit, span_limit, NULL, NULL);
   tlib_pass_if_not_null(
       "Traversing the segments of a should-trace transaction must populate a "
       "trace JSON result",
@@ -198,185 +137,26 @@ static void test_assemble_data_one_only_with_metrics(void) {
       "JSON",
       obj);
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "unscoped metrics as needed",
-      1, nrm_table_size(result.unscoped_metrics));
-  tlib_pass_if_not_null(
+  test_metric_created(
       "Traversing the segments of a should-trace transaction must create a "
       "specific unscoped metric",
-      nrm_find(result.unscoped_metrics, "Custom/Unscoped"));
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "scoped metrics as needed",
-      1, nrm_table_size(result.scoped_metrics));
-  tlib_pass_if_not_null(
+      txn.unscoped_metrics, 0, 9000, "Custom/Unscoped");
+  test_metric_created(
       "Traversing the segments of a should-trace transaction must create a "
       "specific scoped metric",
-      nrm_find(result.scoped_metrics, "Custom/Scoped"));
+      txn.scoped_metrics, 0, 9000, "Custom/Scoped");
 
   nro_delete(obj);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
   nr_string_pool_destroy(&txn.trace_strings);
-  nr_free(result.trace_json);
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
-
-  nr_segment_destroy(root);
-}
-
-static void test_assemble_data_one_only_without_metrics(void) {
-  nrtxn_t txn = {.abs_start_time = 1000};
-  size_t trace_limit = 1;
-  size_t span_limit = 0;
-  nr_segment_tree_result_t result = {.trace_json = NULL};
-  nrobj_t* obj;
-
-  nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
-
-  root->start_time = 0;
-  root->stop_time = 3000;
-
-  /* Mock up the transaction */
-  txn.segment_count = 1;
-  txn.segment_root = root;
-  txn.trace_strings = nr_string_pool_create();
-
-  /* Mock up the segment */
-  root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
-
-  txn.options.tt_threshold = 5000;
-
-  /*
-   * Test : A too-short transaction does not yield a trace.
-   */
-
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
-  tlib_pass_if_null(
-      "Traversing the segments of a should-not-trace transaction must NOT "
-      "populate a trace JSON result",
-      result.trace_json);
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "unscoped metrics as needed",
-      0, nrm_table_size(result.unscoped_metrics));
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-not-trace transaction must create "
-      "scoped metrics as needed",
-      0, nrm_table_size(result.scoped_metrics));
-
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
-
-  /*
-   * Test : A zero limit does not yield a trace.
-   */
-
-  /* Make the transaction long enough so that a trace should be made */
-  root->stop_time = 9000;
-
-  /* The necessity for mocking up nodes_used will be eliminated when
-   * the notion of nodes is removed from nrtxn_t.  For now, mock
-   * this up so that nr_txn_should_save_trace() returns true.  */
-  txn.nodes_used = 1;
-
-  nr_segment_tree_assemble_data(&txn, &result, 0, span_limit);
-  tlib_pass_if_null(
-      "Traversing the segments of a 0-limit trace must NOT populate a trace "
-      "JSON result",
-      result.trace_json);
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a 0-limit transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a 0-limit transaction must create "
-      "unscoped metrics as needed",
-      0, nrm_table_size(result.unscoped_metrics));
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a 0-limit transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a 0-limit transaction must create "
-      "scoped metrics as needed",
-      0, nrm_table_size(result.scoped_metrics));
-
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
-
-  /*
-   * Test : Normal operation
-   */
-
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must populate a "
-      "trace JSON result",
-      result.trace_json);
-
-  tlib_pass_if_str_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "expected trace JSON",
-      result.trace_json,
-      "[[0,{},{},[0,9,\"ROOT\",{},[[0,9,\"`0\",{},[]]]],{}],["
-      "\"WebTransaction\\/*\"]]");
-
-  obj = nro_create_from_json(result.trace_json);
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create valid "
-      "JSON",
-      obj);
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "unscoped metrics as needed",
-      0, nrm_table_size(result.unscoped_metrics));
-
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "scoped metrics as needed",
-      0, nrm_table_size(result.scoped_metrics));
-
-  nro_delete(obj);
-  nr_string_pool_destroy(&txn.trace_strings);
-  nr_free(result.trace_json);
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
 
   nr_segment_destroy(root);
 }
 
 #define NR_TEST_SEGMENT_TREE_SIZE 4
-static void test_assemble_data(void) {
+static void test_finalise(void) {
   int i;
   nrobj_t* obj;
   nr_segment_t* current;
@@ -390,11 +170,14 @@ static void test_assemble_data(void) {
   size_t span_limit = 0;
   char* segment_names[NR_TEST_SEGMENT_TREE_SIZE];
 
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result;
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
 
   txn.trace_strings = nr_string_pool_create();
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
 
+  root->txn = &txn;
   root->start_time = start_time;
   root->stop_time = stop_time;
   root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
@@ -411,6 +194,7 @@ static void test_assemble_data(void) {
     segment->start_time = start_time + ((i + 1) * 1000);
     segment->stop_time = stop_time - ((i + 1) * 1000);
     segment->name = nr_string_add(txn.trace_strings, segment_names[i]);
+    segment->txn = &txn;
 
     nr_segment_add_metric(segment, segment_names[i], false);
     nr_segment_add_metric(segment, segment_names[i], true);
@@ -422,12 +206,8 @@ static void test_assemble_data(void) {
   }
 
   txn.segment_count = NR_TEST_SEGMENT_TREE_SIZE;
-  /* The necessity for mocking up nodes_used will be eliminated when
-   * the notion of nodes is removed from nrtxn_t.  For now, mock
-   * this up so that nr_txn_should_save_trace() returns true.  */
-  txn.nodes_used = NR_TEST_SEGMENT_TREE_SIZE;
 
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
+  result = nr_segment_tree_finalise(&txn, trace_limit, span_limit, NULL, NULL);
   tlib_pass_if_not_null(
       "Traversing the segments of a should-sample transaction must populate a "
       "result",
@@ -448,34 +228,174 @@ static void test_assemble_data(void) {
       "JSON",
       obj);
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create "
-      "an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "unscoped metrics as needed",
-      NR_TEST_SEGMENT_TREE_SIZE, nrm_table_size(result.unscoped_metrics));
+  for (i = 0; i < NR_TEST_SEGMENT_TREE_SIZE; i++) {
+    nrtime_t expected_duration = nr_time_duration(start_time + ((i + 1) * 1000),
+                                                  stop_time - ((i + 1) * 1000));
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace transaction must create "
-      "a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace transaction must create "
-      "scoped metrics as needed",
-      NR_TEST_SEGMENT_TREE_SIZE, nrm_table_size(result.scoped_metrics));
+    test_metric_created_ex(
+        "Traversing the segments of a should-trace transaction must create "
+        "unscoped metrics as needed",
+        txn.unscoped_metrics, 0, expected_duration, i == 3 ? 1000 : 2000,
+        segment_names[i]);
+
+    test_metric_created_ex(
+        "Traversing the segments of a should-trace transaction must create "
+        "scoped metrics as needed",
+        txn.scoped_metrics, 0, expected_duration, i == 3 ? 1000 : 2000,
+        segment_names[i]);
+  }
 
   nro_delete(obj);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
   nr_string_pool_destroy(&txn.trace_strings);
-  nr_free(result.trace_json);
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
 
   nr_segment_destroy(root);
 }
 
-static void test_assemble_data_with_sampling(void) {
+typedef struct {
+  const nrtxn_t* txn;
+  nrtime_t total_time;
+  size_t call_count;
+} test_finalise_callback_expected_t;
+
+static void test_finalise_callback(nrtxn_t* txn,
+                                   nrtime_t total_time,
+                                   void* userdata) {
+  test_finalise_callback_expected_t* expected
+      = (test_finalise_callback_expected_t*)userdata;
+
+  tlib_pass_if_ptr_equal(
+      "A registered finalise callback must get the correct transaction",
+      expected->txn, txn);
+  tlib_pass_if_time_equal(
+      "A registered finalise callback must get the correct total time",
+      expected->total_time, total_time);
+
+  expected->call_count += 1;
+}
+
+static void test_finalise_total_time(void) {
+  nrobj_t* obj;
+  nr_segment_t *a, *b, *c, *d;
+  test_finalise_callback_expected_t cb_userdata = {.call_count = 0};
+
+  nrtxn_t txn = {.abs_start_time = 1000};
+
+  size_t trace_limit = 10;
+  size_t span_limit = 0;
+
+  nrtxnfinal_t result;
+  nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
+
+  txn.trace_strings = nr_string_pool_create();
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.options.tt_threshold = 0;
+  txn.status.recording = 1;
+
+  root->txn = &txn;
+  root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
+
+  txn.segment_root = root;
+
+  /*
+   * In order to exercise the total and exclusive time calculation, we're going
+   * to set up a basic async structure:
+   *
+   * time (ms): 0    10    20    30    40    50
+   *            ROOT------------------------->
+   *                 a (ctx 1)--------->
+   *                       b (ctx 1)--->
+   *                 c (ctx 2)--------->
+   *                             d (ctx 2)--->
+   *
+   * On the main context, there is only the ROOT segment, which lasts 50 ms.
+   *
+   * Context 1 has two segments, which sum to an exclusive time of 30 ms: a has
+   * an exclusive time of 10 ms, and b has an exclusive time of 20 ms.
+   *
+   * Context 2 has two segments, which also sum to an exclusive time of 40 ms: c
+   * has an exclusive time of 20 ms, and d has an exclusive time of 20 ms.
+   *
+   * Therefore, we should have a total time of 120 ms, and a duration of 50 ms.
+   */
+  nr_segment_set_timing(root, 0, 50 * NR_TIME_DIVISOR_MS);
+
+  a = nr_segment_start(&txn, root, "1");
+  nr_segment_set_name(a, "a");
+  nr_segment_set_timing(a, 10 * NR_TIME_DIVISOR_MS, 30 * NR_TIME_DIVISOR_MS);
+  nr_segment_end(a);
+  b = nr_segment_start(&txn, a, "1");
+  nr_segment_set_name(b, "b");
+  nr_segment_set_timing(b, 20 * NR_TIME_DIVISOR_MS, 20 * NR_TIME_DIVISOR_MS);
+  nr_segment_end(b);
+  c = nr_segment_start(&txn, root, "2");
+  nr_segment_set_name(c, "c");
+  nr_segment_set_timing(c, 10 * NR_TIME_DIVISOR_MS, 30 * NR_TIME_DIVISOR_MS);
+  nr_segment_end(c);
+  d = nr_segment_start(&txn, c, "2");
+  nr_segment_set_name(d, "d");
+  nr_segment_set_timing(d, 30 * NR_TIME_DIVISOR_MS, 20 * NR_TIME_DIVISOR_MS);
+  nr_segment_end(d);
+
+  nr_segment_end(root);
+
+  cb_userdata.txn = &txn;
+  cb_userdata.total_time = 120 * NR_TIME_DIVISOR_MS;
+  result = nr_segment_tree_finalise(&txn, trace_limit, span_limit,
+                                    test_finalise_callback, &cb_userdata);
+  tlib_pass_if_size_t_equal(
+      "Traversing the segments of a should-sample transaction must invoke the "
+      "finalise callback",
+      1, cb_userdata.call_count);
+  tlib_pass_if_not_null(
+      "Traversing the segments of a should-sample transaction must populate a "
+      "result",
+      result.trace_json);
+
+  tlib_pass_if_str_equal(
+      "Traversing the segments of a should-trace transaction must create "
+      "expected trace JSON with all "
+      "segments",
+      result.trace_json,
+      // clang-format off
+      "["
+        "[0,{},{},"
+          "[0,50,\"ROOT\",{},["
+            "[0,50,\"`0\",{},["
+              "[10,40,\"`1\",{\"async_context\":\"`2\"},["
+                "[20,40,\"`3\",{\"async_context\":\"`2\"},[]]"
+              "]],"
+              "[10,40,\"`4\",{\"async_context\":\"`5\"},["
+                "[30,50,\"`6\",{\"async_context\":\"`5\"},[]]"
+              "]]"
+            "]]"
+          "]]"
+        ",{}]"
+        ","
+        "[\"WebTransaction\\/*\",\"a\",\"1\",\"b\",\"c\",\"2\",\"d\"]"
+      "]"
+      // clang-format on
+  );
+
+  obj = nro_create_from_json(result.trace_json);
+  tlib_pass_if_not_null(
+      "Traversing the segments of a should-trace transaction must create valid "
+      "JSON",
+      obj);
+
+  nro_delete(obj);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
+  nr_string_pool_destroy(&txn.trace_strings);
+
+  nr_segment_destroy(root);
+}
+
+static void test_finalise_with_sampling(void) {
   int i;
   nrobj_t* obj;
   nr_segment_t* current;
@@ -489,11 +409,14 @@ static void test_assemble_data_with_sampling(void) {
   size_t span_limit = 0;
   char* segment_names[NR_TEST_SEGMENT_TREE_SIZE];
 
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result;
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
 
   txn.trace_strings = nr_string_pool_create();
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
 
+  root->txn = &txn;
   root->start_time = start_time;
   root->stop_time = stop_time;
   root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
@@ -510,6 +433,7 @@ static void test_assemble_data_with_sampling(void) {
     segment->start_time = start_time + ((i + 1) * 1000);
     segment->stop_time = stop_time - ((i + 1) * 1000);
     segment->name = nr_string_add(txn.trace_strings, segment_names[i]);
+    segment->txn = &txn;
 
     nr_segment_add_metric(segment, segment_names[i], false);
     nr_segment_add_metric(segment, segment_names[i], true);
@@ -521,13 +445,12 @@ static void test_assemble_data_with_sampling(void) {
   }
 
   txn.segment_count = NR_TEST_SEGMENT_TREE_SIZE;
-  txn.nodes_used = NR_TEST_SEGMENT_TREE_SIZE;
 
   /*
    * Test : Normal operation with sampling
    */
   trace_limit = 2;
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
+  result = nr_segment_tree_finalise(&txn, trace_limit, span_limit, NULL, NULL);
   tlib_pass_if_not_null(
       "Traversing the segments of a should-trace, should-sample transaction "
       "must populate a result",
@@ -535,9 +458,10 @@ static void test_assemble_data_with_sampling(void) {
 
   tlib_pass_if_str_equal(
       "Traversing the segments of a should-trace, should-sample transaction "
-      "must create expected trace JSON with two nodes only",
+      "must create expected trace JSON with two segments only",
       result.trace_json,
-      "[[0,{},{},[0,9,\"ROOT\",{},[[0,9,\"`0\",{},[[1,8,\"`1\",{},[]]]]]],{}],["
+      "[[0,{},{},[0,9,\"ROOT\",{},[[0,9,\"`0\",{},[[1,8,\"`1\",{},[]]]]]],{}]"
+      ",["
       "\"WebTransaction\\/*\",\"0\"]]");
 
   obj = nro_create_from_json(result.trace_json);
@@ -546,40 +470,39 @@ static void test_assemble_data_with_sampling(void) {
       "must create valid JSON",
       obj);
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace, should-sample transaction "
-      "must create an unscoped metric table",
-      result.unscoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace, should-sample transaction "
-      "must create unscoped metrics as needed",
-      NR_TEST_SEGMENT_TREE_SIZE, nrm_table_size(result.unscoped_metrics));
+  for (i = 0; i < NR_TEST_SEGMENT_TREE_SIZE; i++) {
+    nrtime_t expected_duration = nr_time_duration(start_time + ((i + 1) * 1000),
+                                                  stop_time - ((i + 1) * 1000));
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a should-trace, should-sample transaction "
-      "must create a scoped metric table",
-      result.scoped_metrics);
-  tlib_pass_if_int_equal(
-      "Traversing the segments of a should-trace, should-sample transaction "
-      "must create scoped metrics as needed",
-      NR_TEST_SEGMENT_TREE_SIZE, nrm_table_size(result.scoped_metrics));
+    test_metric_created_ex(
+        "Traversing the segments of a should-trace, should-sample transaction "
+        "must create unscoped metrics as needed",
+        txn.unscoped_metrics, 0, expected_duration, i == 3 ? 1000 : 2000,
+        segment_names[i]);
+
+    test_metric_created_ex(
+        "Traversing the segments of a should-trace, should-sample transaction "
+        "must create scoped metrics as needed",
+        txn.scoped_metrics, 0, expected_duration, i == 3 ? 1000 : 2000,
+        segment_names[i]);
+  }
 
   nro_delete(obj);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
   nr_string_pool_destroy(&txn.trace_strings);
-  nr_free(result.trace_json);
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
 
   nr_segment_destroy(root);
 }
 
 #define NR_TEST_SEGMENT_EXTENDED_TREE_SIZE 3000
-static void test_assemble_data_with_extended_sampling(void) {
+static void test_finalise_with_extended_sampling(void) {
   int i;
   nrtxn_t txn = {.abs_start_time = 1000};
   size_t trace_limit = 4;
   size_t span_limit = 0;
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result;
   nrobj_t* obj;
   nr_segment_t* current;
   char* segment_names[NR_TEST_SEGMENT_EXTENDED_TREE_SIZE];
@@ -587,7 +510,10 @@ static void test_assemble_data_with_extended_sampling(void) {
   nr_segment_t* root = nr_zalloc(sizeof(nr_segment_t));
 
   txn.trace_strings = nr_string_pool_create();
+  txn.scoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
+  txn.unscoped_metrics = nrm_table_create(NR_METRIC_DEFAULT_LIMIT);
 
+  root->txn = &txn;
   root->start_time = 0;
   root->stop_time = 34000;
   root->name = nr_string_add(txn.trace_strings, "WebTransaction/*");
@@ -604,6 +530,7 @@ static void test_assemble_data_with_extended_sampling(void) {
     segment->start_time = i;
     segment->stop_time = i * 10 + 1;
     segment->name = nr_string_add(txn.trace_strings, segment_names[i]);
+    segment->txn = &txn;
 
     nr_segment_add_metric(segment, segment_names[i], false);
     nr_segment_add_metric(segment, segment_names[i], true);
@@ -616,12 +543,7 @@ static void test_assemble_data_with_extended_sampling(void) {
 
   txn.segment_count = NR_TEST_SEGMENT_EXTENDED_TREE_SIZE;
 
-  /* The necessity for mocking up nodes_used will be eliminated when
-   * the notion of nodes is removed from nrtxn_t.  For now, mock
-   * this up so that nr_txn_should_save_trace() returns true.  */
-  txn.nodes_used = NR_TEST_SEGMENT_EXTENDED_TREE_SIZE;
-
-  nr_segment_tree_assemble_data(&txn, &result, trace_limit, span_limit);
+  result = nr_segment_tree_finalise(&txn, trace_limit, span_limit, NULL, NULL);
   tlib_pass_if_not_null(
       "Traversing the segments of a very large should-trace, should-sample "
       "transaction must populate a result",
@@ -632,7 +554,8 @@ static void test_assemble_data_with_extended_sampling(void) {
       "transaction must create expected trace JSON with the four longest "
       "segments",
       result.trace_json,
-      "[[0,{},{},[0,34,\"ROOT\",{},[[0,34,\"`0\",{},[[2,29,\"`1\",{},[[2,29,\"`"
+      "[[0,{},{},[0,34,\"ROOT\",{},[[0,34,\"`0\",{},[[2,29,\"`1\",{},[[2,29,"
+      "\"`"
       "2\",{},[[2,29,\"`3\",{},[]]]]]]]]]],{}],[\"WebTransaction\\/"
       "*\",\"2997\",\"2998\",\"2999\"]]");
 
@@ -642,31 +565,24 @@ static void test_assemble_data_with_extended_sampling(void) {
       "transaction must create valid JSON",
       obj);
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a very large should-trace, should-sample "
-      "transaction must create an unscoped metric table",
-      result.unscoped_metrics);
   tlib_pass_if_int_equal(
       "Traversing the segments of a very large should-trace, should-sample "
-      "transaction must create unscoped metrics as needed, but subject to the "
+      "transaction must create unscoped metrics as needed, but subject to "
+      "the "
       "overall metric limit",
-      NR_METRIC_DEFAULT_LIMIT + 1, nrm_table_size(result.unscoped_metrics));
+      NR_METRIC_DEFAULT_LIMIT + 1, nrm_table_size(txn.unscoped_metrics));
 
-  tlib_pass_if_not_null(
-      "Traversing the segments of a very large should-trace, should-sample "
-      "transaction must create a scoped metric table",
-      result.scoped_metrics);
   tlib_pass_if_int_equal(
       "Traversing the segments of a very large should-trace, should-sample "
       "transaction must create scoped metrics as needed, but subject to the "
       "overall metric limit",
-      NR_METRIC_DEFAULT_LIMIT + 1, nrm_table_size(result.scoped_metrics));
+      NR_METRIC_DEFAULT_LIMIT + 1, nrm_table_size(txn.scoped_metrics));
 
   nro_delete(obj);
+  nr_txn_final_destroy_fields(&result);
+  nrm_table_destroy(&txn.scoped_metrics);
+  nrm_table_destroy(&txn.unscoped_metrics);
   nr_string_pool_destroy(&txn.trace_strings);
-  nr_free(result.trace_json);
-  nrm_table_destroy(&result.scoped_metrics);
-  nrm_table_destroy(&result.unscoped_metrics);
 
   nr_segment_destroy(root);
 }
@@ -763,8 +679,8 @@ static void test_nearest_sampled_ancestor_cycle(void) {
   nr_segment_add_child(&B, &child);
 
   /*
-   * Test : There is a cycle in the tree that does not include the target node.
-   * The target node is the only one sampled.
+   * Test : There is a cycle in the tree that does not include the target
+   *        segment. The target segment is the only one sampled.
    */
 
   /*
@@ -783,7 +699,7 @@ static void test_nearest_sampled_ancestor_cycle(void) {
       "Passing in a tree with a cycle and no sampled ancestors returns NULL",
       ancestor);
 
-  // Test : There is a cycle but the node has a sampled parent.
+  // Test : There is a cycle but the segment has a sampled parent.
   nr_set_insert(set, (void*)&A);
   ancestor = nr_segment_tree_get_nearest_sampled_ancestor(set, &child);
   tlib_pass_if_ptr_equal("The returned ancestor should be A", &A, ancestor);
@@ -803,12 +719,12 @@ static void test_nearest_sampled_ancestor_cycle(void) {
 tlib_parallel_info_t parallel_info = {.suggested_nthreads = 4, .state_size = 0};
 
 void test_main(void* p NRUNUSED) {
-  test_assemble_data_bad_params();
-  test_assemble_data_one_only_with_metrics();
-  test_assemble_data_one_only_without_metrics();
-  test_assemble_data();
-  test_assemble_data_with_sampling();
-  test_assemble_data_with_extended_sampling();
+  test_finalise_bad_params();
+  test_finalise_one_only_with_metrics();
+  test_finalise();
+  test_finalise_total_time();
+  test_finalise_with_sampling();
+  test_finalise_with_extended_sampling();
   test_nearest_sampled_ancestor();
   test_nearest_sampled_ancestor_cycle();
 }

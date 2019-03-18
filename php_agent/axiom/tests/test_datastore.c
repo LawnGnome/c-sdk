@@ -5,7 +5,7 @@
 #include "util_strings.h"
 
 #include "tlib_main.h"
-#include "test_node_helpers.h"
+#include "test_segment_helpers.h"
 
 static void test_as_string(void) {
   /*

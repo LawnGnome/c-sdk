@@ -209,11 +209,9 @@ static const nr_regex_t* nr_wordpress_theme_regex(TSRMLS_D) {
   return regex;
 }
 
-static void nr_wordpress_create_metric(nrtxn_t* txn,
+static void nr_wordpress_create_metric(nr_segment_t* segment,
                                        const char* prefix,
-                                       const char* name,
-                                       nrtime_t duration,
-                                       nrtime_t exclusive) {
+                                       const char* name) {
   char* metric_name = NULL;
 
   if (NULL == name) {
@@ -221,7 +219,7 @@ static void nr_wordpress_create_metric(nrtxn_t* txn,
   }
 
   metric_name = nr_formatf("%s%s", prefix, name);
-  nrm_add_ex(txn->unscoped_metrics, metric_name, duration, exclusive);
+  nr_segment_add_metric(segment, metric_name, false);
   nr_free(metric_name);
 }
 
@@ -288,14 +286,8 @@ cache_and_return:
 }
 
 NR_PHP_WRAPPER(nr_wordpress_wrap_hook) {
-  nrtime_t duration;
-  nrtime_t exclusive;
   zend_function* func;
-  nrtime_t kids_duration = 0;
-  nrtime_t* kids_duration_save = NRPRG(cur_wordpress_hook_kids_duration);
   char* plugin = NULL;
-  nrtxntime_t start = {.stamp = 0, .when = 0};
-  nrtxntime_t stop = {.stamp = 0, .when = 0};
 
   NR_UNUSED_SPECIALFN;
   (void)wraprec;
@@ -311,30 +303,14 @@ NR_PHP_WRAPPER(nr_wordpress_wrap_hook) {
     NR_PHP_WRAPPER_LEAVE;
   }
 
-  nr_txn_set_time(NRPRG(txn), &start);
-
   func = nr_php_execute_function(NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
   plugin = nr_wordpress_plugin_from_function(func TSRMLS_CC);
 
-  NRPRG(cur_wordpress_hook_kids_duration) = &kids_duration;
   NR_PHP_WRAPPER_CALL;
-  NRPRG(cur_wordpress_hook_kids_duration) = kids_duration_save;
 
-  if (NR_SUCCESS != nr_txn_set_stop_time(NRPRG(txn), &start, &stop)) {
-    NR_PHP_WRAPPER_LEAVE;
-  }
-
-  duration = nr_time_duration(start.when, stop.when);
-  exclusive = nr_time_duration(kids_duration, duration);
-
-  if (kids_duration_save) {
-    *kids_duration_save += duration;
-  }
-
-  nr_wordpress_create_metric(NRPRG(txn), NR_WORDPRESS_HOOK_PREFIX,
-                             NRPRG(wordpress_tag), duration, exclusive);
-  nr_wordpress_create_metric(NRPRG(txn), NR_WORDPRESS_PLUGIN_PREFIX, plugin,
-                             duration, exclusive);
+  nr_wordpress_create_metric(auto_segment, NR_WORDPRESS_HOOK_PREFIX,
+                             NRPRG(wordpress_tag));
+  nr_wordpress_create_metric(auto_segment, NR_WORDPRESS_PLUGIN_PREFIX, plugin);
 }
 NR_PHP_WRAPPER_END
 

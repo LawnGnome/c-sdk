@@ -17,7 +17,8 @@
  *
  * Returns : A context name, which will need to be freed by the caller.
  */
-extern char* nr_guzzle_create_async_context_name(const char* prefix, zval* obj);
+extern char* nr_guzzle_create_async_context_name(const char* prefix,
+                                                 const zval* obj);
 
 /*
  * Purpose : Checks if the current PHP call stack includes a Guzzle frame.
@@ -45,8 +46,10 @@ extern int nr_guzzle_does_zval_implement_has_emitter(zval* obj TSRMLS_DC);
  *           sent and has become active.
  *
  * Params  : 1. The Request object.
+ *           2. The version specific prefix for the async context name
  */
-extern void nr_guzzle_obj_add(const zval* obj TSRMLS_DC);
+extern void nr_guzzle_obj_add(const zval* obj,
+                              const char* async_context_prefix TSRMLS_DC);
 
 /*
  * Purpose : Finds the request metadata struct associated with the given
@@ -55,14 +58,14 @@ extern void nr_guzzle_obj_add(const zval* obj TSRMLS_DC);
  *           the active list.
  *
  * Params  : 1. The Request object.
- *           2. A pointer to an nrtxntime_t struct which will receive the start
- *              time.
+ *           2. The address of a segment that will receive the stored segment
  *
  * Returns : NR_SUCCESS or NR_FAILURE. If NR_FAILURE is returned, the start
  *           struct will be unchanged.
  */
 extern nr_status_t nr_guzzle_obj_find_and_remove(const zval* obj,
-                                                 nrtxntime_t* start TSRMLS_DC);
+                                                 nr_segment_t** segment
+                                                     TSRMLS_DC);
 
 /*
  * Purpose : Sets the outbound headers on a request object implementing either

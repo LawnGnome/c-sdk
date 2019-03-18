@@ -3,7 +3,6 @@
 
 #include "nr_datastore_instance.h"
 #include "nr_txn.h"
-#include "node_datastore.h"
 #include "util_object.h"
 
 #include <stdbool.h>

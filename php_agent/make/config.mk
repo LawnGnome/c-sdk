@@ -134,8 +134,6 @@ ifeq (1,$(HAVE_REALLOCARRAY))
   PLATFORM_DEFS += -DHAVE_REALLOCARRAY=1
 endif
 
-PLATFORM_DEFS += -DNR_CAGENT
-
 #
 # Code coverage
 #

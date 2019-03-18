@@ -1,22 +1,20 @@
 #ifndef PHP_DATASTORE_HDR
 #define PHP_DATASTORE_HDR
 
+#include "nr_datastore.h"
 #include "nr_explain.h"
 
 /*
  * Purpose : Wrap nr_segment_datastore_end() to create an SQL node.
  *
- * Params  : 1. The transaction.
- *           2. The start time of the query.
- *           3. The stop time of the query, or NULL if the query only just
- *              completed, in which case this function will generate the stop
- *              time.
- *           4. The SQL query.
- *           5. The size of the SQL query.
- *           6. The explain plan JSON, if any.
+ * Params  : 1. The segment.
+ *           2. The SQL query.
+ *           3. The size of the SQL query.
+ *           4. The explain plan JSON, if any.
+ *           5. The datastore type.
+ *           6. The datastore instance, if any.
  */
 extern void nr_php_txn_end_segment_sql(nr_segment_t* segment,
-                                       const nrtxntime_t* stop,
                                        const char* sql,
                                        int sqllen,
                                        const nr_explain_plan_t* plan,

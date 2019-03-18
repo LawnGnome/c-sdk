@@ -18,9 +18,6 @@ extern nr_framework_classification_t nr_cakephp_special_2(
 
 extern void nr_codeigniter_enable(TSRMLS_D);
 
-extern int nr_drupal_do_view_execute(const char* name,
-                                     int name_len,
-                                     NR_EXECUTE_PROTO TSRMLS_DC);
 extern int nr_drupal_is_framework(nrframework_t fw);
 extern void nr_drupal_enable(TSRMLS_D);
 

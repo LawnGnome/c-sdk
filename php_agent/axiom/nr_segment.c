@@ -291,7 +291,6 @@ static void nr_segment_destroy_children_post_callback(nr_segment_t* segment,
   /* Free the segment */
   nr_segment_destroy_fields(segment);
   nr_segment_children_destroy_fields(&segment->children);
-  nr_exclusive_time_destroy(&segment->exclusive_time);
   nr_free(segment);
 }
 
@@ -463,15 +462,23 @@ static void nr_segment_stoh_post_iterator_callback(
     return;
   }
 
+  // Calculate the exclusive time.
   exclusive_time = nr_exclusive_time_calculate(segment->exclusive_time);
-  nr_exclusive_time_destroy(&segment->exclusive_time);
+
+  // Update the transaction total time.
+  metadata->total_time += exclusive_time;
+
+  // Merge any segment metrics with the transaction metric tables.
   metric_count = nr_vector_size(segment->metrics);
   for (i = 0; i < metric_count; i++) {
     nr_segment_metric_t* sm
         = (nr_segment_metric_t*)nr_vector_get(segment->metrics, i);
 
-    nrm_add(sm->scoped ? metadata->scoped_metrics : metadata->unscoped_metrics,
-            sm->name, exclusive_time);
+    nrm_add_ex(sm->scoped ? segment->txn->scoped_metrics
+                          : segment->txn->unscoped_metrics,
+               sm->name,
+               nr_time_duration(segment->start_time, segment->stop_time),
+               exclusive_time);
   }
 }
 
@@ -499,6 +506,7 @@ static nr_segment_iter_return_t nr_segment_stoh_iterator_callback(
   }
 
   /* Set up the exclusive time so that children can adjust it as necessary. */
+  nr_exclusive_time_destroy(&segment->exclusive_time);
   segment->exclusive_time
       = nr_exclusive_time_create(segment->start_time, segment->stop_time);
 

@@ -4,6 +4,8 @@
 #include "stack.h"
 #include "transaction.h"
 
+#include "nr_datastore.h"
+#include "nr_segment_datastore.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_sql.h"
@@ -189,7 +191,7 @@ bool newrelic_end_datastore_segment(newrelic_segment_t* segment) {
   nr_free(name);
 
   /* Add backtrace, if required. */
-  if (nr_txn_node_datastore_stack_worthy(segment->transaction, duration)) {
+  if (nr_segment_potential_slowsql(segment->transaction, duration)) {
     char* backtrace_json = newrelic_get_stack_trace_as_json();
 
     if (backtrace_json) {

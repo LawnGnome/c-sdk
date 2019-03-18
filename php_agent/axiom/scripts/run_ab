@@ -69,10 +69,6 @@ all_victims="
   test_logging
   test_memory
   test_metrics
-  test_node_datastore
-  test_node_external
-  test_node_helpers
-  test_node_sql
   test_obfuscate
   test_object
   test_reply

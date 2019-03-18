@@ -52,7 +52,7 @@ the PHP 7.2 support on version 7.7 of the PHP Agent,
 
 ## Performance Test
 
-Visit the [docker_cross_agent_tester](https://source.datanerd.us/php-agent/php_test_tools/tree/master/applications/docker_cross_agent_tester)
+Visit the [docker_cross_version_arena](https://source.datanerd.us/php-agent/php_test_tools/tree/master/applications/docker_cross_version_arena)
 and follow the directions on the README.md.
 
 ## Cross-Platform Test

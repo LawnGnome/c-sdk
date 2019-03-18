@@ -6,11 +6,8 @@
 #include "nr_slowsqls.h"
 #include "nr_txn.h"
 
-// TODO: remove the #ifndef once we complete the nodeectomy.
-#ifndef NODE_DATASTORE_HDR
 typedef char* (*nr_backtrace_fn_t)(void);
 typedef void (*nr_modify_table_name_fn_t)(char* table_name);
-#endif
 
 typedef struct _nr_segment_datastore_params_t {
   /*
@@ -81,5 +78,30 @@ typedef struct _nr_segment_datastore_params_t {
  */
 extern void nr_segment_datastore_end(nr_segment_t* segment,
                                      nr_segment_datastore_params_t* params);
+
+/*
+ * Purpose : Decide if an SQL segment of the given duration would be considered
+ *           for explain plan generation.
+ *
+ * Params  : 1. The current transaction.
+ *           2. The duration of the SQL query.
+ *
+ * Returns : True if the duration is above the relevant threshold and explain
+ *           plans are enabled; false otherwise.
+ */
+extern bool nr_segment_potential_explain_plan(const nrtxn_t* txn,
+                                              nrtime_t duration);
+
+/*
+ * Purpose : Decide if an SQL segment of the given duration would be considered
+ *           as a potential slow SQL.
+ *
+ * Params  : 1. The current transaction.
+ *           2. The duration of the SQL query.
+ *
+ * Returns : True if the duration is above the relevant threshold and slow SQLs
+ *           are enabled; false otherwise.
+ */
+extern bool nr_segment_potential_slowsql(const nrtxn_t* txn, nrtime_t duration);
 
 #endif /* NR_SEGMENT_DATASTORE_HDR */

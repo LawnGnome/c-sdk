@@ -731,7 +731,6 @@ static void test_json_print_segments_external_async_user_attrs(void) {
   txn.segment_count = 2;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
-  txn.async_duration = 1;
 
   /* Create a collection of mock segments */
 
@@ -1056,7 +1055,6 @@ static void test_json_print_segments_async_basic(void) {
   txn.segment_count = 3;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
-  txn.async_duration = 1;
 
   /* Create a collection of mock segments */
   nr_segment_children_init(&root.children);
@@ -1159,7 +1157,6 @@ static void test_json_print_segments_async_multi_child(void) {
   txn.segment_count = 5;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
-  txn.async_duration = 1;
 
   /* Create a collection of mock segments */
   nr_segment_children_init(&root.children);
@@ -1283,7 +1280,6 @@ static void test_json_print_segments_async_multi_context(void) {
   txn.segment_count = 7;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
-  txn.async_duration = 1;
 
   /* Create a collection of mock segments */
   nr_segment_children_init(&root.children);
@@ -1435,7 +1431,6 @@ static void test_json_print_segments_async_context_nesting(void) {
   txn.segment_count = 9;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
-  txn.async_duration = 1;
 
   /* Create a collection of mock segments */
   nr_segment_children_init(&root.children);
@@ -1587,7 +1582,6 @@ static void test_json_print_segments_async_with_data(void) {
   txn.segment_count = 3;
   txn.segment_root = &root;
   txn.trace_strings = nr_string_pool_create();
-  txn.async_duration = 1;
 
   /* Create a collection of mock segments */
   nr_segment_children_init(&root.children);
@@ -2227,7 +2221,7 @@ static void test_trace_create_data_bad_parameters(void) {
   nrtxn_t txn = {.abs_start_time = 1000};
   uintptr_t i;
   nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result = {.trace_json = NULL};
 
   // clang-format off
   nr_segment_t root = {.txn = &txn, .start_time = 0, .stop_time = 9000};
@@ -2293,7 +2287,7 @@ static void test_trace_create_data_bad_parameters(void) {
 static void test_trace_create_trace_spans(void) {
   nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_tree_sampling_metadata_t metadata = {0};
-  nr_segment_tree_result_t result = {0};
+  nrtxnfinal_t result = {0};
 
   nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
   nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");
@@ -2391,7 +2385,7 @@ static void test_trace_create_trace_spans(void) {
 static void test_trace_create_data(void) {
   nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result = {.trace_json = NULL};
 
   nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
   nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");
@@ -2484,7 +2478,7 @@ static void test_trace_create_data(void) {
 static void test_trace_create_data_with_sampling(void) {
   nrtxn_t txn = {.abs_start_time = 1000};
   nr_segment_tree_sampling_metadata_t metadata = {.trace_set = NULL};
-  nr_segment_tree_result_t result = {.trace_json = NULL};
+  nrtxnfinal_t result = {.trace_json = NULL};
 
   nrobj_t* agent_attributes = nro_create_from_json("[\"agent_attributes\"]");
   nrobj_t* user_attributes = nro_create_from_json("[\"user_attributes\"]");

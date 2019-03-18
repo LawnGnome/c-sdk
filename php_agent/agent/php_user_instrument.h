@@ -5,6 +5,8 @@
 #ifndef PHP_USER_INSTRUMENT_HDR
 #define PHP_USER_INSTRUMENT_HDR
 
+#include "nr_segment.h"
+
 struct _nruserfn_t;
 
 /*
@@ -77,10 +79,22 @@ extern nruserfn_t* nr_wrapped_user_functions; /* a singly linked list */
 /*
  * Purpose : Get the wraprec associated with a user function op_array.
  *
- * IMPORTANT : This should only be called on an op_array if
- *             nr_php_op_array_has_wraprec returns 1.
+ * Params  : 1. The zend function's oparray.
+ *
+ * Returns : The function wrapper. NULL if no function wrapper was registered
+ *           or if the registered function wrapper is invalid.
  */
-extern nruserfn_t* nr_php_op_array_get_wraprec(const zend_op_array* op_array);
+extern nruserfn_t* nr_php_op_array_get_wraprec(
+    const zend_op_array* op_array TSRMLS_DC);
+
+/*
+ * Purpose : Set the wraprec associated with a user function op_array.
+ *
+ * Params  : 1. The zend function's oparray.
+ *	     2. The function wrapper.
+ */
+extern void nr_php_op_array_set_wraprec(zend_op_array* op_array,
+                                        nruserfn_t* func TSRMLS_DC);
 
 extern void nr_php_add_transaction_naming_function(const char* namestr,
                                                    int namestrlen TSRMLS_DC);
@@ -110,10 +124,11 @@ extern void nr_php_add_exception_function(zend_function* func TSRMLS_DC);
  *
  * Params  : 1. The user function to unflag.
  */
-extern void nr_php_remove_exception_function(zend_function* func);
+extern void nr_php_remove_exception_function(zend_function* func TSRMLS_DC);
 
 extern int nr_zend_call_orig_execute(NR_EXECUTE_PROTO TSRMLS_DC);
 extern int nr_zend_call_orig_execute_special(nruserfn_t* wraprec,
+                                             nr_segment_t* segment,
                                              NR_EXECUTE_PROTO TSRMLS_DC);
 
 /*
@@ -126,15 +141,6 @@ extern int nr_zend_call_orig_execute_special(nruserfn_t* wraprec,
  *           wrap records.
  */
 extern void nr_php_destroy_user_wrap_records(void);
-
-/*
- * Purpose : Checks if the given zend_function is instrumented.
- *
- * Params  : 1. The zend_function to check.
- *
- * Returns : Non-zero if the function is instrumented; zero otherwise.
- */
-extern int nr_php_user_function_is_instrumented(const zend_function* function);
 
 /*
  * Purpose : Add a callback that is fired when a function is declared.

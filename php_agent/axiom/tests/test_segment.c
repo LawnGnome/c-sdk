@@ -5,7 +5,7 @@
 
 #include "nr_segment_private.h"
 #include "nr_segment.h"
-#include "test_node_helpers.h"
+#include "test_segment_helpers.h"
 #include "util_memory.h"
 
 #include "tlib_main.h"
@@ -89,10 +89,10 @@ static void test_segment_new_txn_with_segment_root(void) {
       "An ended transaction's segment root must have its stop time initialized",
       0 != txn->segment_root->stop_time, "Expected true");
 
-  tlib_pass_if_int_equal(
+  tlib_pass_if_str_equal(
       "An ended transaction's segment root must have the same name as the root "
       "node",
-      txn->segment_root->name, txn->root.name);
+      txn->name, nr_string_get(txn->trace_strings, txn->segment_root->name));
 
   nr_txn_destroy(&txn);
 }

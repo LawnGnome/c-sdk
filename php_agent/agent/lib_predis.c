@@ -77,7 +77,7 @@ const zend_long nr_predis_default_port = 6379;
 static NR_PHP_WRAPPER_PROTOTYPE(nr_predis_connection_readResponse);
 static NR_PHP_WRAPPER_PROTOTYPE(nr_predis_connection_writeRequest);
 
-static void nr_predis_command_destroy(nrtxntime_t* time) {
+static void nr_predis_command_destroy(nrtime_t* time) {
   nr_free(time);
 }
 
@@ -499,8 +499,8 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
     },
   };
   char* operation = NULL;
-  nrtxntime_t* start;
-  nrtxntime_t stop;
+  nrtime_t duration;
+  nrtime_t* start;
 
   (void)wraprec;
 
@@ -513,7 +513,6 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
   }
 
   NR_PHP_WRAPPER_CALL;
-  nr_txn_set_time(NRPRG(txn), &stop);
 
   operation = nr_predis_get_operation_name_from_object(command TSRMLS_CC);
 
@@ -527,6 +526,7 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
     nrl_verbosedebug(NRL_INSTRUMENT, "%s: NULL start time", __func__);
     goto end;
   }
+  duration = nr_time_duration(*start, nr_txn_now_rel(NRPRG(txn)));
 
   params.instance = nr_predis_retrieve_datastore_instance(conn TSRMLS_CC);
   params.operation = operation;
@@ -538,31 +538,21 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
    * When a pipeline is being executed, commands can (and do) run
    * asynchronously. The wrapper that we've hooked on
    * Predis\Pipeline\Pipeline::executePipeline() (and its various children) will
-   * have set predis_ctx to a non-NULL async context struct, so we use that to
-   * add an async context to the datastore node.
+   * have set predis_ctx to a non-NULL async context, so we use that to add an
+   * async context to the datastore node.
    */
   if (NRPRG(predis_ctx)) {
-    nrtime_t duration = nr_time_duration(start->when, stop.when);
-
     /*
-     * Object IDs are not sufficiently unique for async contexts, as they can be
-     * reused (which then results in unexpected trace nesting). We'll also use
-     * the start time to disambiguate the object ID to be safe.
-     *
-     * On an especially fast system, it's still possible that this will not be
-     * unique, but really, if it's that quick it's doubtful anyone's ever going
-     * to be looking at the transaction trace. Neverthless, in the longer term
-     * we may want to look at creating a more generic, robust way of generating
-     * async context names.
+     * Since we need a unique async context for each element within the
+     * pipeline, we'll concatenate the object ID onto the base context name
+     * generated in the executePipeline() instrumentation.
      */
-    async_context = nr_formatf("Predis #" NR_UINT64_FMT "." NR_UINT64_FMT,
-                               start->when, index);
-    nr_async_context_add(NRPRG(predis_ctx), duration);
+    async_context = nr_formatf("%s." NR_UINT64_FMT, NRPRG(predis_ctx), index);
   }
 
-  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
-  segment->start_time = nr_txn_time_abs_to_rel(NRPRG(txn), start->when);
-  segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop.when);
+  segment = nr_segment_start(NRPRG(txn), nr_txn_get_current_segment(NRPRG(txn)),
+                             async_context);
+  nr_segment_set_timing(segment, *start, duration);
   nr_segment_datastore_end(segment, &params);
 
 end:
@@ -576,7 +566,7 @@ NR_PHP_WRAPPER_END
 NR_PHP_WRAPPER(nr_predis_connection_writeRequest) {
   zval* command = NULL;
   uint64_t index;
-  nrtxntime_t* start;
+  nrtime_t* start;
 
   (void)wraprec;
 
@@ -593,8 +583,8 @@ NR_PHP_WRAPPER(nr_predis_connection_writeRequest) {
   }
 
   index = (uint64_t)Z_OBJ_HANDLE_P(command);
-  start = (nrtxntime_t*)nr_malloc(sizeof(nrtxntime_t));
-  nr_txn_set_time(NRPRG(txn), start);
+  start = (nrtime_t*)nr_malloc(sizeof(nrtime_t));
+  *start = nr_txn_now_rel(NRPRG(txn));
   nr_hashmap_index_update(nr_predis_get_commands(TSRMLS_C), index, start);
 
 end:
@@ -693,8 +683,7 @@ NR_PHP_WRAPPER(nr_predis_client_construct) {
 NR_PHP_WRAPPER_END
 
 NR_PHP_WRAPPER(nr_predis_pipeline_executePipeline) {
-  nrtime_t async_duration;
-  nr_async_context_t* prev;
+  char* prev_predis_ctx;
 
   (void)wraprec;
 
@@ -702,26 +691,22 @@ NR_PHP_WRAPPER(nr_predis_pipeline_executePipeline) {
    * Our normal Predis connection instrumentation correctly handles pipelines as
    * well, since it looks for the underlying writeRequest() and readResponse()
    * method calls that the pipeline functionality uses. The only thing we need
-   * to do is set up the predis_ctx global for this pipeline so that async time
-   * is correctly counted.
+   * to do is set up the predis_ctx global for this pipeline so that async
+   * contexts are correctly set up.
    *
    * We'll save any existing context just in case this is a nested pipeline.
    */
 
-  prev = NRPRG(predis_ctx);
-  NRPRG(predis_ctx) = nr_async_context_create(nr_get_time());
+  prev_predis_ctx = NRPRG(predis_ctx);
+  NRPRG(predis_ctx) = nr_formatf("Predis #" NR_TIME_FMT, nr_get_time());
 
   NR_PHP_WRAPPER_CALL;
-
-  nr_async_context_end(NRPRG(predis_ctx), nr_get_time());
-  async_duration = nr_async_context_get_duration(NRPRG(predis_ctx));
-  nr_txn_add_async_duration(NRPRG(txn), async_duration);
 
   /*
    * Restore any previous context on the way out.
    */
-  nr_async_context_destroy(&NRPRG(predis_ctx));
-  NRPRG(predis_ctx) = prev;
+  nr_free(NRPRG(predis_ctx));
+  NRPRG(predis_ctx) = prev_predis_ctx;
 }
 NR_PHP_WRAPPER_END
 

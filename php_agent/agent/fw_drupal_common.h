@@ -17,21 +17,17 @@
 /*
  * Purpose : Create a Drupal metric.
  *
- * Params  : 1. The transaction to create the metric on.
+ * Params  : 1. The segment to create the metric on.
  *           2. The prefix to use when creating the metric.
  *           3. The length of the prefix.
  *           4. The suffix to use when creating the metric.
  *           5. The length of the suffix.
- *           6. The total duration of the metric.
- *           7. The exclusive duration of the metric.
  */
-extern void nr_drupal_create_metric(nrtxn_t* txn,
+extern void nr_drupal_create_metric(nr_segment_t* segment,
                                     const char* prefix,
                                     int prefix_len,
                                     const char* suffix,
-                                    int suffix_len,
-                                    nrtime_t duration,
-                                    nrtime_t exclusive);
+                                    int suffix_len);
 
 /*
  * Purpose : Call the original Drupal view execute function and create the
@@ -39,12 +35,14 @@ extern void nr_drupal_create_metric(nrtxn_t* txn,
  *
  * Params  : 1. The view name.
  *           2. The length of the view name.
- *           3. The original execute data.
+ *           3. The function segment.
+ *           4. The original execute data.
  *
  * Returns : Non-zero if zend_bailout needs to be called.
  */
 extern int nr_drupal_do_view_execute(const char* name,
                                      int name_len,
+                                     nr_segment_t* segment,
                                      NR_EXECUTE_PROTO TSRMLS_DC);
 
 /*

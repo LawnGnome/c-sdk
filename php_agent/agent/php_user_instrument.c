@@ -54,11 +54,13 @@ int nr_zend_call_orig_execute(NR_EXECUTE_PROTO TSRMLS_DC) {
 }
 
 int nr_zend_call_orig_execute_special(nruserfn_t* wraprec,
+                                      nr_segment_t* segment,
                                       NR_EXECUTE_PROTO TSRMLS_DC) {
   volatile int zcaught = 0;
   zend_try {
     if (wraprec->special_instrumentation) {
-      wraprec->special_instrumentation(wraprec, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
+      wraprec->special_instrumentation(wraprec, segment,
+                                       NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
     } else {
       NR_PHP_PROCESS_GLOBALS(orig_execute)(NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
     }
@@ -66,10 +68,6 @@ int nr_zend_call_orig_execute_special(nruserfn_t* wraprec,
   zend_catch { zcaught = 1; }
   zend_end_try();
   return zcaught;
-}
-
-nruserfn_t* nr_php_op_array_get_wraprec(const zend_op_array* op_array) {
-  return (nruserfn_t*)op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)];
 }
 
 /*
@@ -88,10 +86,7 @@ nruserfn_t* nr_php_op_array_get_wraprec(const zend_op_array* op_array) {
  */
 static void nr_php_wrap_zend_function(zend_function* func,
                                       nruserfn_t* wraprec TSRMLS_DC) {
-  func->op_array.reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)] = wraprec;
-#ifndef PHP7
-  func->common.fn_flags |= NR_PHP_ACC_INSTRUMENTED;
-#endif /* PHP7 */
+  nr_php_op_array_set_wraprec(&func->op_array, wraprec TSRMLS_CC);
   wraprec->is_wrapped = 1;
 
   if (wraprec->declared_callback) {
@@ -258,28 +253,17 @@ nruserfn_t* nr_php_add_custom_tracer_callable(zend_function* func TSRMLS_DC) {
     name = nr_php_function_debug_name(func);
   }
 
-    /*
-     * We must check NR_PHP_ACC_INSTRUMENTED before attempting to dereference
-     * the wraprec due to badly behaved Zend extensions potentially overwriting
-     * our reserved pointer in the op array. (Cough, cough, ionCube. Piece of
-     * shit.)
-     *
-     * TODO(aharvey): figure out a new approach for PHP 7, since we can no
-     * longer rely on a function flag.
-     */
-#ifndef PHP7
-  if (NR_PHP_ACC_INSTRUMENTED & func->common.fn_flags) {
-#endif /* !PHP7 */
-    wraprec = nr_php_op_array_get_wraprec(&func->op_array);
-    if (wraprec) {
-      nrl_verbosedebug(NRL_INSTRUMENT,
-                       "reusing custom wrapper for callable '%s'", name);
-      nr_free(name);
-      return wraprec;
-    }
-#ifndef PHP7
+  /*
+   * nr_php_op_array_get_wraprec does basic sanity checks on the stored
+   * wraprec.
+   */
+  wraprec = nr_php_op_array_get_wraprec(&func->op_array TSRMLS_CC);
+  if (wraprec) {
+    nrl_verbosedebug(NRL_INSTRUMENT, "reusing custom wrapper for callable '%s'",
+                     name);
+    nr_free(name);
+    return wraprec;
   }
-#endif /* !PHP7 */
 
   wraprec = nr_php_user_wraprec_create();
   wraprec->is_transient = 1;
@@ -413,15 +397,14 @@ void nr_php_add_exception_function(zend_function* func TSRMLS_DC) {
   }
 }
 
-void nr_php_remove_exception_function(zend_function* func) {
+void nr_php_remove_exception_function(zend_function* func TSRMLS_DC) {
   nruserfn_t* wraprec;
 
-  if ((NULL == func) || (ZEND_USER_FUNCTION != func->type)
-      || (0 == nr_php_user_function_is_instrumented(func))) {
+  if ((NULL == func) || (ZEND_USER_FUNCTION != func->type)) {
     return;
   }
 
-  wraprec = nr_php_op_array_get_wraprec(&func->op_array);
+  wraprec = nr_php_op_array_get_wraprec(&func->op_array TSRMLS_CC);
   if (wraprec) {
     wraprec->is_exception_handler = 0;
   }
@@ -439,16 +422,6 @@ void nr_php_destroy_user_wrap_records(void) {
   }
 
   nr_wrapped_user_functions = NULL;
-}
-
-int nr_php_user_function_is_instrumented(const zend_function* function) {
-#ifdef PHP7
-  int offset = NR_PHP_PROCESS_GLOBALS(zend_offset);
-
-  return (NULL != function->op_array.reserved[offset]);
-#else
-  return (function->common.fn_flags & NR_PHP_ACC_INSTRUMENTED);
-#endif /* PHP7 */
 }
 
 /*
@@ -474,4 +447,140 @@ void nr_php_user_function_add_declared_callback(const char* namestr,
       (callback)(TSRMLS_C);
     }
   }
+}
+
+/*
+ * The functions nr_php_op_array_set_wraprec and
+ * nr_php_op_array_get_wraprec set and retrieve pointers to function wrappers
+ * (wraprecs) stored in the oparray of zend functions.
+ *
+ * There's the danger that other PHP modules or even other PHP processes
+ * overwrite those pointers. We try to detect that by validating the
+ * stored pointers.
+ *
+ *
+ * Checking NR_PHP_ACC_INSTRUMENTED, PHP 5.*
+ * -----------------------------------------
+ *
+ * For ancient versions of PHP, setting and checking the function flag
+ * is necessary, as reserved pointers might not be initialized to 0.
+ * This also hardens us against badly behaved Zend extensions which
+ * potentially overwrite our reserved pointer in the oparray.
+ *
+ *
+ * Mangled process id, PHP 7.3+
+ * ----------------------------
+ *
+ * Since PHP 7.3, OpCache stores functions and oparrays in shared
+ * memory. Consequently, the wraprec pointers we store in the oparray
+ * might be overwritten by other processes. Dereferencing an overwritten
+ * wraprec pointer will most likely cause a crash.
+ *
+ * The remedy, only applied for PHP 7.3+:
+ *
+ *  1. All wraprec pointers are stored in a global vector.
+ *
+ *  2. The index of the wraprec pointer in the vector is mangled with
+ *     the current process id. This results in a value with the lower 16 bits
+ *     holding the vector index (i) and the higher bits holding the process
+ *     id (p):
+ *
+ *       0xppppiiii (32 bit)
+ *       0xppppppppppppiiii (64 bit)
+ *
+ *     This supports a maximum of 65536 instrumented functions.
+ *
+ *  3. This mangled value is stored in the oparray.
+ *
+ *  4. When a zend function is called and the agent tries to obtain the
+ *     wraprec, the upper bits of the value are compared to the current process
+ *     id. If they match, the index in the lower 16 bits is considered safe and
+ *     is used. Otherwise the function is considered as uninstrumented.
+ */
+
+void nr_php_op_array_set_wraprec(zend_op_array* op_array,
+                                 nruserfn_t* func TSRMLS_DC) {
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  uintptr_t index;
+
+  if (NULL == op_array || NULL == func) {
+    return;
+  }
+
+  if (!nr_vector_push_back(NRPRG(user_function_wrappers), func)) {
+    return;
+  }
+
+  index = nr_vector_size(NRPRG(user_function_wrappers)) - 1;
+
+  index |= (NRPRG(pid) << 16);
+
+  op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)] = (void*)index;
+#else
+  NR_UNUSED_TSRMLS
+
+#ifndef PHP7
+  /*
+   * In PHP 5, we set a function flag, as the reserved pointer may not be
+   * initialised to NULL in ancient versions of PHP 5.2. In PHP 7, we don't
+   * touch the function flags.
+   */
+  op_array->fn_flags |= NR_PHP_ACC_INSTRUMENTED;
+#endif /* !PHP7 */
+
+  op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)] = (void*)func;
+#endif /* PHP >= 7.3 */
+}
+
+nruserfn_t* nr_php_op_array_get_wraprec(
+    const zend_op_array* op_array TSRMLS_DC) {
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  uintptr_t index;
+  uint64_t pid;
+
+  if (nrunlikely(NULL == op_array)) {
+    return NULL;
+  }
+
+  index = (uintptr_t)op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)];
+
+  if (0 == index) {
+    return NULL;
+  }
+
+  pid = index >> 16;
+  index &= 0xffff;
+
+  if (pid != NRPRG(pid)) {
+    nrl_warning(
+        NRL_INSTRUMENT,
+        "Skipping instrumented function: pid mismatch, got " NR_INT64_FMT
+        ", expected " NR_INT64_FMT,
+        pid, NRPRG(pid));
+    return NULL;
+  }
+
+  return (nruserfn_t*)nr_vector_get(NRPRG(user_function_wrappers), index);
+#else
+  int offset = NR_PHP_PROCESS_GLOBALS(zend_offset);
+
+  NR_UNUSED_TSRMLS
+
+  if (nrunlikely(NULL == op_array)) {
+    return NULL;
+  }
+  if (NULL == op_array->function_name) {
+    return NULL;
+  }
+#ifndef PHP7
+  if (0 == (op_array->fn_flags & NR_PHP_ACC_INSTRUMENTED)) {
+    return NULL;
+  }
+#endif /* !PHP7 */
+  if (offset < 0) {
+    return NULL;
+  }
+
+  return (nruserfn_t*)op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)];
+#endif /* PHP >= 7.3 */
 }

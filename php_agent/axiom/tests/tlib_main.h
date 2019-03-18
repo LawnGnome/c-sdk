@@ -372,6 +372,9 @@ extern int nbsockpair(int vecs[2]);
 #define test_pass_if_true(M, T, ...) \
   tlib_pass_if_true_f((M), (T), file, line, #T, __VA_ARGS__)
 
+#define test_pass_if_true_file_line(M, T, FILE, LINE, ...) \
+  tlib_pass_if_true_f((M), (T), (FILE), (LINE), #T, __VA_ARGS__)
+
 /*
  * Purpose : Ignore sigpipe by installing a signal handler that does nothing.
  *           This allows testing of failed pipe writes.  The alternative is

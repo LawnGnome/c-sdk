@@ -207,10 +207,10 @@ static int nr_php_curl_copy_outbound_headers_iterator(zval* element,
     return ZEND_HASH_APPLY_KEEP;
   }
 
-    /*
-     * Otherwise, we copy the header into the destination array, being careful
-     * to increment the refcount on the element to avoid double frees.
-     */
+  /*
+   * Otherwise, we copy the header into the destination array, being careful
+   * to increment the refcount on the element to avoid double frees.
+   */
 #ifdef PHP7
   if (Z_REFCOUNTED_P(element)) {
     Z_ADDREF_P(element);
@@ -429,11 +429,16 @@ void nr_php_curl_setopt_post(zval* curlres,
   if (nr_php_is_zval_named_constant(curlopt, "CURLOPT_HTTPHEADER" TSRMLS_CC)) {
     zval* headers = nr_php_zval_alloc();
     array_init(headers);
+    HashTable* ht = NULL;
+
+    ht = HASH_OF(curlval);
+    if (NULL == ht) {
+      return;
+    }
 
     // Save the headers
     nr_php_zend_hash_zval_apply(
-        Z_ARRVAL_P(curlval),
-        (nr_php_zval_apply_t)nr_php_curl_copy_outbound_headers_iterator,
+        ht, (nr_php_zval_apply_t)nr_php_curl_copy_outbound_headers_iterator,
         headers TSRMLS_CC);
     nr_hashmap_index_update(nr_php_curl_get_headers(TSRMLS_C),
                             nr_php_zval_resource_id(curlres), headers);
@@ -444,7 +449,9 @@ void nr_php_curl_setopt_post(zval* curlres,
     method = nr_strdup("PUT");
   } else if (nr_php_is_zval_named_constant(curlopt,
                                            "CURLOPT_CUSTOMREQUEST" TSRMLS_CC)) {
-    method = strndup(Z_STRVAL_P(curlval), Z_STRLEN_P(curlval));
+    if (nr_php_is_zval_valid_string(curlval)) {
+      method = nr_strndup(Z_STRVAL_P(curlval), Z_STRLEN_P(curlval));
+    }
   } else if (nr_php_is_zval_named_constant(curlopt,
                                            "CURLOPT_HTTPGET" TSRMLS_CC)) {
     method = nr_strdup("GET");

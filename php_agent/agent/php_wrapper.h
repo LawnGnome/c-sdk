@@ -156,7 +156,10 @@ extern zval** nr_php_get_return_value_ptr(TSRMLS_D);
 #define NR_PHP_WRAPPER_START(name) \
   NR_PHP_WRAPPER_PROTOTYPE(name) { \
     int was_executed = 0;          \
-    int zcaught = 0;
+    int zcaught = 0;               \
+                                   \
+    (void)auto_segment;  // auto_segment isn't generally used in wrapper
+                         // functions
 
 #define NR_PHP_WRAPPER(name) static NR_PHP_WRAPPER_START(name)
 

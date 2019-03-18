@@ -74,7 +74,6 @@ static nr_modify_table_name_fn_t nr_php_modify_table_name_fn(TSRMLS_D) {
 }
 
 void nr_php_txn_end_segment_sql(nr_segment_t* segment,
-                                const nrtxntime_t* stop,
                                 const char* sql,
                                 int sqllen,
                                 const nr_explain_plan_t* plan,
@@ -125,9 +124,6 @@ void nr_php_txn_end_segment_sql(nr_segment_t* segment,
     };
 
     nr_segment_datastore_end(segment, &params);
-    if (NULL != stop) {
-      segment->stop_time = nr_txn_time_abs_to_rel(NRPRG(txn), stop->when);
-    }
   }
 
   nr_free(terminated_sql);

@@ -313,3 +313,37 @@ If you want to reseed jobs using the repository's groovy files use the
 [refresh-jenkins-jobs](https://phpagent-build.pdx.vm.datanerd.us/view/All/job/refresh-jenkins-jobs)
 job.  This job, when built with parameters, will look for all .groovy files
 contained within hudson/jobs/ and recreate those jobs in Jenkins.
+
+### Jenkins builds fail. I think it isn't my fault. I don't have the time or motivation to debug Jenkins. What should I do?
+
+Sometimes Jenkins fails in strange ways. Reasons for this can be, for example, 
+corrupt workspaces or the lack of disk space on build nodes.
+
+There are two brute-force practices that often fix those issues: restarting 
+build nodes and wiping out workspaces. Before you do this, *make sure that no 
+PR builder jobs are running*. To do this, navigate to the [pull-request-parallel-top](https://phpagent-build.pdx.vm.datanerd.us/job/php-pull-request-parallel-top/)
+Jenkins job and verify that no build is currently in progress.
+
+* _Restart build nodes_. This can be done for builds that run on AWS nodes
+  (Alpine, CentOS and FreeBSD). You cannot do this for MacOS builds. Restarting
+  an AWS node effectively wipes out the workspace and will also fix swap/memory
+  issues on the node. 
+
+  1. Navigate to the [node setup](https://phpagent-build.pdx.vm.datanerd.us/computer/) 
+     page in Jenkins.
+  2. Search for a node of the platform that causes problems. If there is no
+     node left, you're finished.
+  3. Click on one node of the platform that causes problems.
+  4. Click _Disconnect_ in the list on the left. Confirm by clicking _Yes_.
+  5. Continue with (i).
+
+  New AWS nodes will be provisioned automatically when a new PR build is 
+  triggered. The first PR build might take a longer time, as it has to spin up
+  the new AWS nodes.
+
+* _Wipe out the workspace_. This should be done for MacOS builds, which do not
+  run on AWS nodes.
+
+  1. Navigate to the Jenkins build that failed (e. g. [here](https://phpagent-build.pdx.vm.datanerd.us/job/php-pull-request-parallel-5-6/label=macos106-64-nrcamp/)). 
+  2. Click _Workspace_ in the list on the left and make it expand.
+  3. In the expanded list, click _Wipe Out Current Workspace_.

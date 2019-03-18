@@ -45,9 +45,8 @@ extern int nr_php_explain_mysql_query_is_explainable(const char* query,
 extern nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
                                                        zval* stmt,
                                                        zval* parameters,
-                                                       const nrtxntime_t* start,
-                                                       const nrtxntime_t* stop
-                                                           TSRMLS_DC);
+                                                       nrtime_t start,
+                                                       nrtime_t stop TSRMLS_DC);
 
 /*
  * Purpose : Ascertain if we want to generate an explain plan for a query of

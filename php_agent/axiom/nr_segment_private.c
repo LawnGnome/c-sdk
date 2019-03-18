@@ -156,6 +156,7 @@ void nr_segment_destroy_fields(nr_segment_t* segment) {
 
   nr_free(segment->id);
   nr_vector_destroy(&segment->metrics);
+  nr_exclusive_time_destroy(&segment->exclusive_time);
   nro_delete(segment->user_attributes);
   nr_segment_destroy_typed_attributes(segment->type,
                                       &segment->typed_attributes);

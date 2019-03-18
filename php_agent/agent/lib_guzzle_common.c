@@ -11,21 +11,12 @@
 #include "util_memory.h"
 #include "util_strings.h"
 
-char* nr_guzzle_create_async_context_name(const char* prefix, zval* obj) {
-  char* name = NULL;
-  char* ename = NULL;
-  int ename_len = 0;
-
+char* nr_guzzle_create_async_context_name(const char* prefix, const zval* obj) {
   if (!nr_php_is_zval_valid_object(obj)) {
     return NULL;
   }
 
-  /* TODO(aharvey): replace with asprintf when we can use it. */
-  ename_len = spprintf(&ename, 0, "%s #%d", prefix, Z_OBJ_HANDLE_P(obj));
-  name = nr_strndup(ename, ename_len);
-  efree(ename);
-
-  return name;
+  return nr_formatf("%s #%d", prefix, Z_OBJ_HANDLE_P(obj));
 }
 
 static int nr_guzzle_stack_iterator(zval* frame,
@@ -83,28 +74,27 @@ int nr_guzzle_does_zval_implement_has_emitter(zval* obj TSRMLS_DC) {
       obj, "GuzzleHttp\\Event\\HasEmitterInterface" TSRMLS_CC);
 }
 
-static void nr_guzzle_obj_destroy(nrtxntime_t* time) {
-  nr_free(time);
-}
+void nr_guzzle_obj_add(const zval* obj,
+                       const char* async_context_prefix TSRMLS_DC) {
+  nr_segment_t* segment;
+  char* async_context;
 
-void nr_guzzle_obj_add(const zval* obj TSRMLS_DC) {
-  nrtxntime_t* start = (nrtxntime_t*)nr_malloc(sizeof(nrtxntime_t));
+  /*
+   * Create the async context, in case there was parallelism.
+   */
+  async_context
+      = nr_guzzle_create_async_context_name(async_context_prefix, obj);
+
+  segment = nr_segment_start(NRPRG(txn), nr_txn_get_current_segment(NRPRG(txn)),
+                             async_context);
+
+  nr_free(async_context);
 
   /*
    * Create the guzzle_objs hash table if we haven't already done so.
    */
   if (NULL == NRPRG(guzzle_objs)) {
-    NRPRG(guzzle_objs)
-        = nr_hashmap_create((nr_hashmap_dtor_func_t)nr_guzzle_obj_destroy);
-  }
-
-  nr_txn_set_time(NRPRG(txn), start);
-
-  /*
-   * Ditto for the async context.
-   */
-  if (NULL == NRPRG(guzzle_ctx)) {
-    NRPRG(guzzle_ctx) = nr_async_context_create(start->when);
+    NRPRG(guzzle_objs) = nr_hashmap_create(NULL);
   }
 
   /*
@@ -115,53 +105,24 @@ void nr_guzzle_obj_add(const zval* obj TSRMLS_DC) {
    * string to use string keys.
    */
   nr_hashmap_index_update(NRPRG(guzzle_objs), (uint64_t)Z_OBJ_HANDLE_P(obj),
-                          start);
+                          segment);
 }
 
 nr_status_t nr_guzzle_obj_find_and_remove(const zval* obj,
-                                          nrtxntime_t* start TSRMLS_DC) {
-  if ((NULL != NRPRG(guzzle_objs)) && (NULL != NRPRG(guzzle_ctx))) {
+                                          nr_segment_t** segment_ptr
+                                              TSRMLS_DC) {
+  if (NULL != NRPRG(guzzle_objs)) {
     uint64_t index = (uint64_t)Z_OBJ_HANDLE_P(obj);
-    nrtxntime_t* saved;
+    nr_segment_t* segment;
 
-    saved = (nrtxntime_t*)nr_hashmap_index_get(NRPRG(guzzle_objs), index);
-    if (saved) {
-      nrtime_t duration;
-      nrtxntime_t stop = {.stamp = 0, .when = 0};
+    segment = (nr_segment_t*)nr_hashmap_index_get(NRPRG(guzzle_objs), index);
+    *segment_ptr = segment;
 
-      /*
-       * Copy the start time, since we're about to delete the hashmap value.
-       */
-      nr_memcpy(start, saved, sizeof(nrtxntime_t));
-
+    if (segment) {
       /*
        * Remove the object handle from the hashmap containing active requests.
        */
       nr_hashmap_index_delete(NRPRG(guzzle_objs), index);
-
-      /*
-       * Add the duration of the request to the amount of time we've spent
-       * doing async work.
-       */
-      nr_txn_set_time(NRPRG(txn), &stop);
-      duration = nr_time_duration(start->when, stop.when);
-      nr_async_context_add(NRPRG(guzzle_ctx), duration);
-
-      /*
-       * If there are no more objects in the cache, then this was the last of a
-       * set of requests, and we should close off the context and add the time
-       * that was actually spent doing async work to the transaction's
-       * async_duration.
-       */
-      if (0 == nr_hashmap_count(NRPRG(guzzle_objs))) {
-        nrtime_t async_duration;
-
-        nr_async_context_end(NRPRG(guzzle_ctx), stop.when);
-        async_duration = nr_async_context_get_duration(NRPRG(guzzle_ctx));
-        nr_txn_add_async_duration(NRPRG(txn), async_duration);
-
-        nr_async_context_destroy(&NRPRG(guzzle_ctx));
-      }
 
       return NR_SUCCESS;
     }

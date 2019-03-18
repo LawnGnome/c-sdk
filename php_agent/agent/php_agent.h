@@ -84,7 +84,7 @@
 
 /*
  * Purpose : Produce a JSON string, which is an array of single stack frame
- *           entries.
+ *           entries. The array size is limited to NR_PHP_STACKTRACE_LIMIT.
  *
  * Params  : 1. An optional zval of the point from which to do the trace.
  *              If this is NULL, nr_php_backtrace is used to capture the
@@ -92,6 +92,7 @@
  *
  * Returns : A newly allocated JSON stack trace string or NULL on error.
  */
+#define NR_PHP_STACKTRACE_LIMIT 300
 extern char* nr_php_backtrace_to_json(zval* itrace TSRMLS_DC);
 
 /*

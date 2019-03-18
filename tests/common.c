@@ -53,9 +53,6 @@ int txn_group_setup(void** state) {
   nr_txn_set_current_segment(txn->txn, txn->txn->segment_root);
   txn->txn->segment_count = 1;
 
-  txn->txn->root_kids_duration = 0;
-  txn->txn->cur_kids_duration = &txn->txn->root_kids_duration;
-
   *state = txn;
   return 0;  // tells cmocka setup completed, 0==OK
 }

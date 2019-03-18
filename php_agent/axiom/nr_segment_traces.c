@@ -72,7 +72,7 @@ static void add_async_attribute_to_buffer(nrbuf_t* buf,
   add_hash_key_value_to_buffer(buf, "async_context", context_idx_str, false);
 }
 
-/* 
+/*
  * Purpose: Add a hash to a hash in the buffer.
  *
  * The hash is added without the leading and trailing '{' and '}'
@@ -184,7 +184,6 @@ static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
   nr_segment_userdata_trace_t* tracedata = &(userdata->trace);
   bool trace_is_sampled = (NULL != tracedata->sample);
   bool segment_is_sampled = nr_set_contains(tracedata->sample, (void*)segment);
-  const nrtxn_t* txn = userdata->txn;
   nrpool_t* segment_names = userdata->segment_names;
   nrbuf_t* buf = userdata->trace.buf;
   int idx;
@@ -249,16 +248,7 @@ static void nr_segment_iteration_pass_trace(nr_segment_t* segment,
 
   add_typed_attributes_to_buffer(buf, segment);
 
-  /*
-   * We only want to add the async context if the transaction itself is
-   * asynchronous: ie if the WebTransactionTotalTime metric > WebTransaction.
-   * The reason for this is that APM displays the transaction trace differently
-   * if it has an async context; the external is moved out of the place where
-   * it was called, which is confusing for the common single threaded case (but
-   * makes sense if there are parallel requests, since you see them together,
-   * rather than nested under their individual start points).
-   */
-  if (segment->async_context && txn->async_duration) {
+  if (segment->async_context) {
     add_async_attribute_to_buffer(buf, segment, segment_names);
   }
 
@@ -366,7 +356,8 @@ static void nr_segment_iteration_pass_span(nr_segment_t* segment,
 
   /* The start_time of a segment is measured relative to the transaction.
    * Calculate its absolute timestamp and add it to the span event. */
-  nr_span_event_set_timestamp(span, nr_txn_time_rel_to_abs(txn, segment->start_time));
+  nr_span_event_set_timestamp(span,
+                              nr_txn_time_rel_to_abs(txn, segment->start_time));
 
   nr_span_event_set_duration(
       span, nr_time_duration(segment->start_time, segment->stop_time));

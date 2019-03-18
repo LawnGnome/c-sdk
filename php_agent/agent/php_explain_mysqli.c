@@ -91,14 +91,13 @@ nr_explain_plan_t* nr_php_explain_mysqli_query(const nrtxn_t* txn,
                                                zval* link,
                                                const char* sql,
                                                int sql_len,
-                                               const nrtxntime_t* start,
-                                               const nrtxntime_t* stop
-                                                   TSRMLS_DC) {
+                                               nrtime_t start,
+                                               nrtime_t stop TSRMLS_DC) {
   nrtime_t duration;
   nr_explain_plan_t* plan = NULL;
   char* query;
 
-  if ((NULL == txn) || (NULL == sql) || (NULL == start) || (NULL == stop)) {
+  if ((NULL == txn) || (NULL == sql)) {
     return NULL;
   }
 
@@ -106,7 +105,7 @@ nr_explain_plan_t* nr_php_explain_mysqli_query(const nrtxn_t* txn,
     return NULL;
   }
 
-  duration = nr_time_duration(start->when, stop->when);
+  duration = nr_time_duration(start, stop);
   if (!nr_php_explain_wanted(txn, duration TSRMLS_CC)) {
     return NULL;
   }
@@ -124,19 +123,18 @@ nr_explain_plan_t* nr_php_explain_mysqli_query(const nrtxn_t* txn,
 
 nr_explain_plan_t* nr_php_explain_mysqli_stmt(const nrtxn_t* txn,
                                               nr_php_object_handle_t handle,
-                                              const nrtxntime_t* start,
-                                              const nrtxntime_t* stop
-                                                  TSRMLS_DC) {
+                                              nrtime_t start,
+                                              nrtime_t stop TSRMLS_DC) {
   nrtime_t duration;
   zval* link = NULL;
   nr_explain_plan_t* plan = NULL;
   char* query = NULL;
 
-  if ((NULL == txn) || (NULL == start) || (NULL == stop)) {
+  if ((NULL == txn)) {
     return NULL;
   }
 
-  duration = nr_time_duration(start->when, stop->when);
+  duration = nr_time_duration(start, stop);
   if (!nr_php_explain_wanted(txn, duration TSRMLS_CC)) {
     return NULL;
   }

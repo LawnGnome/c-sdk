@@ -73,9 +73,11 @@ TEST_BINARIES = \
 	tests/test_pdo_mysql \
 	tests/test_pdo_pgsql \
 	tests/test_pgsql \
+	tests/test_php_stack \
 	tests/test_predis \
 	tests/test_redis \
 	tests/test_txn_private \
+	tests/test_user_instrument \
 	tests/test_zval
 
 .PHONY: unit-tests

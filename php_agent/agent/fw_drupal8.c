@@ -45,11 +45,10 @@ static void nr_drupal8_add_method_callback(const zend_class_entry* ce,
   }
 
   /*
-   * nr_php_add_custom_tracer will check if the method has already been
-   * instrumented anyway, but does so in an O(n) manner by iterating over all
-   * wraprecs. We can short circuit this here by checking the fn_flags.
+   * Using nr_php_op_array_get_wraprec to check if the method has valid
+   * instrumentation.
    */
-  if (0 == nr_php_user_function_is_instrumented(function)) {
+  if (NULL == nr_php_op_array_get_wraprec(&function->op_array TSRMLS_CC)) {
     char* class_method = nr_formatf(
         "%.*s::%.*s", NRSAFELEN(nr_php_class_entry_name_length(ce)),
         nr_php_class_entry_name(ce), NRSAFELEN(method_len), method);
@@ -255,7 +254,7 @@ NR_PHP_WRAPPER(nr_drupal8_wrap_view_execute) {
   name_len = Z_STRLEN_P(label);
   name = nr_strndup(Z_STRVAL_P(label), name_len);
 
-  zcaught = nr_drupal_do_view_execute(name, name_len,
+  zcaught = nr_drupal_do_view_execute(name, name_len, auto_segment,
                                       NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
   was_executed = 1;
 
