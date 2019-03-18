@@ -264,7 +264,7 @@ active transactions.
 
     // The datastore call to be timed goes here
 
-    newrelic_end_datastore_segment(txn, &segment);
+    newrelic_end_segment(txn, &segment);
 ```
 
 The `newrelic_datastore_segment_params_t` struct contains a list of
