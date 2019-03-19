@@ -3,8 +3,6 @@ newrelic_start_datastore_segment() should record a datastore segment with the
 minimum possible options.
 */
 
-/*XFAIL datastore parameters are not supported yet. */
-
 /*CONFIG
   cfg->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   cfg->transaction_tracer.duration_us = 1;
@@ -18,18 +16,17 @@ minimum possible options.
   [
     [{"name":"Datastore/all"},                                [1, "??", "??", "??", "??", "??"]],
     [{"name":"Datastore/allOther"},                           [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/custom/all"},                         [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/custom/allOther"},                    [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/instance/custom/unknown/unknown"},    [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/operation/custom/other"},             [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/statement/custom/other/other"},       [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/statement/custom/other/other",
+    [{"name":"Datastore/Other/all"},                          [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/Other/allOther"},                     [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/instance/Other/unknown/unknown"},     [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/operation/Other/other"},              [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/statement/Other/other/other"},        [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/statement/Other/other/other",
       "scope":"OtherTransaction/Action/basic"},               [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransaction/all"},                         [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransaction/Action/basic"},                [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransactionTotalTime"},                    [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime/php__FILE__"},        [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Supportability/api/record_datastore_segment"},  [1, "??", "??", "??", "??", "??"]]
+    [{"name":"OtherTransactionTotalTime/Action/basic"},       [1, "??", "??", "??", "??", "??"]]
   ]
 ]
 */
@@ -76,7 +73,7 @@ minimum possible options.
         ],
         [
           "OtherTransaction/Action/basic",
-          "Datastore/statement/custom/other/other"
+          "Datastore/statement/Other/other/other"
         ]
       ],
       "?? txn guid",
@@ -93,6 +90,6 @@ minimum possible options.
 
 RUN_NONWEB_TXN("basic") {
   newrelic_segment_t* datastore = newrelic_start_datastore_segment(
-      txn, &(newrelic_datastore_segment_params_t){.product = "custom"});
+      txn, &(newrelic_datastore_segment_params_t){.product = ""});
   newrelic_end_segment(txn, &datastore);
 }

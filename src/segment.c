@@ -200,11 +200,11 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
 
   nrt_mutex_lock(&transaction->lock);
   {
-    /* Stop the segment. */
-    nr_segment_end(segment->segment);
-
     switch (segment->segment->type) {
       case NR_SEGMENT_CUSTOM:
+        /* Stop the segment. */
+        nr_segment_end(segment->segment);
+
         /* Add a custom metric. */
         nr_segment_add_metric(segment->segment,
                               nr_string_get(transaction->txn->trace_strings,

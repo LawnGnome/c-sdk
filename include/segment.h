@@ -7,6 +7,7 @@
 #define LIBNEWRELIC_SEGMENT_H
 
 #include <stdbool.h>
+#include "nr_segment_datastore.h"
 #include "nr_txn.h"
 
 typedef struct _newrelic_segment_t {
@@ -20,8 +21,17 @@ typedef struct _newrelic_segment_t {
    * level, we have a union to minimise future refactoring. */
   union {
     struct {
+      /* The C agent datastore API offers that the user supplies datastore
+       * metadata at a segment's start. The user-facing function,
+       * newrelic_start_datastore_segment(), performs a few checks on this
+       * metdata and then saves it here. It is used to record metrics when
+       * a call to newrelic_end_segment() ends the datastore segment. */
       char* collection;
       char* operation;
+      nr_datastore_instance_t instance;
+      nr_datastore_t type;
+      char* string;
+      char* sql;
     } datastore;
   } type;
 } newrelic_segment_t;

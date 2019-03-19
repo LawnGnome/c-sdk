@@ -9,23 +9,24 @@
 
 #include "nr_segment.h"
 #include "transaction.h"
+#include "util_strings.h"
 #include "util_memory.h"
 
 #include "test.h"
 
 /* Create a datastore segment interesting enough for testing purposes */
 static newrelic_segment_t* mock_datastore_segment(newrelic_txn_t* txn) {
-  newrelic_segment_t* segment_ptr = nr_zalloc(sizeof(newrelic_segment_t));
-  segment_ptr->transaction = txn->txn;
+  newrelic_segment_t* segment = newrelic_segment_create(txn->txn);
 
-  segment_ptr->segment = nr_segment_start(txn->txn, NULL, NULL);
-  nr_segment_set_datastore(segment_ptr->segment,
-                           &((nr_segment_datastore_t){.component = "product"}));
+  segment->segment->type = NR_SEGMENT_DATASTORE;
 
-  segment_ptr->type.datastore.collection = nr_strdup("collection");
-  segment_ptr->type.datastore.operation = nr_strdup("operation");
+  segment->type.datastore.collection = nr_strdup("collection");
+  segment->type.datastore.operation = nr_strdup("operation");
 
-  return segment_ptr;
+  segment->type.datastore.type = NR_DATASTORE_OTHER;
+  segment->type.datastore.string = nr_strdup("product");
+
+  return segment;
 }
 
 /*
@@ -76,26 +77,37 @@ static void test_start_datastore_segment_empty_product(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
   assert_non_null(segment->segment);
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+
+  assert_int_equal((int)NR_SEGMENT_DATASTORE, (int)segment->segment->type);
   assert_ptr_equal(txn->txn, segment->transaction);
 
-  /* Affirm that the product string was properly set. An empty string should be
-   * transformed to NEWRELIC_DATASTORE_OTHER. */
-  assert_string_equal(NEWRELIC_DATASTORE_OTHER,
-                      segment->segment->typed_attributes.datastore.component);
+  /* Affirm the type is correct given the empty product string */
+  assert_int_equal((int)NR_DATASTORE_OTHER, (int)segment->type.datastore.type);
 
-  /* Affirm correct defaults everywhere else */
+  /* Affirm correct defaults */
   assert_string_equal("other", segment->type.datastore.collection);
   assert_ptr_not_equal("other", segment->type.datastore.collection);
 
   assert_string_equal("other", segment->type.datastore.operation);
   assert_ptr_not_equal("other", segment->type.datastore.operation);
 
-  assert_null(segment->segment->typed_attributes.datastore.sql);
-  assert_null(segment->segment->typed_attributes.datastore.sql_obfuscated);
-  assert_null(segment->segment->typed_attributes.datastore.backtrace_json);
-  assert_null(segment->segment->typed_attributes.datastore.explain_plan_json);
-  assert_null(segment->segment->typed_attributes.datastore.input_query_json);
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  assert_string_equal("Other", segment->type.datastore.string);
+  assert_ptr_not_equal("Other", segment->type.datastore.string);
+
+  assert_string_equal("unknown", segment->type.datastore.instance.host);
+  assert_ptr_not_equal("unknown", segment->type.datastore.instance.host);
+
+  assert_string_equal("unknown",
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal("unknown",
+                       segment->type.datastore.instance.port_path_or_id);
+
+  assert_string_equal("unknown",
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal("unknown",
+                       segment->type.datastore.instance.database_name);
 
   newrelic_segment_destroy(&segment);
 }
@@ -128,48 +140,37 @@ static void test_start_datastore_segment_valid(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
   assert_non_null(segment->segment);
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_int_equal((int)NR_SEGMENT_DATASTORE, (int)segment->segment->type);
   assert_ptr_equal(txn->txn, segment->transaction);
 
-  /* Affirm that the product string was properly set. */
-  assert_string_equal(NEWRELIC_DATASTORE_MYSQL,
-                      segment->segment->typed_attributes.datastore.component);
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
 
-  /* Affirm correct defaults everywhere else */
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(collection, segment->type.datastore.collection);
   assert_ptr_not_equal(collection, segment->type.datastore.collection);
 
   assert_string_equal(operation, segment->type.datastore.operation);
   assert_ptr_not_equal(operation, segment->type.datastore.operation);
 
-  assert_string_equal(
-      query, segment->segment->typed_attributes.datastore.sql_obfuscated);
-  assert_ptr_not_equal(
-      query, segment->segment->typed_attributes.datastore.sql_obfuscated);
+  assert_string_equal(query, segment->type.datastore.sql);
+  assert_ptr_not_equal(query, segment->type.datastore.sql);
 
-  assert_null(segment->segment->typed_attributes.datastore.sql);
-  assert_null(segment->segment->typed_attributes.datastore.backtrace_json);
-  assert_null(segment->segment->typed_attributes.datastore.explain_plan_json);
-  assert_null(segment->segment->typed_attributes.datastore.input_query_json);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(
-      host, segment->segment->typed_attributes.datastore.instance.host);
-  assert_ptr_not_equal(
-      host, segment->segment->typed_attributes.datastore.instance.host);
+  assert_string_equal(host, segment->type.datastore.instance.host);
+  assert_ptr_not_equal(host, segment->type.datastore.instance.host);
 
-  assert_string_equal(
-      port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
+  assert_string_equal(port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
-  assert_string_equal(
-      database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
+  assert_string_equal(database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(database_name,
+                       segment->type.datastore.instance.database_name);
 
   newrelic_segment_destroy(&segment);
 }
@@ -250,6 +251,30 @@ static void test_end_datastore_segment_valid(void** state) {
 }
 
 /*
+ * Purpose: Test that newrelic_start_datastore_segment() handles
+ * a product of "other"
+ */
+static void test_start_datastore_product_other(void** state) {
+  newrelic_txn_t* txn = (newrelic_txn_t*)*state;
+
+  newrelic_datastore_segment_params_t params
+       = {.product = NEWRELIC_DATASTORE_OTHER};
+
+  newrelic_segment_t* segment;
+  segment = newrelic_start_datastore_segment(txn, &params);
+  assert_non_null(segment);
+
+  /* Affirm the type and string are correct */
+  assert_int_equal((int)NR_DATASTORE_OTHER, (int)segment->type.datastore.type);
+
+  assert_string_equal("Other", segment->type.datastore.string);
+  assert_ptr_not_equal("Other", segment->type.datastore.string);
+
+  newrelic_segment_destroy(&segment);
+}
+
+
+/*
  * Purpose: Test that newrelic_start_datastore_segment() handles inputs from
  * cross agent tests
  */
@@ -269,32 +294,34 @@ static void test_start_datastore_segment_all_params_without_query(
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.collection, segment->type.datastore.collection);
+  assert_ptr_not_equal(params.collection, segment->type.datastore.collection);
+
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal(params.host, segment->type.datastore.instance.host);
+  assert_ptr_not_equal(params.host, segment->type.datastore.instance.host);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
-  assert_ptr_not_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(params.port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
-  assert_string_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-
-  assert_string_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
+  assert_string_equal(params.database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(params.database_name,
+                       segment->type.datastore.instance.database_name);
 
   newrelic_segment_destroy(&segment);
 }
@@ -317,29 +344,35 @@ static void test_start_datastore_segment_database_name_missing(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the database name is "unknown" */
+  assert_string_equal("unknown",
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal("unknown",
+                       segment->type.datastore.instance.database_name);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.collection, segment->type.datastore.collection);
+  assert_ptr_not_equal(params.collection, segment->type.datastore.collection);
+
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
+  assert_string_equal(params.host, segment->type.datastore.instance.host);
+  assert_ptr_not_equal(params.host, segment->type.datastore.instance.host);
 
-  assert_string_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
-  assert_ptr_not_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
-
-  assert_string_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-
-  assert_string_equal(
-      "unknown",
-      segment->segment->typed_attributes.datastore.instance.database_name);
+  assert_string_equal(params.port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(params.port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
   newrelic_segment_destroy(&segment);
 }
@@ -360,27 +393,35 @@ static void test_start_datastore_segment_host_and_port_missing(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the host and port_path_or_id are "unknown" */
+  assert_string_equal("unknown", segment->type.datastore.instance.host);
+  assert_ptr_not_equal("unknown", segment->type.datastore.instance.host);
+
+  assert_string_equal("unknown",
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal("unknown",
+                       segment->type.datastore.instance.port_path_or_id);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.collection, segment->type.datastore.collection);
+  assert_ptr_not_equal(params.collection, segment->type.datastore.collection);
+
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
-
-  assert_string_equal(
-      "unknown", segment->segment->typed_attributes.datastore.instance.host);
-
-  assert_string_equal(
-      "unknown",
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-
-  assert_string_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
+  assert_string_equal(params.database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(params.database_name,
+                       segment->type.datastore.instance.database_name);
 
   newrelic_segment_destroy(&segment);
 }
@@ -402,30 +443,35 @@ static void test_start_datastore_segment_host_missing(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the host is "unknown" */
+  assert_string_equal("unknown", segment->type.datastore.instance.host);
+  assert_ptr_not_equal("unknown", segment->type.datastore.instance.host);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.collection, segment->type.datastore.collection);
+  assert_ptr_not_equal(params.collection, segment->type.datastore.collection);
+
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
+  assert_string_equal(params.port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(params.port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
-  assert_string_equal(
-      "unknown", segment->segment->typed_attributes.datastore.instance.host);
-
-  assert_string_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-
-  assert_string_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
+  assert_string_equal(params.database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(params.database_name,
+                       segment->type.datastore.instance.database_name);
 
   newrelic_segment_destroy(&segment);
 }
@@ -448,32 +494,36 @@ static void test_start_datastore_segment_missing_collection(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm collection is "other" */
   assert_string_equal("other", segment->type.datastore.collection);
+  assert_ptr_not_equal("other", segment->type.datastore.collection);
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal(params.host, segment->type.datastore.instance.host);
+  assert_ptr_not_equal(params.host, segment->type.datastore.instance.host);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
-  assert_ptr_not_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(params.port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
-  assert_string_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
+  assert_string_equal(params.database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(params.database_name,
+                       segment->type.datastore.instance.database_name);
 
-  assert_string_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
   newrelic_segment_destroy(&segment);
 }
 
@@ -495,30 +545,35 @@ static void test_start_datastore_segment_localhost_replacement(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm that the localhost was swapped out */
+  assert_string_not_equal(params.host, segment->type.datastore.instance.host);
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.collection, segment->type.datastore.collection);
+  assert_ptr_not_equal(params.collection, segment->type.datastore.collection);
+
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
+  assert_string_equal(params.port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(params.port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
-  assert_string_not_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
+  assert_string_equal(params.database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(params.database_name,
+                       segment->type.datastore.instance.database_name);
 
-  assert_string_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-
-  assert_string_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
   newrelic_segment_destroy(&segment);
 }
 
@@ -541,32 +596,34 @@ static void test_start_datastore_segment_socket_path_port(void** state) {
   segment = newrelic_start_datastore_segment(txn, &params);
   assert_non_null(segment);
 
+  /* Affirm the type is correct given the product string */
+  assert_int_equal((int)NR_DATASTORE_MYSQL, (int)segment->type.datastore.type);
+
+  /* Affirm the query is an empty string */
+  assert_int_equal(1, nr_strempty(segment->type.datastore.sql));
+
+  /* Affirm correct initialization of other datastore fields */
   assert_string_equal(params.collection, segment->type.datastore.collection);
+  assert_ptr_not_equal(params.collection, segment->type.datastore.collection);
+
   assert_string_equal(params.operation, segment->type.datastore.operation);
+  assert_ptr_not_equal(params.operation, segment->type.datastore.operation);
 
-  assert_int_equal(NR_SEGMENT_DATASTORE, segment->segment->type);
+  assert_string_equal(params.host, segment->type.datastore.instance.host);
+  assert_ptr_not_equal(params.host, segment->type.datastore.instance.host);
 
-  assert_string_equal(params.product,
-                      segment->segment->typed_attributes.datastore.component);
+  assert_string_equal("MySQL", segment->type.datastore.string);
+  assert_ptr_not_equal("MySQL", segment->type.datastore.string);
 
-  assert_string_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
-  assert_ptr_not_equal(
-      params.host, segment->segment->typed_attributes.datastore.instance.host);
+  assert_string_equal(params.port_path_or_id,
+                      segment->type.datastore.instance.port_path_or_id);
+  assert_ptr_not_equal(params.port_path_or_id,
+                       segment->type.datastore.instance.port_path_or_id);
 
-  assert_string_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-  assert_ptr_not_equal(
-      params.port_path_or_id,
-      segment->segment->typed_attributes.datastore.instance.port_path_or_id);
-
-  assert_string_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
-  assert_ptr_not_equal(
-      params.database_name,
-      segment->segment->typed_attributes.datastore.instance.database_name);
+  assert_string_equal(params.database_name,
+                      segment->type.datastore.instance.database_name);
+  assert_ptr_not_equal(params.database_name,
+                       segment->type.datastore.instance.database_name);
 
   newrelic_segment_destroy(&segment);
 }
@@ -584,6 +641,7 @@ int main(void) {
       cmocka_unit_test(test_end_datastore_segment_invalid_txn),
       cmocka_unit_test(test_end_datastore_segment_different_txn),
       cmocka_unit_test(test_end_datastore_segment_valid),
+      cmocka_unit_test(test_start_datastore_product_other),
       cmocka_unit_test(test_start_datastore_segment_all_params_without_query),
       cmocka_unit_test(test_start_datastore_segment_database_name_missing),
       cmocka_unit_test(test_start_datastore_segment_host_and_port_missing),

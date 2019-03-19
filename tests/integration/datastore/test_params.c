@@ -3,8 +3,6 @@ newrelic_start_datastore_segment() should record a datastore segment with the
 given options.
 */
 
-/*XFAIL datastore parameters are not supported yet. */
-
 /*CONFIG
   cfg->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   cfg->transaction_tracer.duration_us = 1;
@@ -18,14 +16,16 @@ given options.
   [
     [{"name":"Datastore/all"},                                [1, "??", "??", "??", "??", "??"]],
     [{"name":"Datastore/allOther"},                           [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/mysql/all"},                          [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/operation/mysql/select"},             [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/statement/mysql/products/select"},    [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/MySQL/all"},                          [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/MySQL/allOther"},                     [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/instance/MySQL/p_host/31339"},        [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/operation/MySQL/select"},             [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Datastore/statement/MySQL/products/select"},    [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransaction/Action/basic"},                [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransaction/all"},                         [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransactionTotalTime"},                    [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransactionTotalTime/Action/basic"},       [1, "??", "??", "??", "??", "??"]],
-    [{"name":"Datastore/statement/mysql/products/select",
+    [{"name":"Datastore/statement/MySQL/products/select",
       "scope":"OtherTransaction/Action/basic"},               [1, "??", "??", "??", "??", "??"]]
   ]
 ]
@@ -54,7 +54,8 @@ given options.
                     {
                       "host": "p_host",
                       "port_path_or_id": "31339",
-                      "database_name": "p_database"
+                      "database_name": "p_database",
+                      "sql_obfuscated": "SELECT * from products"
                     },
                     []
                   ]
@@ -73,7 +74,7 @@ given options.
         ],
         [
           "OtherTransaction/Action/basic",
-          "Datastore/statement/mysql/products/select"
+          "Datastore/statement/MySQL/products/select"
         ]
       ],
       "?? txn guid",
@@ -95,7 +96,7 @@ ok - datastore != NULL
 RUN_NONWEB_TXN("basic") {
   newrelic_segment_t* datastore = newrelic_start_datastore_segment(
       txn, &(newrelic_datastore_segment_params_t){
-               .product = "mysql",
+               .product = NEWRELIC_DATASTORE_MYSQL,
                .collection = "products",
                .operation = "select",
                .host = "p_host",
