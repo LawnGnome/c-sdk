@@ -45,7 +45,7 @@ int main(void) {
 
   /* Start a web transaction and a segment */
   txn = newrelic_start_web_transaction(app, "Transaction name");
-  seg = newrelic_start_segment(txn, "Segment name", "Custom/Category");
+  seg = newrelic_start_segment(txn, "Segment name", "Custom");
 
   /* Interesting application code happens here */
   sleep(2);
@@ -209,7 +209,7 @@ on active transactions.
 
 ```c
     newrelic_segment_t* segment = 
-       newrelic_start_segment(txn, "Segment name", "Custom/Category");
+       newrelic_start_segment(txn, "Segment name", "Custom");
 
     // The application code to be timed goes here
 
@@ -217,9 +217,6 @@ on active transactions.
 ```
 
 You can also find a working code sample in `examples/ex_custom.c`.  
-
-**Important**: Start all custom segment category names with `Custom/`; for 
-example, `Custom/MyCategory/MySubCategory`. 
 
 ### Datastore Segments
 
@@ -477,7 +474,7 @@ Similarly, users may manually change timing for active segments using
 `newrelic_set_segment_timing()`, as shown in the example below.
 
 ```c 
-  seg_c = newrelic_start_segment(txn, "C", "Custom/Secret");
+  seg_c = newrelic_start_segment(txn, "C", "Custom");
 
   /* Manually change seg_c so that starts 10 us after the start 
    * of the transaction and lasts half a second. */
@@ -498,7 +495,7 @@ lasted a full second.
 ```c
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  seg = newrelic_start_segment(txn, "Segment A", "Custom/Category");
+  seg = newrelic_start_segment(txn, "Segment A", "Custom");
   sleep(1);
   newrelic_end_segment(txn, &seg);
 
@@ -528,7 +525,7 @@ duration to 2 seconds.
 ```c
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");
 
-  seg = newrelic_start_segment(txn, "Segment A", "Custom/Category");
+  seg = newrelic_start_segment(txn, "Segment A", "Custom");
   sleep(1);
 
   /* Manually change the segment timing so that it starts at the

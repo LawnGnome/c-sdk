@@ -58,13 +58,13 @@ int main(void) {
    * Note that this means that seg_a must outlive (at least) the call to
    * newrelic_set_segment_parent() for seg_c.
    */
-  seg_a = newrelic_start_segment(txn, "A", "Custom/Parented by agent");
+  seg_a = newrelic_start_segment(txn, "A", "Parented by agent");
   sleep(1);
 
-  seg = newrelic_start_segment(txn, "B", "Custom/Parented by agent");
+  seg = newrelic_start_segment(txn, "B", "Parented by agent");
   sleep(1);
 
-  seg_c = newrelic_start_segment(txn, "C", "Custom/Manually reparented");
+  seg_c = newrelic_start_segment(txn, "C", "Manually reparented");
   newrelic_set_segment_parent(seg_c, seg_a);
 
   /* Instead of sleeping, we'll just manually time seg_c and immediately end
@@ -75,7 +75,7 @@ int main(void) {
 
   /* Create a new segment to be manually re-parented by the top-level segment
    * of the transaction */
-  seg_d = newrelic_start_segment(txn, "D", "Custom/Manually reparented");
+  seg_d = newrelic_start_segment(txn, "D", "Manually reparented");
   sleep(1);
   newrelic_set_segment_parent_root(seg_d);
 
