@@ -10,6 +10,13 @@
 #include "segment.h"
 
 /*!
+ * @brief Destroy the external-specific fields in a segment.
+ *
+ * @param [in] segment The segment being destroyed.
+ */
+void newrelic_destroy_external_segment_fields(newrelic_segment_t* segment);
+
+/*!
  * @brief End an external segment.
  *
  * This function assumes that the transaction has already been locked.

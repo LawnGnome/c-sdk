@@ -45,12 +45,12 @@ void newrelic_segment_destroy(newrelic_segment_t** segment_ptr) {
       case NR_SEGMENT_DATASTORE:
         newrelic_destroy_datastore_segment_fields(segment);
         break;
-
-      case NR_SEGMENT_CUSTOM:
       case NR_SEGMENT_EXTERNAL:
-        /* No special destruction required. */
+        newrelic_destroy_external_segment_fields(segment);
         break;
-
+      case NR_SEGMENT_CUSTOM:
+        /* No special destruction needed */
+        break;
       default:
         nrl_error(NRL_INSTRUMENT, "unknown segment type %d",
                   (int)segment->segment->type);

@@ -8,29 +8,6 @@
 #include "util_strings.h"
 #include "util_url.h"
 
-static char* newrelic_create_external_segment_metrics(nr_segment_t* segment) {
-  const char* domain;
-  int domainlen = 0;
-  char* metric_name;
-  const char* uri = segment->typed_attributes.external.uri;
-
-  /* Rollup metric */
-  nr_segment_add_metric(segment, "External/all", false);
-
-  domain = nr_url_extract_domain(uri, nr_strlen(uri), &domainlen);
-  if ((0 == domain) || (domainlen <= 0)) {
-    domain = "<unknown>";
-    domainlen = nr_strlen(domain);
-  }
-
-  metric_name = nr_formatf("External/%.*s/all", domainlen, domain);
-
-  /* Scoped metric */
-  nr_segment_add_metric(segment, metric_name, true);
-
-  return metric_name;
-}
-
 newrelic_segment_t* newrelic_start_external_segment(
     newrelic_txn_t* transaction,
     const newrelic_external_segment_params_t* params) {
@@ -68,13 +45,14 @@ newrelic_segment_t* newrelic_start_external_segment(
       goto unlock_and_end;
     }
 
-    nr_segment_set_external(segment->segment,
-                            &((nr_segment_external_t){
-                                .transaction_guid = NULL,
-                                .uri = params->uri,
-                                .library = params->library,
-                                .procedure = params->procedure,
-                            }));
+    segment->segment->type = NR_SEGMENT_EXTERNAL;
+
+    /* Save the supplied parameters until the external segment is ended */
+    segment->type.external.uri = params->uri ? nr_strdup(params->uri) : NULL;
+    segment->type.external.library
+        = params->library ? nr_strdup(params->library) : NULL;
+    segment->type.external.procedure
+        = params->procedure ? nr_strdup(params->procedure) : NULL;
 
   unlock_and_end:;
   }
@@ -83,21 +61,26 @@ newrelic_segment_t* newrelic_start_external_segment(
   return segment;
 }
 
+void newrelic_destroy_external_segment_fields(newrelic_segment_t* segment) {
+  nr_free(segment->type.external.uri);
+  nr_free(segment->type.external.library);
+  nr_free(segment->type.external.procedure);
+}
+
 bool newrelic_end_external_segment(newrelic_segment_t* segment) {
-  char* name;
-
   /* Sanity check that the external segment is really an external segment. */
-  if (nrunlikely(NR_SEGMENT_EXTERNAL != segment->segment->type)) {
-    nrl_error(NRL_INSTRUMENT,
-              "unexpected external segment type: expected %d; got %d",
-              (int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
-    return false;
+  if (nrlikely(NR_SEGMENT_EXTERNAL == segment->segment->type)) {
+    nr_segment_external_params_t params = {
+        .uri = segment->type.external.uri,
+        .library = segment->type.external.library,
+        .procedure = segment->type.external.procedure,
+    };
+    nr_segment_external_end(segment->segment, &params);
+    newrelic_destroy_external_segment_fields(segment);
+    return true;
   }
-
-  /* Create metrics. */
-  name = newrelic_create_external_segment_metrics(segment->segment);
-  nr_segment_set_name(segment->segment, name);
-  nr_free(name);
-
-  return true;
+  nrl_error(NRL_INSTRUMENT,
+            "unexpected external segment type: expected %d; got %d",
+            (int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
+  return false;
 }

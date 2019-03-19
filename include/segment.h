@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include "nr_segment_datastore.h"
+#include "nr_segment_external.h"
 #include "nr_txn.h"
 
 typedef struct _newrelic_segment_t {
@@ -15,17 +16,14 @@ typedef struct _newrelic_segment_t {
   nrtxn_t* transaction;
 
   /* Type fields. Which union is valid depends on segment->type, which is the
-   * source of truth for what type of segment this is.
-   *
-   * Although there is only one type that currently requires fields at this
-   * level, we have a union to minimise future refactoring. */
+   * source of truth for what type of segment this is. */
   union {
     struct {
-      /* The C agent datastore API offers that the user supplies datastore
-       * metadata at a segment's start. The user-facing function,
-       * newrelic_start_datastore_segment(), performs a few checks on this
-       * metdata and then saves it here. It is used to record metrics when
-       * a call to newrelic_end_segment() ends the datastore segment. */
+      /* The C agent datastore API offers that the user supplies segment
+       * metadata at a segment's start. The user-facing functions,
+       * newrelic_start_datastore_segment() and newrelic_start_external_segment(),
+       * perform a few checks on this metadata and then save it here. This metadata
+       * is used to record metrics on a call to newrelic_end_segment() */
       char* collection;
       char* operation;
       nr_datastore_instance_t instance;
@@ -33,6 +31,11 @@ typedef struct _newrelic_segment_t {
       char* string;
       char* sql;
     } datastore;
+    struct {
+      char* uri;
+      char* library;
+      char* procedure;
+    } external;
   } type;
 } newrelic_segment_t;
 

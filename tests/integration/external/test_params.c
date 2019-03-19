@@ -3,8 +3,6 @@ newrelic_start_external_segment() should record an external segment with the
 given options.
 */
 
-/*XFAIL external parameters are not supported yet. */
-
 /*CONFIG
   cfg->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   cfg->transaction_tracer.duration_us = 1;
@@ -71,7 +69,7 @@ given options.
         ],
         [
           "OtherTransaction/Action/basic",
-          "Datastore/statement/mysql/products/select"
+          "External/example.com/all"
         ]
       ],
       "?? txn guid",

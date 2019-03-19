@@ -60,12 +60,10 @@ static void test_start_external_segment_valid(void** state) {
   assert_ptr_equal(txn->txn, segment->transaction);
 
   /* Ensure the uri was actually copied. */
-  assert_string_equal(params.uri,
-                      segment->segment->typed_attributes.external.uri);
-  assert_ptr_not_equal(params.uri,
-                       segment->segment->typed_attributes.external.uri);
-  assert_null(segment->segment->typed_attributes.external.library);
-  assert_null(segment->segment->typed_attributes.external.procedure);
+  assert_string_equal(params.uri, segment->type.external.uri);
+  assert_ptr_not_equal(params.uri, segment->type.external.uri);
+  assert_null(segment->type.external.library);
+  assert_null(segment->type.external.procedure);
 
   newrelic_segment_destroy(&segment);
 
@@ -76,18 +74,15 @@ static void test_start_external_segment_valid(void** state) {
   assert_non_null(segment);
   assert_int_equal((int)NR_SEGMENT_EXTERNAL, (int)segment->segment->type);
   assert_ptr_equal(txn->txn, segment->transaction);
-  assert_string_equal(params.uri,
-                      segment->segment->typed_attributes.external.uri);
-  assert_ptr_not_equal(params.uri,
-                       segment->segment->typed_attributes.external.uri);
-  assert_string_equal(params.library,
-                      segment->segment->typed_attributes.external.library);
-  assert_ptr_not_equal(params.library,
-                       segment->segment->typed_attributes.external.library);
-  assert_string_equal(params.procedure,
-                      segment->segment->typed_attributes.external.procedure);
-  assert_ptr_not_equal(params.procedure,
-                       segment->segment->typed_attributes.external.procedure);
+
+  assert_string_equal(params.uri, segment->type.external.uri);
+  assert_ptr_not_equal(params.uri, segment->type.external.uri);
+
+  assert_string_equal(params.library, segment->type.external.library);
+  assert_ptr_not_equal(params.library, segment->type.external.library);
+
+  assert_string_equal(params.procedure, segment->type.external.procedure);
+  assert_ptr_not_equal(params.procedure, segment->type.external.procedure);
 
   newrelic_segment_destroy(&segment);
 }
