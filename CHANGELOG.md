@@ -91,8 +91,8 @@
 ### Upgrade Notices ###
 
 - To increase security, TLS will now always be used in communication between
-the C Agent and New Relic servers.  This change should be invisible to
-customers since the C Agent did not previously offer any way to disable TLS.
+  the C Agent and New Relic servers.  This change should be invisible to
+  customers since the C Agent did not previously offer any way to disable TLS.
 
 ## 0.0.4 ##
 
@@ -115,16 +115,16 @@ customers since the C Agent did not previously offer any way to disable TLS.
 ### New Features ###
 
 - Customers may now use `newrelic_notice_error()` to record transaction errors that
-are not automatically handled by the agent. Errors recorded in this manner are displayed in
-[error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
-and are available to query through
-[New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).
-See `libnewrelic.h` for usage information.
+  are not automatically handled by the agent. Errors recorded in this manner are displayed in
+  [error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
+  and are available to query through
+  [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights).
+  See `libnewrelic.h` for usage information.
 
 ### Bug Fixes ###
 
 - At times, when the daemon removed an application after a 10-minute timeout, the agent
-daemon exited in failure. This has been fixed.
+  daemon exited in failure. This has been fixed.
 
 ### End of Life Notices ###
 

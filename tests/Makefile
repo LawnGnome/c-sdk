@@ -78,19 +78,7 @@ endif
 # Flags required to link PCRE.
 #
 PCRE_CFLAGS := $(shell pcre-config --cflags)
-
-# NRCAMP pcre-config --libs does not provide -L.. which causes the wrong
-# pcre library to be linked if pcre is installed in the standard search
-# paths, and linking to fail if pcre is not installed.
-ifneq (,$(findstring /opt/nr/camp,$(shell pcre-config --prefix)))
-  ifneq (SunOS,$(UNAME))
-    PCRE_LDLIBS := -L/opt/nr/camp/lib -lnrpcre-pic
-  else
-    PCRE_LDLIBS := -lnrpcre-pic
-  endif
-else
-  PCRE_LDLIBS := $(shell pcre-config --libs)
-endif
+PCRE_LDLIBS := $(shell pcre-config --libs)
 
 all: tests
 
@@ -257,5 +245,3 @@ valgrind: tests Makefile
 # if we change a header, all affected modules will be recompiled automatically.
 #
 -include $(TESTS:%=%.d)
-
-# vim: set noet ts=2 sw=2:

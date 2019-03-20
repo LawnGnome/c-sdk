@@ -1,7 +1,6 @@
 # `test_app`
 
-The original test application when we were first building the C agent. Still a
-useful tool to exercise most of the agent's functionality in one place.
+A useful tool to exercise most of the agent's functionality in one place.
 
 ## Building
 
