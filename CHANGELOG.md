@@ -18,6 +18,9 @@
   asynchronous context has been improved, which should prevent issues resulting
   in broken transaction charts in APM.
 
+- Rollup datastore and external segment metrics, used to display application
+  overview charts in APM, have been improved.
+
 ## 0.1.2 ##
 
 ### New Features ###
