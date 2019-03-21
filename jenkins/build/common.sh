@@ -68,13 +68,3 @@ optparse() {
     OPTIND=$((OPTIND + 1))
   fi
 }
-
-#
-# Validate that the product is one of the expected values.
-#
-validate_product() {
-  case $1 in
-    php_agent|server_monitor) ;;
-    *) die 'product must be php_agent or server_monitor' ;;
-  esac
-}

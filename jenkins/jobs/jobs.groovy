@@ -1,6 +1,6 @@
 import newrelic.jenkins.extensions
-// Note:  Requires the Multijob plugin.  For this groovy file we are using Version 1.23
-// https://plugins.jenkins.io/jenkins-multijob-plugin
+// Note:  Requires the Multijob plugin.  For this groovy file we are using
+// Version 1.23 https://plugins.jenkins.io/jenkins-multijob-plugin
 
 use(extensions) {
   def org = 'c-agent'

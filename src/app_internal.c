@@ -28,7 +28,7 @@ nr_status_t newrelic_connect_app(newrelic_app_t* app,
     return NR_FAILURE;
   }
 
-  /* Query the daemon until a successful connection is made or timeout occurs.*/
+  // Query the daemon until a successful connection is made or timeout occurs.
   start_time = nr_get_time();
   while (true) {
     nrapp = nr_agent_find_or_add_app(nr_agent_applist, app->app_info, NULL);
