@@ -1,10 +1,11 @@
 LIBNEWRELIC_INCLUDE := ../../../include
 LIBNEWRELIC_LIB := ../../../libnewrelic.a
+NEWRELIC_EXAMPLES := ../../../examples/
 
 CFLAGS := -O0 -g3
-CPPFLAGS := -I$(LIBNEWRELIC_INCLUDE) $(shell pcre-config --cflags)
+CPPFLAGS := -I$(LIBNEWRELIC_INCLUDE) -I$(NEWRELIC_EXAMPLES) $(shell pcre-config --cflags)
 LDFLAGS := -rdynamic
-LIBS := $(LIBNEWRELIC_LIB) -lpcre -pthread -lm
+LIBS := $(LIBNEWRELIC_LIB) common.o -lpcre -pthread -lm
 
 all: test_app
 
@@ -12,5 +13,9 @@ all: test_app
 clean:
 	rm -r *.o test_app
 
-test_app: test_app.o
+test_app: test_app.o common.o
 	$(CC) $(LDFLAGS) -o $@ $< $(LIBS)
+
+# based on the implicit rule, but looks for common.c above
+common.o:
+	$(CC) -c $(CPPFLAGS) $(CFLAGS) -o common.o ../../../examples/common.c

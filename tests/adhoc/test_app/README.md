@@ -13,5 +13,20 @@ be used to override the include directory that will be used.
 
 ## Running
 
-Running `./test_app` should result in a couple of transactions being sent,
-provided a daemon is running beforehand.
+There are three environment variables that can change the behavior of this program.
+
+    # the license key
+    export NEW_RELIC_LICENSE_KEY="...license key..."
+
+    # a proxy for collector.newrelic.com
+    export NEW_RELIC_HOST="...some-proxy.example.com..."
+
+    # setting your application name
+    export NEW_RELIC_APP_NAME="Your App Name"
+
+After setting these variables, running `./test_app` should result in a couple of
+transactions being sent provided a daemon is running beforehand.  The attributes,
+errors, segments, custom events, and metrics created by these transactions will be
+visible in the standard New Relic APM UI.  Events and metrics will be queryable via
+Insights and the metrics explorer. i.e. they are all standard New Relic Agent data
+products.
