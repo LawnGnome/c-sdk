@@ -1,7 +1,7 @@
 #
 # "What's in the bag? A shark or something?"
 #
-# No, Nicolas. It's a C agent, and we're going to build it.
+# No, Nicolas. It's a C SDK, and we're going to build it.
 #
 # Useful top level targets:
 #
@@ -26,7 +26,7 @@ CMOCKA_INCLUDE = -I$(C_AGENT_ROOT)/vendor/cmocka/include
 export CMOCKA_LIB
 export CMOCKA_INCLUDE
 
-# TODO(msl): OS X 10.11 (at least) does not provide pcre-config by default.
+# OS X 10.11 does not provide pcre-config by default.
 # Check whether it exists, and if not assume a sensible default.
 PCRE_CFLAGS := $(shell pcre-config --cflags)
 
@@ -56,11 +56,6 @@ else
 # This rule builds a static axiom library and a static C agent library, and
 # then uses GNU ar's MRI support to smoosh them together into a single,
 # beautiful library.
-#
-# TODO: consider linking PCRE in, if we can rename/hide it from symbol
-#       collisions.
-# TODO: maybe have a fallback that doesn't rely on GNU ar.
-#
 libnewrelic.a: combine.mri axiom src-static
 	$(AR) -M < $<
 endif
@@ -114,9 +109,6 @@ valgrind: vendor libnewrelic.a
 # We build the shared library at the top level, since it's easiest to just take
 # the static library and have gcc wrap it in the appropriate shared library
 # goop.
-#
-# TODO: statically link to pcre instead
-#
 libnewrelic.so: libnewrelic.a
 	$(CC) -shared -pthread $(PCRE_CFLAGS) -ldl -o $@ -Wl,--whole-archive $^  -Wl,--no-whole-archive
 
