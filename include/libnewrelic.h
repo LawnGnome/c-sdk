@@ -362,7 +362,7 @@ typedef struct _newrelic_external_segment_params_t {
 /*!
  * @brief Configure the C agent's logging system.
  *
- * If the logging system was previously initialised (either by a prior call to
+ * If the logging system was previously initialized (either by a prior call to
  * newrelic_configure_log() or implicitly by a call to newrelic_init() or
  * newrelic_create_app()), then invoking this function will close the previous
  * log file.
@@ -395,7 +395,7 @@ bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level);
  * default behaviour described above will be used.
  * @param [in] time_limit_ms The amount of time, in milliseconds, that the C
  * agent will wait for a response from the daemon before considering
- * initialisation to have failed. If this is 0, then a default value will be
+ * initialization to have failed. If this is 0, then a default value will be
  * used.
  * @return true on success; false otherwise.
  */

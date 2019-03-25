@@ -23,7 +23,7 @@ sandboxing or additional checks are done.
 ## Write tests using predefined helper macros
 
 C Agent integration tests can include the file `common.h`. This file provides a
-`main` function as well as some macros that should avoid repetitive boilerplate 
+`main` function as well as some macros that should avoid repetitive boilerplate
 code in tests.
 
 The following macros are provided:
@@ -39,7 +39,7 @@ The following macros are provided:
 
 In each test file only one of those macros can be used.
 
-By default an agent log file `./c_agent.log` is created. This path can be 
+By default an agent log file `./c_agent.log` is created. This path can be
 changed by setting the environment variable `NEW_RELIC_LOG_FILE`.
 
 ## Write tests by providing your own `main` function

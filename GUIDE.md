@@ -60,7 +60,7 @@ int main(void) {
 }
 ```
 
-Compile and link your application against the static library, `libnewrelic.a`. 
+Compile and link your application against the static library, `libnewrelic.a`.
 There are two considerations to make during the linking step. First, because
 `libnewrelic.a` is offered as a static library, because it is already linked
 with the `libpcre`, `libpthread`, and `lm` libraries, you must also link
@@ -71,7 +71,7 @@ dashboard, link your application using GNU's `-rdynamic` linker flag.
 Doing so means that more meaningful information appears in the stack trace
 for the error recorded on a transaction using `newrelic_notice_error()`.
 
-With these two considerations in mind, compile and link a simple application 
+With these two considerations in mind, compile and link a simple application
 like so:
 
 ```sh
@@ -95,7 +95,7 @@ Run your test application and check the `c-agent.log` file for output.
   * Error instrumentation
   * Custom events
   * Custom metrics
-  * Manual timing  
+  * Manual timing
 * Logging
 
 ### Configuration
@@ -108,35 +108,35 @@ like so.
   config = newrelic_new_app_config(app_name, license_key);
 ```
 
-The two required values for any configuration are the application's name, or 
+The two required values for any configuration are the application's name, or
 `app_name` and the New Relic `license_key`.  The remaining fields are optional
 and you likely do not need to change the default values of the optional fields.
 
-The configuation's optional fields include the application's `log_level` 
-and `log_filename`, used to configure the appliction's logging. They also 
-include `transaction_tracer` and `datastore_tracer`.  All the fields of 
+The configuration's optional fields include the application's `log_level`
+and `log_filename`, used to configure the application's logging. They also
+include `transaction_tracer` and `datastore_tracer`.  All the fields of
 `newrelic_app_config_t` are detailed in `libnewrelic.h`.
 
-The `transaction_tracer` field configures the behavior of the C agent's 
-transaction tracer using a `newrelic_transaction_tracer_config_t`.  At New Relic, 
-a transaction trace gives a detailed snapshot of a single transaction in your 
-application. A transaction trace records the available function calls, database 
-calls, and external calls. The `transaction_tracer` configuration describes how 
+The `transaction_tracer` field configures the behavior of the C agent's
+transaction tracer using a `newrelic_transaction_tracer_config_t`.  At New Relic,
+a transaction trace gives a detailed snapshot of a single transaction in your
+application. A transaction trace records the available function calls, database
+calls, and external calls. The `transaction_tracer` configuration describes how
 the C agent chooses transactions for reporting to New Relic.  This includes
-the threshold over which a transaction becomes traced, whether slow sql 
+the threshold over which a transaction becomes traced, whether slow sql
 queries are reported, the format of reported sql, and the threshold for
-slow sql queries.  By default, the configuration returned by 
-`newrelic_new_app_config()` enables transaction traces, with the threshold 
-set to `NEWRELIC_THRESHOLD_IS_APDEX_FAILING`. This default threshold is based on 
+slow sql queries.  By default, the configuration returned by
+`newrelic_new_app_config()` enables transaction traces, with the threshold
+set to `NEWRELIC_THRESHOLD_IS_APDEX_FAILING`. This default threshold is based on
 [Apdex](https://docs.newrelic.com/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction),
-an industry standard for measuring user satisfaction. All the fields of 
+an industry standard for measuring user satisfaction. All the fields of
 `newrelic_transaction_tracer_config_t` are detailed in `libnewrelic.h`.
 
 The `datastore_tracer` field configures how datastore segments are recorded
 in a transaction, whether or not the C agent reports database host names,
-database ports, and database names. By default, the configuration returned 
-by `newrelic_new_app_config()` configures datastore segments with `instance_reporting` 
-and `database_name_reporting` both enabled. All the fields of 
+database ports, and database names. By default, the configuration returned
+by `newrelic_new_app_config()` configures datastore segments with `instance_reporting`
+and `database_name_reporting` both enabled. All the fields of
 `newrelic_datastore_segment_config_t` are detailed in `libnewrelic.h`.
 
 ### Segment Instrumentation
@@ -177,7 +177,7 @@ active transactions.
         .uri       = "https://httpbin.org/delay/1",
     };
 
-    newrelic_external_segment_t* segment = 
+    newrelic_external_segment_t* segment =
        newrelic_start_external_segment(txn, &params);
 
     // The external call to be timed goes here
@@ -188,13 +188,13 @@ active transactions.
 The `newrelic_external_segment_params_t` struct contains a list of parameters
 that New Relic uses to identify a segment. These parameters also drive
 the user interface in APM. Only the `.uri` field is required. Documentation
-for each field is available in `libnewrelic.h`. A working code sample 
-is available in `examples/ex_external.c`.  
+for each field is available in `libnewrelic.h`. A working code sample
+is available in `examples/ex_external.c`.
 
 ### Custom Segments
 
 The function `newrelic_start_segment()` starts the timing of an custom
-segment; segment timing ends with `newrelic_end_segment()`. Custom 
+segment; segment timing ends with `newrelic_end_segment()`. Custom
 segments appear in the transaction "Breakdown table" in APM.
 
 To record a custom segment on an active transaction:
@@ -204,11 +204,11 @@ To record a custom segment on an active transaction:
 
 Here are those two steps in code.  The `txn` variable below is a
 transaction, created via `newrelic_start_web_transaction()` or
-`newrelic_start_non_web_transaction()`. You may only record segments 
+`newrelic_start_non_web_transaction()`. You may only record segments
 on active transactions.
 
 ```c
-    newrelic_segment_t* segment = 
+    newrelic_segment_t* segment =
        newrelic_start_segment(txn, "Segment name", "Custom");
 
     // The application code to be timed goes here
@@ -216,15 +216,15 @@ on active transactions.
     newrelic_end_segment(txn, &segment);
 ```
 
-You can also find a working code sample in `examples/ex_custom.c`.  
+You can also find a working code sample in `examples/ex_custom.c`.
 
 ### Datastore Segments
 
 The function `newrelic_start_datastore_segment()` starts the timing of a
-datastore segment; segment timing ends with `newrelic_end_segment()`. 
+datastore segment; segment timing ends with `newrelic_end_segment()`.
 APM uses segments recorded in this manner in the
 [Databases and Slow Queries](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/databases-slow-queries-page)
-of APM.  Segments created with these functions also populate the `databaseDuration` 
+of APM.  Segments created with these functions also populate the `databaseDuration`
 attribute of a
 [New Relic Insights](https://docs.newrelic.com/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights)
 Transaction event.
@@ -267,7 +267,7 @@ active transactions.
 The `newrelic_datastore_segment_params_t` struct contains a list of
 parameters that New Relic uses to identify your segment. New Relic also uses
 these values to drive its user interface in APM. Only the `.product` field is
-required. Documentation for each field is available in `libnewrelic.h`. A 
+required. Documentation for each field is available in `libnewrelic.h`. A
 working code sample is available in `examples/ex_datastore.c`.
 
 #### Slow Query Tracing for Datastore Segments
@@ -451,13 +451,13 @@ documentation.
 ## Manual timing
 
 The C agent provides a pair of API calls with which users may manually change
-transaction timing and individual segment timing. Though the C agent is 
-incredibly effective at automatically timing transactions and segments, 
-providing users with this kind of timing allows them to achieve consistent 
+transaction timing and individual segment timing. Though the C agent is
+incredibly effective at automatically timing transactions and segments,
+providing users with this kind of timing allows them to achieve consistent
 timing values across the New Relic Platform and their own internal monitoring
 systems.
 
-Users may manually change timing for active transactions using 
+Users may manually change timing for active transactions using
 `newrelic_set_transaction_timing()`, as shown in the example below.
 
 ```c
@@ -467,29 +467,29 @@ Users may manually change timing for active transactions using
 ```
 
 It is important to note than a transaction must be active in order to change its
-timing. Attempting to change timing for a transaction after it has been ended 
-results in undefined behavior. 
+timing. Attempting to change timing for a transaction after it has been ended
+results in undefined behavior.
 
-Similarly, users may manually change timing for active segments using 
+Similarly, users may manually change timing for active segments using
 `newrelic_set_segment_timing()`, as shown in the example below.
 
-```c 
+```c
   seg_c = newrelic_start_segment(txn, "C", "Custom");
 
-  /* Manually change seg_c so that starts 10 us after the start 
+  /* Manually change seg_c so that starts 10 us after the start
    * of the transaction and lasts half a second. */
   newrelic_set_segment_timing(seg_c, 10, 500000);
   newrelic_end_segment(txn, &seg_c);
 ```
 
 Again, it is important to note that a segment must be active in order to change
-its timing. Attempting to change timing for a segment after it has been ended 
+its timing. Attempting to change timing for a segment after it has been ended
 results in undefined behavior.
 
 Users may want to coordinate their use of these two API calls. Using just one
-or the other may result in inconsistent transaction summary values at the New 
+or the other may result in inconsistent transaction summary values at the New
 Relic user interface. In the example below, a transaction is manually changed
-with a duration of only 500 milliseconds, even though its custom segment 
+with a duration of only 500 milliseconds, even though its custom segment
 lasted a full second.
 
 ```c
@@ -500,22 +500,22 @@ lasted a full second.
   newrelic_end_segment(txn, &seg);
 
   /* Manually change the transaction timing so that the start time is
-   * 50 us from now and the duration is 500 ms */ 
+   * 50 us from now and the duration is 500 ms */
   newrelic_set_transaction_timing(txn, now_us() + 50, 500000);
   newrelic_end_transaction(&txn);
 ```
 
-At the New Relic user interface showing the transaction trace, 
+At the New Relic user interface showing the transaction trace,
 "Custom Segment A" appears to have taken 1000 ms (correct) while the top-level
 segment for the web transaction, "ExampleWebTransaction"  appears to have
-taken -500 ms (incorrect). Even so, because of the call to 
-`newrelic_set_transaction_timing()` the response time shown for the 
+taken -500 ms (incorrect). Even so, because of the call to
+`newrelic_set_transaction_timing()` the response time shown for the
 transaction is 500 ms. Essentially, the user interface takes the necessary
-steps to make the segment times add up, even when calls to 
-`newrelic_set_transaction_timing()` or `newrelic_set_segment_timing()` 
+steps to make the segment times add up, even when calls to
+`newrelic_set_transaction_timing()` or `newrelic_set_segment_timing()`
 break the mathematics.
 
-It is recommended that users coordinate their calls to 
+It is recommended that users coordinate their calls to
 `newrelic_set_segment_timing()` and `newrelic_set_transaction_timing()`
 so that the timing values are consistent. In the example below, the call
 to `newrelic_set_segment_timing()` sets the segment to a duration of 500 ms
@@ -534,12 +534,12 @@ duration to 2 seconds.
   newrelic_end_segment(txn, &seg);
 
   /* Manually change the transaction timing so that the start time is
-   * now and the duration is 500 ms */ 
+   * now and the duration is 500 ms */
   newrelic_set_transaction_timing(txn, now_us(), 2000000);
   newrelic_end_transaction(&txn);
-```  
+```
 
-You can find working examples of transaction and segment timing calls 
+You can find working examples of transaction and segment timing calls
 in `examples/ex_timing.c` and `examples/ex_segment.c`.
 
 All told, this pair of API calls offers users a powerful means to customize
@@ -551,7 +551,7 @@ summary values that are inconsistent at the New Relic user interface.
 
 The New Relic C agent and its daemon have their own logs:
 
-**C agent logs**: These logs are generated due to errors in how you've 
+**C agent logs**: These logs are generated due to errors in how you've
 instrumented your code using the New Relic C agent API calls.
 
 **Daemon logs**: These are logs related to the data transfer between the agent
@@ -559,17 +559,17 @@ and the daemon as well as the transmission of data to New Relic.
 
 ### C agent logs
 
-The C agent API calls log an error when they are supplied with ill-formed parameters.  
-By default, logs output to standard error. You may change this by calling 
-`newrelic_configure_log()`. For example, the following call to 
-`newrelic_configure_log()` sets the log file to `c-agent.log` and the 
+The C agent API calls log an error when they are supplied with ill-formed parameters.
+By default, logs output to standard error. You may change this by calling
+`newrelic_configure_log()`. For example, the following call to
+`newrelic_configure_log()` sets the log file to `c-agent.log` and the
 log level to info.
 
 ```c
   newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
 ```
 
-The C agent logs have four log levels, as defined by the `enum _newrelic_loglevel_t` 
+The C agent logs have four log levels, as defined by the `enum _newrelic_loglevel_t`
 in `libnewrelic.h`.  Listed in priority order, they are:
 
 ```c
@@ -579,12 +579,12 @@ in `libnewrelic.h`.  Listed in priority order, they are:
   NEWRELIC_LOG_DEBUG,
 ```
 
-The `NEWRELIC_LOG_DEBUG` is the most verbose level of the four log levels; 
+The `NEWRELIC_LOG_DEBUG` is the most verbose level of the four log levels;
 `NEWRELIC_LOG_INFO` is the default log level.
 
 ### Daemon logs
 
-The second log file is produced by the daemon; when invoked it is supplied with 
+The second log file is produced by the daemon; when invoked it is supplied with
 flags that configure logging.  The flags are:
 
 - `--logfile <file>`. Set the path to the log file.
@@ -597,20 +597,20 @@ place at `stdout` and at loglevel `debug`.
 ./bin/newrelic-daemon -f -logfile stdout -loglevel debug
 ```
 
-The daemon also has four log levels: `error`, `warning`, `info` or `debug`.  
+The daemon also has four log levels: `error`, `warning`, `info` or `debug`.
 The `debug` log level is the most verbose level of the four log levels.
 
 In cases where you are troubleshooting problems with your New Relic APM C agent
 performance, consider the following steps.
 
-1. Set the log level in your C agent to `NEWRELIC_LOG_DEBUG` using the API call 
+1. Set the log level in your C agent to `NEWRELIC_LOG_DEBUG` using the API call
 `newrelic_configure_log()`.
 1. Recompile your application with the altered call to `newrelic_configure_log()`.
 1. Restart your application.
 1. Restart the daemon, configured with a `-loglevel` of `debug`.
 1. Collect 5 to 10 minutes of logging.
 1. Examine your logs and use the information to diagnose the problem.
-1. When you are finished troubleshooting, reset the logs' levels. Do not keep 
+1. When you are finished troubleshooting, reset the logs' levels. Do not keep
 them at `NEWRELIC_LOG_DEBUG` and `debug`.
 
 ## About
