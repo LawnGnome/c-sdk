@@ -1,6 +1,6 @@
 /*DESCRIPTION
 Tests that a custom event record followed by an accidental discard does not
-crash the application, and that the custom is properly sent.
+crash the application, and that the event is properly sent.
 */
 
 /*CONFIG

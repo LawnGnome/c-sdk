@@ -80,31 +80,3 @@ make tests
 
 A number of ad hoc tests have been provided. More information can be found in
 [the ad hoc test readme](tests/adhoc/README.md).
-
-## Dependencies 
-
-The C Agent is dependent on code
-[from the php_agent repository](https://source.datanerd.us/php-agent/php_agent).
-This code is managed via git subtrees. This code lives in the `php_agent`
-folder of this repository. 
-
-For day to day development, you don't need to be aware of this, i.e. this repo
-will `make` with additional steps.
-
-When we need a fix/feature that's been added to the upstream
-[php_agent repository](https://source.datanerd.us/php-agent/php_agent), we use
-`git subtree` to pull in those changes. We've also codified this process in the
-
-    ./tools/manage-subtree.bash
-    
-shell script. Use the 
-
-    ./tools/manage-subtree.bash set_commit_hashes
-    
-invokation to set the commits SHAs you want to fetch, and then run 
-
-    ./tools/manage-subtree.bash update_subtrees
-    
-The `manage-subtree.bash` script will also automatically update a `vendor.xml`
-file for each subtree dependency. These files include the relative folder name
-managed by `git subtree`, as well as the current commit SHA.      
