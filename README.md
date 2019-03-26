@@ -33,11 +33,11 @@ To build the daemon, run:
 make daemon
 ```
 
-This creates `php_agent/bin/daemon`. You can then start the daemon in the
+This creates `vendor/newrelic/bin/daemon`. You can then start the daemon in the
 foreground with:
 
 ```sh
-./php_agent/bin/daemon -f --logfile stdout --loglevel debug
+./vendor/newrelic/bin/daemon -f --logfile stdout --loglevel debug
 ```
 
 ## Using the agent

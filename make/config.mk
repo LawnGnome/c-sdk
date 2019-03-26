@@ -11,10 +11,10 @@ C_AGENT_ROOT := $(abspath $(THISDIR)/..)
 # The PHP agent's build system does a bunch of useful platform detection that
 # we need both in general and to utilise axiom. Let's pull it in straightaway.
 #
-include $(C_AGENT_ROOT)/php_agent/make/config.mk
+include $(C_AGENT_ROOT)/vendor/newrelic/make/config.mk
 
 C_AGENT_CPPFLAGS := $(PLATFORM_DEFS)
-C_AGENT_CPPFLAGS += -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/include
+C_AGENT_CPPFLAGS += -I$(C_AGENT_ROOT)/vendor/newrelic/axiom -I$(C_AGENT_ROOT)/include
 
 C_AGENT_CFLAGS := -std=gnu99 -fPIC -DPIC -pthread
 C_AGENT_CFLAGS += -Wall

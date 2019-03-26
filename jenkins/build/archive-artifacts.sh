@@ -19,7 +19,7 @@ rm -f libnewrelic*.tar.gz
 mkdir -p libnewrelic/bin
 
 #move previous build artifacts over 
-mv ./php_agent/bin/daemon libnewrelic/bin/newrelic-daemon
+mv ./vendor/newrelic/bin/daemon libnewrelic/bin/newrelic-daemon
 mv libnewrelic.a libnewrelic/
 
 #move files from github repository over

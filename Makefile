@@ -7,7 +7,7 @@
 #
 # - all:       Builds libnewrelic.a
 # - clean:     Removes all build products
-# - daemon:    Builds the daemon in php_agent/bin
+# - daemon:    Builds the daemon in vendor/newrelic/bin
 # - dynamic:   Builds libnewrelic.so
 # - static:    Builds libnewrelic.a
 # - run_tests: Runs the unit tests
@@ -50,7 +50,7 @@ ifeq (Darwin,$(UNAME))
 LIBTOOL := /usr/bin/libtool
 
 libnewrelic.a: axiom src-static
-	$(LIBTOOL) -static -o $@ php_agent/axiom/libaxiom.a src/libnewrelic.a
+	$(LIBTOOL) -static -o $@ vendor/newrelic/axiom/libaxiom.a src/libnewrelic.a
 else
 #
 # This rule builds a static axiom library and a static C agent library, and
@@ -79,24 +79,24 @@ tests: vendor libnewrelic.a
 vendor:
 	$(MAKE) -C vendor
 
-.PHONY: axiom php_agent/axiom/libaxiom.a
-axiom: php_agent/axiom/libaxiom.a
+.PHONY: axiom vendor/newrelic/axiom/libaxiom.a
+axiom: vendor/newrelic/axiom/libaxiom.a
 
-php_agent/axiom/libaxiom.a: export CFLAGS := $(C_AGENT_CFLAGS) -DNR_CAGENT
-php_agent/axiom/libaxiom.a:
-	$(MAKE) -C php_agent/axiom
+vendor/newrelic/axiom/libaxiom.a: export CFLAGS := $(C_AGENT_CFLAGS) -DNR_CAGENT
+vendor/newrelic/axiom/libaxiom.a:
+	$(MAKE) -C vendor/newrelic/axiom
 
 .PHONY: axiom-clean
 axiom-clean:
-	$(MAKE) -C php_agent/axiom clean
+	$(MAKE) -C vendor/newrelic/axiom clean
 
 .PHONY: daemon
 daemon:
-	$(MAKE) -C php_agent daemon
+	$(MAKE) -C vendor/newrelic daemon
 
 .PHONY: daemon-clean
 daemon-clean:
-	$(MAKE) -C php_agent daemon-clean
+	$(MAKE) -C vendor/newrelic daemon-clean
 
 .PHONY: dynamic
 dynamic: libnewrelic.so
@@ -131,7 +131,7 @@ clean: axiom-clean daemon-clean src-clean tests-clean
 
 .PHONY: integration
 integration: libnewrelic.so daemon
-	./php_agent/bin/integration_runner --cgi=sh tests/integration
+	./vendor/newrelic/bin/integration_runner --cgi=sh tests/integration
 
 # Implicit rule for top level test programs.
 %.o: %.c
