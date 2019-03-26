@@ -3,9 +3,9 @@
 #matching arrays of folders/repositories to deal with 
 #the lack of hash-tables/dictionaries in bash < 4.0
 declare -a subtree=(
-  "php_agent/"
-  "php_agent/axiom/tests/cross_agent_tests/"
-  "php_agent/tests/include/newrelic-integration/")
+  "vendor/newrelic/"
+  "vendor/newrelic/axiom/tests/cross_agent_tests/"
+  "vendor/newrelic/tests/include/newrelic-integration/")
 
 declare -a repo=(
   "git@source.datanerd.us:php-agent/php_agent.git"
@@ -26,9 +26,9 @@ prefetch_repos()
 #does initial adding of the subtrees. Only need to call once
 add_subtrees()
 {
-    if [ -d "php_agent" ]
+    if [ -d "vendor/newrelic" ]
     then
-        echo "ERROR: There's already a php_agent folder -- maybe you added the subtrees already?"
+        echo "ERROR: There's already a vendor/newrelic folder -- maybe you added the subtrees already?"
         exit 1
     fi
     
@@ -46,7 +46,7 @@ add_subtrees()
     prefetch_repos
     
     #add php_agent subtree
-    git subtree add --prefix=php_agent/ git@source.datanerd.us:php-agent/php_agent.git ${at_commit[0]} --squash    
+    git subtree add --prefix=vendor/newrelic/ git@source.datanerd.us:php-agent/php_agent.git ${at_commit[0]} --squash    
     
     #remove the submodule entries from the subtree
     #so we can subtree them instead.  This will 
@@ -55,15 +55,15 @@ add_subtrees()
     #because the subtree command pulls in the submodule folder 
     #references, but does not update and .submodule folders
     
-    git rm php_agent/axiom/tests/cross_agent_tests
-    git rm php_agent/tests/include/newrelic-integration
-    git rm php_agent/.gitmodules
+    git rm vendor/newrelic/axiom/tests/cross_agent_tests
+    git rm vendor/newrelic/tests/include/newrelic-integration
+    git rm vendor/newrelic/.gitmodules
     
     git commit . -m "removing sub module prior to adding subtree"
     
     #subtree the former submodules
-    git subtree add --prefix=php_agent/axiom/tests/cross_agent_tests/ git@source.datanerd.us:agents/cross_agent_tests.git ${at_commit[1]} --squash    
-    git subtree add --prefix=php_agent/tests/include/newrelic-integration/ git@source.datanerd.us:php-agent/newrelic-integration.git ${at_commit[2]} --squash        
+    git subtree add --prefix=vendor/newrelic/axiom/tests/cross_agent_tests/ git@source.datanerd.us:agents/cross_agent_tests.git ${at_commit[1]} --squash    
+    git subtree add --prefix=vendor/newrelic/tests/include/newrelic-integration/ git@source.datanerd.us:php-agent/newrelic-integration.git ${at_commit[2]} --squash        
 }
 
 #populates initial hash of commits on every program run
@@ -144,9 +144,9 @@ check_staged_commits()
 #updates the subtrees 
 update_subtrees()
 {
-    if [ ! -d "php_agent" ]
+    if [ ! -d "vendor/newrelic" ]
     then
-        echo "ERROR: There's no php_agent folder -- you need to run add_subtrees first."
+        echo "ERROR: There's no vendor/newrelic folder -- you need to run add_subtrees first."
         exit 1
     fi
 
