@@ -17,13 +17,13 @@ newrelic_app_t* newrelic_get_app(void) {
   newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
 
   /* Staging account 432507 */
-  config = newrelic_new_app_config("C-Agent Test App",
-                                   "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
+  config = newrelic_create_app_config(
+      "C-Agent Test App", "07a2ad66c637a29c3982469a3fe8d1982d002c4a");
   strcpy(config->redirect_collector, "staging-collector.newrelic.com");
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
-  free(config);
+  newrelic_destroy_app_config(&config);
   return app;
 }
 

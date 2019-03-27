@@ -36,7 +36,7 @@ static void test_get_transaction_options_tt_disabled(void** state NRUNUSED) {
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.enabled = false;
 
@@ -50,7 +50,7 @@ static void test_get_transaction_options_tt_disabled(void** state NRUNUSED) {
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -62,7 +62,7 @@ static void test_get_transaction_options_tt_threshold_apdex(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_APDEX_FAILING;
 
@@ -77,7 +77,7 @@ static void test_get_transaction_options_tt_threshold_apdex(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -89,7 +89,7 @@ static void test_get_transaction_options_tt_threshold_duration(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   config->transaction_tracer.duration_us = 10;
@@ -106,7 +106,7 @@ static void test_get_transaction_options_tt_threshold_duration(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -118,7 +118,7 @@ static void test_get_transaction_options_datastore_reporting_recordsql_none(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_OFF;
 
@@ -132,7 +132,7 @@ static void test_get_transaction_options_datastore_reporting_recordsql_none(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -144,7 +144,7 @@ static void test_get_transaction_options_datastore_reporting_recordsql_raw(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.record_sql = NEWRELIC_SQL_RAW;
 
@@ -158,7 +158,7 @@ static void test_get_transaction_options_datastore_reporting_recordsql_raw(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -170,7 +170,7 @@ static void test_get_transaction_options_datastore_reporting_recordsql_invalid(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.record_sql = 1000;
 
@@ -184,7 +184,7 @@ static void test_get_transaction_options_datastore_reporting_recordsql_invalid(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -197,7 +197,7 @@ static void test_get_transaction_options_datastore_reporting_enabled(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.enabled = false;
 
@@ -211,7 +211,7 @@ static void test_get_transaction_options_datastore_reporting_enabled(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -224,7 +224,7 @@ static void test_get_transaction_options_datastore_reporting_threshold(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->transaction_tracer.datastore_reporting.threshold_us = 10;
 
@@ -238,7 +238,7 @@ static void test_get_transaction_options_datastore_reporting_threshold(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -250,7 +250,7 @@ static void test_get_transaction_options_datastore_segment_instance_reporting(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->datastore_tracer.instance_reporting = false;
 
@@ -264,7 +264,7 @@ static void test_get_transaction_options_datastore_segment_instance_reporting(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -277,7 +277,7 @@ test_get_transaction_options_datastore_segment_database_name_reporting(
   nrtxnopt_t* actual;
   nrtxnopt_t* expected;
   newrelic_app_config_t* config
-      = newrelic_new_app_config("app name", LICENSE_KEY);
+      = newrelic_create_app_config("app name", LICENSE_KEY);
 
   config->datastore_tracer.database_name_reporting = false;
 
@@ -291,7 +291,7 @@ test_get_transaction_options_datastore_segment_database_name_reporting(
 
   nr_free(actual);
   nr_free(expected);
-  free(config);
+  newrelic_destroy_app_config(&config);
 }
 
 /*
@@ -319,6 +319,5 @@ int main(void) {
           test_get_transaction_options_datastore_segment_database_name_reporting),
   };
 
-  return cmocka_run_group_tests(options_tests,
-                                NULL, NULL);
+  return cmocka_run_group_tests(options_tests, NULL, NULL);
 }

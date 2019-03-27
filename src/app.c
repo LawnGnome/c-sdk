@@ -34,8 +34,8 @@ newrelic_app_t* newrelic_create_app(const newrelic_app_config_t* given_config,
     return NULL;
   }
 
-  config = newrelic_new_app_config(given_config->app_name,
-                                   given_config->license_key);
+  config = newrelic_create_app_config(given_config->app_name,
+                                      given_config->license_key);
 
   config->transaction_tracer = given_config->transaction_tracer;
 
@@ -83,7 +83,7 @@ bool newrelic_destroy_app(newrelic_app_t** app) {
     nr_free((*app)->app_info);
 
     if ((*app)->config) {
-      nr_free((*app)->config);
+      newrelic_destroy_app_config(&((*app)->config));
     }
   }
   nrt_mutex_unlock(&(*app)->lock);

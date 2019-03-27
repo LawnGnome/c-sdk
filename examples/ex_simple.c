@@ -16,7 +16,8 @@ int main(void) {
   newrelic_app_config_t* config;
   newrelic_segment_t* seg;
 
-  config = newrelic_new_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
+  config
+      = newrelic_create_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
 
   if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
     printf("Error configuring logging.\n");
@@ -30,7 +31,7 @@ int main(void) {
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
-  free(config);
+  newrelic_destroy_app_config(&config);
 
   /* Start a web transaction and a segment */
   txn = newrelic_start_web_transaction(app, "Transaction name");

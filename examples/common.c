@@ -15,7 +15,7 @@
  * @brief Customize an agent configuration
  *
  * @param [in] config_ptr The address of an agent configuration created using
- * newrelic_new_app_config().
+ * newrelic_create_app_config().
  *
  * @return false if config_ptr or *config_ptr are NULL; true otherwise.
  */

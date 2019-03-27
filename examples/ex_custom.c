@@ -21,7 +21,7 @@ int main(void) {
   if (NULL == license_key)
     return -1;
 
-  config = newrelic_new_app_config(app_name, license_key);
+  config = newrelic_create_app_config(app_name, license_key);
 
   customize_config(&config);
 
@@ -31,7 +31,7 @@ int main(void) {
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
-  free(config);
+  newrelic_destroy_app_config(&config);
 
   /* Start a web transaction */
   txn = newrelic_start_web_transaction(app, "ExampleWebTransaction");

@@ -53,8 +53,8 @@ int main(int argc __attribute__((__unused__)),
   newrelic_init(SAFE_GETENV("NEW_RELIC_DAEMON_SOCKET", "/tmp/.newrelic.sock"),
                 0);
 
-  cfg = newrelic_new_app_config(NEW_RELIC_DAEMON_TESTNAME,
-                                SAFE_GETENV("NEW_RELIC_LICENSE_KEY", ""));
+  cfg = newrelic_create_app_config(NEW_RELIC_DAEMON_TESTNAME,
+                                   SAFE_GETENV("NEW_RELIC_LICENSE_KEY", ""));
   assert(cfg);
 
   NEW_RELIC_CONFIG

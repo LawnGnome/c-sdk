@@ -27,7 +27,7 @@ int main(void) {
   newrelic_app_config_t* config;
   newrelic_segment_t* seg;
 
-  config = newrelic_new_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
+  config = newrelic_create_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
 
   if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
     printf("Error configuring logging.\n");
@@ -41,7 +41,7 @@ int main(void) {
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
-  free(config);
+  newrelic_destroy_app_config(&config);
 
   /* Start a web transaction and a segment */
   txn = newrelic_start_web_transaction(app, "Transaction name");
@@ -105,7 +105,7 @@ like so.
 
 ```c
   newrelic_app_config_t* config;
-  config = newrelic_new_app_config(app_name, license_key);
+  config = newrelic_create_app_config(app_name, license_key);
 ```
 
 The two required values for any configuration are the application's name, or
@@ -126,7 +126,7 @@ the C agent chooses transactions for reporting to New Relic.  This includes
 the threshold over which a transaction becomes traced, whether slow sql
 queries are reported, the format of reported sql, and the threshold for
 slow sql queries.  By default, the configuration returned by
-`newrelic_new_app_config()` enables transaction traces, with the threshold
+`newrelic_create_app_config()` enables transaction traces, with the threshold
 set to `NEWRELIC_THRESHOLD_IS_APDEX_FAILING`. This default threshold is based on
 [Apdex](https://docs.newrelic.com/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction),
 an industry standard for measuring user satisfaction. All the fields of
@@ -135,7 +135,7 @@ an industry standard for measuring user satisfaction. All the fields of
 The `datastore_tracer` field configures how datastore segments are recorded
 in a transaction, whether or not the C agent reports database host names,
 database ports, and database names. By default, the configuration returned
-by `newrelic_new_app_config()` configures datastore segments with `instance_reporting`
+by `newrelic_create_app_config()` configures datastore segments with `instance_reporting`
 and `database_name_reporting` both enabled. All the fields of
 `newrelic_datastore_segment_config_t` are detailed in `libnewrelic.h`.
 
@@ -285,12 +285,12 @@ tracing is enabled are controlled via the C-Agent's **application**
 configuration, specifically the `datastore_reporting.*` fields.
 
 ```c
-    config = newrelic_new_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
+    config = newrelic_create_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
     /* ... */
     config->transaction_tracer.datastore_reporting.enabled = true;
     config->transaction_tracer.datastore_reporting.threshold_us = 500000;
     app = newrelic_create_app(config, 10000);
-    free(config);
+    newrelic_destroy_app_config(&config);
 
     /* ... */
 

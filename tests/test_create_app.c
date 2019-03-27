@@ -39,7 +39,7 @@ static int setup(void** state) {
 static int teardown(void** state) {
   newrelic_app_config_t* config;
   config = (newrelic_app_config_t*)*state;
-  free(config);
+  newrelic_destroy_app_config(&config);
   newrelic_shutdown();
   return 0;  // tells cmocka teardown completed, 0==OK
 }

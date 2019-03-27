@@ -18,8 +18,8 @@ nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting) {
   return NR_SQL_OBFUSCATED;
 }
 
-newrelic_app_config_t* newrelic_new_app_config(const char* app_name,
-                                               const char* license_key) {
+newrelic_app_config_t* newrelic_create_app_config(const char* app_name,
+                                                  const char* license_key) {
   newrelic_app_config_t* config;
 
   if (NULL == app_name) {
@@ -53,6 +53,16 @@ newrelic_app_config_t* newrelic_new_app_config(const char* app_name,
   config->datastore_tracer.database_name_reporting = true;
 
   return config;
+}
+
+bool newrelic_destroy_app_config(newrelic_app_config_t** config) {
+  if ((NULL == config) || (NULL == *config)) {
+    return false;
+  }
+
+  nr_realfree((void**)config);
+
+  return true;
 }
 
 nrtxnopt_t* newrelic_get_default_options(void) {

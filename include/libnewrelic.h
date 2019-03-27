@@ -207,7 +207,7 @@ typedef struct _newrelic_process_config_t {
  * @brief Agent configuration used to describe application name, license key, as
  * well as optional transaction tracer and datastore configuration.
  *
- * @see newrelic_new_app_config().
+ * @see newrelic_create_app_config().
  */
 typedef struct _newrelic_app_config_t {
   /*! Specifies the name of the application to which data shall be reported.
@@ -416,8 +416,24 @@ bool newrelic_init(const char* daemon_socket, int time_limit_ms);
  * @return An application configuration populated with app_name and
  * license_key; all other fields are initialized to their defaults.
  */
-newrelic_app_config_t* newrelic_new_app_config(const char* app_name,
-                                               const char* license_key);
+newrelic_app_config_t* newrelic_create_app_config(const char* app_name,
+                                                  const char* license_key);
+
+/*!
+ * @brief Destroy the application configuration.
+ *
+ * Given an allocated application configuration, newrelic_destroy_app_config()
+ * frees the configuration.
+ *
+ * @param [in] config The address of the pointer to the allocated application
+ *             configuration.
+ *
+ * @return false if config is NULL or points to NULL; true otherwise.
+ *
+ * @warning This function must only be called once for a given application
+ *          configuration.
+ */
+bool newrelic_destroy_app_config(newrelic_app_config_t** config);
 
 /*!
  * @brief Create an application.
@@ -428,7 +444,7 @@ newrelic_app_config_t* newrelic_new_app_config(const char* app_name,
  * newrelic_destroy_app() when finished.
  *
  * @param [in] config An application configuration created by
- * newrelic_new_app_config().
+ * newrelic_create_app_config().
  * @param [in] timeout_ms Specifies the maximum time to wait for a connection to
  * be established; a value of 0 causes the method to make only one attempt at
  * connecting to the daemon.

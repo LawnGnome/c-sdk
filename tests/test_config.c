@@ -19,25 +19,25 @@ static void test_config_setup(void** state NRUNUSED) {
 
 static void test_config_null_app_name(void** state NRUNUSED) {
   newrelic_app_config_t* config;
-  config = newrelic_new_app_config(NULL, LICENSE_KEY);
+  config = newrelic_create_app_config(NULL, LICENSE_KEY);
   assert_null(config);
 }
 
 static void test_config_null_license_key(void** state NRUNUSED) {
   newrelic_app_config_t* config;
-  config = newrelic_new_app_config("Test App", NULL);
+  config = newrelic_create_app_config("Test App", NULL);
   assert_null(config);
 }
 
 static void test_config_short_license_key(void** state NRUNUSED) {
   newrelic_app_config_t* config;
-  config = newrelic_new_app_config("Test App", TOO_SHORT_LICENSE_KEY);
+  config = newrelic_create_app_config("Test App", TOO_SHORT_LICENSE_KEY);
   assert_null(config);
 }
 
 static void test_config_long_license_key(void** state NRUNUSED) {
   newrelic_app_config_t* config;
-  config = newrelic_new_app_config(
+  config = newrelic_create_app_config(
       "Test App",
       "This is the license key that never ends, yes it goes on and on my "
       "friends.  Some people, starting licensing it not knowing what it was, "
@@ -47,7 +47,7 @@ static void test_config_long_license_key(void** state NRUNUSED) {
 
 static void test_config_justright_license_key(void** state NRUNUSED) {
   newrelic_app_config_t* config;
-  config = newrelic_new_app_config("Test App", LICENSE_KEY);
+  config = newrelic_create_app_config("Test App", LICENSE_KEY);
   assert_non_null(config);
 
   /* Test non-zero defaults. */
@@ -55,7 +55,31 @@ static void test_config_justright_license_key(void** state NRUNUSED) {
   assert_true(NEWRELIC_THRESHOLD_IS_APDEX_FAILING
               == config->transaction_tracer.threshold);
 
-  free(config);
+  newrelic_destroy_app_config(&config);
+}
+
+static void test_config_destroy(void** state NRUNUSED) {
+  newrelic_app_config_t* config;
+  bool result = false;
+  config = newrelic_create_app_config("Test App", LICENSE_KEY);
+  assert_non_null(config);
+
+  result = newrelic_destroy_app_config(&config);
+  assert_true(result);
+
+  newrelic_destroy_app_config(&config);
+}
+
+static void test_config_destroy_null(void** state NRUNUSED) {
+  newrelic_app_config_t* config = NULL;
+  bool result = true;
+
+  result = newrelic_destroy_app_config(NULL);
+  assert_false(result);
+
+  result = true;
+  result = newrelic_destroy_app_config(&config);
+  assert_false(result);
 }
 
 int main(void) {
@@ -66,6 +90,8 @@ int main(void) {
       cmocka_unit_test(test_config_short_license_key),
       cmocka_unit_test(test_config_long_license_key),
       cmocka_unit_test(test_config_justright_license_key),
+      cmocka_unit_test(test_config_destroy),
+      cmocka_unit_test(test_config_destroy_null),
   };
 
   return cmocka_run_group_tests(license_tests, NULL, NULL);

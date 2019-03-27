@@ -26,14 +26,14 @@
 ### New Features ###
 
 - The C agent now offers `newrelic_set_transaction_timing()` with which users
-  may manually change transaction timing. Though the C agent is incredibly 
-  effective at automatically timing transactions, providing users with this 
-  kind of timing allows them to achieve consistent timing values across 
+  may manually change transaction timing. Though the C agent is incredibly
+  effective at automatically timing transactions, providing users with this
+  kind of timing allows them to achieve consistent timing values across
   the New Relic Platform and their own internal monitoring systems.
-  
+
 - The C agent now offers `newrelic_set_segment_parent_root()` with which users
-  may manually reparent a segment with the transaction's root segment; this is 
-  useful in scenarios in which an asynchronous segment is best represented 
+  may manually reparent a segment with the transaction's root segment; this is
+  useful in scenarios in which an asynchronous segment is best represented
   as a top-level call in the transaction.
 
 ### Upgrade Notices ###
@@ -43,7 +43,7 @@
 
   In practice, this means that uses of `newrelic_config_t` and calls to
   `newrelic_new_config()` should be replaced with `newrelic_app_config_t` and
-  `newrelic_new_app_config()`, respectively.
+  `newrelic_create_app_config()`, respectively.
 
   Logging and daemon socket configuration should now be done by invoking
   `newrelic_configure_log()` and `newrelic_init()`, respectively.

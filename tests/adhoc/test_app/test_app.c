@@ -108,7 +108,7 @@ static newrelic_app_t* test_app_create_app(const char* license,
   newrelic_app_t* app = 0;
   newrelic_app_config_t* config = 0;
 
-  config = newrelic_new_app_config(app_name, license);
+  config = newrelic_create_app_config(app_name, license);
   if (NULL != host) {
     strcpy(config->redirect_collector, host);
   }
@@ -118,7 +118,7 @@ static newrelic_app_t* test_app_create_app(const char* license,
 
   /* Wait up to 10 seconds for the agent to connect to the daemon */
   app = newrelic_create_app(config, 10000);
-  free(config);
+  newrelic_destroy_app_config(&config);
 
   return app;
 }
