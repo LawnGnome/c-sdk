@@ -15,14 +15,14 @@ be used to override the include directory that will be used.
 
 There are three environment variables that can change the behavior of this program.
 
-    # the license key
+    # the license key (required)
     export NEW_RELIC_LICENSE_KEY="...license key..."
 
-    # a proxy for collector.newrelic.com
-    export NEW_RELIC_HOST="...some-proxy.example.com..."
-
-    # setting your application name
+    # setting your application name (required)
     export NEW_RELIC_APP_NAME="Your App Name"
+
+    # Change the URL the agent sends data to (optional)
+    export NEW_RELIC_HOST="...your-url.example.com..."
 
 After setting these variables, running `./test_app` should result in a couple of
 transactions being sent provided a daemon is running beforehand.  The attributes,
