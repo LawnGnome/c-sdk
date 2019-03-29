@@ -194,7 +194,7 @@ use(extensions) {
         archiveArtifacts {
           pattern('libnewrelic.h')
           pattern('libnewrelic.a')
-          pattern('php_agent/bin/daemon')
+          pattern('vendor/newrelic/bin/daemon')
 
           onlyIfSuccessful()
         }
@@ -355,7 +355,7 @@ use(extensions) {
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
-              "make -C php_agent axiom-run-tests")
+              "make -C vendor/newrelic axiom-run-tests")
       }
 
       buildInDockerImage('./jenkins/docker-files/hbb')
@@ -386,7 +386,7 @@ use(extensions) {
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
-              "make -C php_agent axiom-valgrind")
+              "make -C vendor/newrelic axiom-valgrind")
       }
 
       buildInDockerImage('./jenkins/docker-files/hbb')
@@ -417,7 +417,7 @@ use(extensions) {
       steps {
         shell("source ./jenkins/build/shared.sh"  + "\n" +
               "make clean" + "\n"                 +
-              "make -C php_agent/ daemon_integration")
+              "make -C vendor/newrelic/ daemon_integration")
       }
 
       buildInDockerImage('./jenkins/docker-files/hbb')

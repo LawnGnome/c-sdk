@@ -10,7 +10,7 @@ VALGRIND := valgrind
 #
 # Operating system detection.
 #
-include ../php_agent/make/config.mk
+include ../vendor/newrelic/make/config.mk
 
 # These flags that are required to build the tests, and should be unioned with
 # any flags inherited from the environment.
@@ -45,7 +45,7 @@ TEST_CFLAGS += -Wuninitialized
 TEST_CFLAGS += -Wunused-label
 endif
 
-TEST_CPPFLAGS := -I$(C_AGENT_ROOT)/php_agent/axiom -I$(C_AGENT_ROOT)/php_agent/axiom/tests -I$(C_AGENT_ROOT)/include -DC_AGENT_ROOT=$(C_AGENT_ROOT)
+TEST_CPPFLAGS := -I$(C_AGENT_ROOT)/vendor/newrelic/axiom -I$(C_AGENT_ROOT)/vendor/newrelic/axiom/tests -I$(C_AGENT_ROOT)/include -DC_AGENT_ROOT=$(C_AGENT_ROOT)
 ifeq (1,$(HAVE_BACKTRACE))
   TEST_CPPFLAGS += -DHAVE_BACKTRACE=1
 endif
@@ -210,7 +210,7 @@ clean:
 # unlikeliness that we'll ever want to override them at runtime, but can be
 # overridden if you really want to.
 #
-CHECK_VALGRIND_OUTPUT := $(C_AGENT_ROOT)/php_agent/make/check_valgrind_output.awk
+CHECK_VALGRIND_OUTPUT := $(C_AGENT_ROOT)/vendor/newrelic/make/check_valgrind_output.awk
 
 #
 # The exit code handling below is subtle. Valgrind returns the exit code of the
