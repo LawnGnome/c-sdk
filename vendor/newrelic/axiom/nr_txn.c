@@ -2387,9 +2387,9 @@ void nr_txn_name_from_function(nrtxn_t* txn,
   nr_free(buf);
 }
 
-void nr_txn_ignore(nrtxn_t* txn) {
+bool nr_txn_ignore(nrtxn_t* txn) {
   if (NULL == txn) {
-    return;
+    return false;
   }
 
   txn->status.ignore = 1;
@@ -2398,6 +2398,8 @@ void nr_txn_ignore(nrtxn_t* txn) {
   txn->status.recording = 0;
 
   nrl_debug(NRL_API, "ignoring this transaction");
+
+  return true;
 }
 
 nr_status_t nr_txn_add_custom_metric(nrtxn_t* txn,

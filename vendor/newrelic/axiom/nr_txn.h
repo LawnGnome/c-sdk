@@ -749,8 +749,10 @@ extern void nr_txn_name_from_function(nrtxn_t* txn,
  * Purpose : Ignore the current transaction and stop recording.
  *
  * Params  : 1. The transaction.
+ *
+ * Returns : true if the transaction could be ignore, and false otherwise.
  */
-extern void nr_txn_ignore(nrtxn_t* txn);
+extern bool nr_txn_ignore(nrtxn_t* txn);
 
 /*
  * Purpose : Add a custom metric from the API.

@@ -37,6 +37,9 @@ type Test struct {
 	expectScrubbed        []byte
 	expectResponseHeaders http.Header
 
+	// do we expect this test to produce a harvest
+	expectHarvest bool
+
 	// Raw parsed test information used to construct the Tx.
 	// The settings and env do not include global env and
 	// global settings.
@@ -77,6 +80,12 @@ type Test struct {
 	Failures []error
 }
 
+func NewTest(name string) *Test {
+	test := &Test{Name: name}
+	test.SetExpectHarvest(true)
+	return test
+}
+
 type ComparisonFailure struct {
 	Name   string
 	Expect string
@@ -85,6 +94,14 @@ type ComparisonFailure struct {
 
 func (c ComparisonFailure) Error() string {
 	return fmt.Sprintf("%s error:\nexpected:\n%s\n\nactual:\n%s\n", c.Name, c.Expect, c.Actual)
+}
+
+func (t *Test) SetExpectHarvest(value bool) {
+	t.expectHarvest = value
+}
+
+func (t *Test) GetExpectHarvest() bool {
+	return t.expectHarvest
 }
 
 func (t *Test) IsWeb() bool {
@@ -364,11 +381,26 @@ func (t *Test) Compare(harvest *newrelic.Harvest) {
 		}
 	}
 
-	if nil == harvest {
+	// if we expect no harvest (ex. an ignored transaction)
+	// and there is not harvest, then we pass
+	if nil == harvest && !t.GetExpectHarvest() {
+		return
+	}
+
+	// if we expect no harvest (ex. an ignored transaction)
+	// and there IS a harvest, then we've failed
+	if nil != harvest && !t.GetExpectHarvest() {
+		t.Fatal(errors.New("received a harvest, but EXPECT_HARVEST set to no"))
+		return
+	}
+
+	// if we expect a harvest and there isn't one, then we've failed
+	if nil == harvest && t.GetExpectHarvest() {
 		t.Fatal(errors.New("no harvest received"))
 		return
 	}
 
+	// if we expect a harvest and these is not, then we run our tests as per normal
 	t.compareResponseHeaders()
 
 	// Ensure that the actual and expected metrics are in the same order.
