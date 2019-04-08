@@ -7,14 +7,15 @@ mechanism.
 
 ### Requirements
 
-The C SDK works in 64-bit Linux operating systems with:
+The C SDK works on 64-bit Linux operating systems with:
 
 * gcc 4.8 or higher
 * glibc 2.17 or higher
 * Kernel version 2.6.26 or higher
-* libprce 8.20 or higher
+* libpcre 8.20 or higher
 * libpthread
-* cmake 2.8 or higher
+
+Running unit tests requires cmake 2.8 or higher.
 
 Compiling the New Relic daemon requires Go 1.4 or higher.
 

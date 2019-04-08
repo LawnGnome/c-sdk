@@ -621,7 +621,6 @@ other C SDK functions are called:
 
 * `newrelic_configure_log`
 * `newrelic_init`
-* `newrelic_create_app`
 
 ### Agent-daemon communication
 The agent makes blocking writes to the daemon. Unless the kernel is resource-
