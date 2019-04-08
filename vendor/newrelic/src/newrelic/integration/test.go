@@ -348,6 +348,7 @@ var (
 		regexp.MustCompile(`^Supportability\/Locale`),
 		regexp.MustCompile(`^Supportability\/InstrumentedFunction`),
 		regexp.MustCompile(`^Supportability\/TxnData\/.*`),
+		regexp.MustCompile(`^Supportability/C/NewrelicVersion/.*`),
 	}
 )
 

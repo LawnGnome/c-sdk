@@ -25,6 +25,8 @@
   function disabled with the
   [`disable_functions`](https://secure.php.net/manual/en/ini.core.php#ini.disable-functions)
   configuration directive will now correctly return `false`.
+  
+* When obfuscating SQL, comments are stripped without any loss of the SQL itself.
 
 ### Internal Changes ###
 

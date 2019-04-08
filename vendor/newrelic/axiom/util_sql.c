@@ -15,7 +15,7 @@ char* nr_sql_obfuscate(const char* raw) {
   char* q;
   int state = 0;
 
-  if (nrunlikely((0 == raw) || (0 == raw[0]))) {
+  if (nrunlikely(0 == raw)) {
     return 0;
   }
 
@@ -41,17 +41,23 @@ char* nr_sql_obfuscate(const char* raw) {
 
           case '-': /* comment. */
             if ('-' == p[1]) {
-              *q++ = '?';
-              goto done;
+              p = nr_strchr(p, '\n');
+              if (NULL == p) {
+                goto done;
+              }
+              p++;
             } else {
               *q++ = *p++;
             }
             break;
 
-          case '/': /* identical to -- except for the 2 characters. */
+          case '/': /* checking for c-style comments */
             if ('*' == p[1]) {
-              *q++ = '?';
-              goto done;
+              p = nr_strstr(p, "*/");
+              if (NULL == p) {
+                goto done;
+              }
+              p += 2;
             } else {
               *q++ = *p++;
             }

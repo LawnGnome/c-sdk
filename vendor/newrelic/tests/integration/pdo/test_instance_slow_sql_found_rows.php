@@ -36,7 +36,7 @@ ok - datastore instance metric exists
       "OtherTransaction/php__FILE__",
       "<unknown>",
       "?? SQL id",
-      "?",
+      " SELECT FOUND_ROWS() AS r;",
       "Datastore/operation/MySQL/select",
       1,
       "?? total time",

@@ -140,7 +140,7 @@ static void test_sql_obfuscate(void) {
   int lg;
 
   sql_obfuscate_testcase("null sql", 0, 0);
-  sql_obfuscate_testcase("empty sql", "", 0);
+  sql_obfuscate_testcase("empty sql", "", "");
   sql_obfuscate_testcase("single digit", "0", "?");
   sql_obfuscate_testcase("empty single quote string", "''", "?");
   sql_obfuscate_testcase("unterminated single quote", "'", "?");
@@ -197,15 +197,30 @@ static void test_sql_obfuscate(void) {
   sql_obfuscate_testcase(
       "Comment, SQL style",
       "SELECT * FROM PASSWORDS -- hunter2 -- WHERE foo IN (1)",
-      "SELECT * FROM PASSWORDS ?");
+      "SELECT * FROM PASSWORDS ");
+
+    sql_obfuscate_testcase(
+            "Comment, SQL style on two lines",
+            "SELECT * FROM PASSWORDS -- hunter2\n -- WHERE foo IN (1)",
+            "SELECT * FROM PASSWORDS  ");
+
+    sql_obfuscate_testcase(
+            "Comment, SQL style, next line ok",
+            "SELECT * FROM PASSWORDS -- hunter2\nWHERE foo IN (1)",
+            "SELECT * FROM PASSWORDS WHERE foo IN (?)");
 
   sql_obfuscate_testcase(
       "Comment, C style",
       "SELECT * FROM PASSWORDS /* hunter2 */ WHERE foo IN (1)",
-      "SELECT * FROM PASSWORDS ?");
+      "SELECT * FROM PASSWORDS  WHERE foo IN (?)");
 
-  sql_obfuscate_testcase("C-style comment start alone", "/*", "?");
-  sql_obfuscate_testcase("SQL-style comment start alone", "--", "?");
+    sql_obfuscate_testcase(
+            "Comment, C style, nested",
+            "SELECT * FROM PASSWORDS /* /** hunter2 */ WHERE */ foo IN (1)",
+            "SELECT * FROM PASSWORDS  WHERE */ foo IN (?)");
+
+  sql_obfuscate_testcase("C-style comment start alone", "/*", "");
+  sql_obfuscate_testcase("SQL-style comment start alone", "--", "");
   sql_obfuscate_testcase("Half of a C-style comment alone", "/", "/");
   sql_obfuscate_testcase("Half of a SQL-style comment alone", "-", "-");
 
@@ -217,12 +232,12 @@ static void test_sql_obfuscate(void) {
 
   sql_obfuscate_testcase("Only comment start (C style)",
                          "SELECT * /* FROM PASSWORDS WHERE (\"\")",
-                         "SELECT * ?");
+                         "SELECT * ");
 
   sql_obfuscate_testcase(
       "Mixed comments",
       "SELECT * -- FROM PASSWORDS /* hunter2 */ WHERE foo IN (1)",
-      "SELECT * ?");
+      "SELECT * ");
 
   sql_obfuscate_testcase("Half of a SQL comment delimiter.",
                          " not - - a-comment-", " not - - a-comment-");
@@ -232,7 +247,7 @@ static void test_sql_obfuscate(void) {
 
   sql_obfuscate_testcase("Comment start inside double quotes",
                          "SELECT * /* FROM PASSWORDS WHERE foo IN (\"/*\")",
-                         "SELECT * ?");
+                         "SELECT * ");
 
   sql_obfuscate_testcase("Comment start inside double quotes, C-style",
                          "SELECT * FROM PASSWORDS WHERE foo IN (\"/*\")",
@@ -245,12 +260,12 @@ static void test_sql_obfuscate(void) {
   sql_obfuscate_testcase(
       "C-style comment start inside single quotes, comment outside.",
       "SELECT * FROM PASSWORDS WHERE foo IN (\"/*\" /* HIDING */)",
-      "SELECT * FROM PASSWORDS WHERE foo IN (? ?");
+      "SELECT * FROM PASSWORDS WHERE foo IN (? )");
 
   sql_obfuscate_testcase(
       "SQL-style comment start inside single quotes, comment outside.",
       "SELECT * FROM PASSWORDS WHERE foo IN (\"--\" --)",
-      "SELECT * FROM PASSWORDS WHERE foo IN (? ?");
+      "SELECT * FROM PASSWORDS WHERE foo IN (? ");
 
   sql_obfuscate_testcase(
       "C-style comment start inside single quotes, comment end only outside.",
