@@ -1,4 +1,4 @@
-# New Relic C Agent
+# New Relic C SDK
 
 A generic library to communicate with New Relic from any language with a C FFI
 mechanism.
@@ -7,13 +7,16 @@ mechanism.
 
 ### Requirements
 
-* gcc or clang (any version in the last ten years is likely fine)
-* cmake
-* golang 1.4+
-* libpcre 8.20+
+The C SDK works in 64-bit Linux operating systems with:
 
-Note that the unit tests require cmocka 1.1.1 or later, but this is vendored in
-the `vendor` directory.
+* gcc 4.8 or higher
+* glibc 2.17 or higher
+* Kernel version 2.6.26 or higher
+* libprce 8.20 or higher
+* libpthread
+* cmake 2.8 or higher
+
+Compiling the New Relic daemon requires Go 1.4 or higher.
 
 ### Agent
 

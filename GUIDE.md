@@ -1,13 +1,11 @@
-# C Agent
+# C SDK
 
 Generic library to communicate with New Relic.
 
 ## Requirements
-* 64-bit Linux with
-  * glibc 2.5+ with NPTL support
-  * kernel version 2.6.13 or higher (2.6.26+ highly recommended)
-  * libpcre 8.20+
-  * libpthread
+
+Refer to [README.md](README.md#requirements) for detailed compatibility
+requirements.
 
 ## Getting started
 
@@ -616,8 +614,14 @@ them at `NEWRELIC_LOG_DEBUG` and `debug`.
 ## About
 
 ### Thread safety
-If you want to do anything beyond timing (e.g. events or attributes),
-transactions are *not* thread safe. Scope transactions to single threads.
+The C SDK supports instrumentation of multi-threaded applications, but needs to
+be initialized before instrumenting multiple threads. When calling any of the
+following functions, ensure that they are called on the main thread before any
+other C SDK functions are called:
+
+* `newrelic_configure_log`
+* `newrelic_init`
+* `newrelic_create_app`
 
 ### Agent-daemon communication
 The agent makes blocking writes to the daemon. Unless the kernel is resource-
