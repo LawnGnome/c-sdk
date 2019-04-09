@@ -908,6 +908,18 @@ bool newrelic_record_custom_metric(newrelic_txn_t* transaction,
                                    const char* metric_name,
                                    double milliseconds);
 
+/*
+ * @brief Ignore the current transaction
+ *
+ * Given a transaction, this function instructs the C SDK to not send data to
+ * New Relic for that transaction.
+ *
+ * @param [in] transaction A transaction.
+ *
+ * @return true on success.
+ */
+bool newrelic_ignore_transaction(newrelic_txn_t* transaction);
+
 #ifdef __cplusplus
 }
 #endif

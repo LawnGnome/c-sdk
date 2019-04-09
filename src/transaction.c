@@ -127,3 +127,12 @@ newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
 
   return transaction;
 }
+
+bool newrelic_ignore_transaction(newrelic_txn_t* transaction) {
+  if (NULL == transaction) {
+    nrl_debug(NRL_INSTRUMENT, "unable to ignore a NULL transaction");
+    return false;
+  }
+
+  return nr_txn_ignore(transaction->txn);
+}
