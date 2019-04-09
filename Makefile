@@ -5,9 +5,9 @@
 #
 # Useful top level targets:
 #
-# - all:       Builds libnewrelic.a
+# - all:       Builds libnewrelic.a and newrelic-daemon
 # - clean:     Removes all build products
-# - daemon:    Builds the daemon in vendor/newrelic/bin
+# - daemon:    Builds newrelic-daemon
 # - dynamic:   Builds libnewrelic.so
 # - static:    Builds libnewrelic.a
 # - run_tests: Runs the unit tests
@@ -39,7 +39,7 @@ VERSION_FLAGS += -DNEWRELIC_VERSION=$(AGENT_VERSION)
 
 export AGENT_VERSION VERSION_FLAGS
 
-all: libnewrelic.a
+all: libnewrelic.a newrelic-daemon
 
 ifeq (Darwin,$(UNAME))
 #
@@ -90,13 +90,16 @@ vendor/newrelic/axiom/libaxiom.a:
 axiom-clean:
 	$(MAKE) -C vendor/newrelic/axiom clean
 
-.PHONY: daemon
-daemon:
+daemon: newrelic-daemon
+
+newrelic-daemon:
 	$(MAKE) -C vendor/newrelic daemon
+	cp vendor/newrelic/bin/daemon newrelic-daemon
 
 .PHONY: daemon-clean
 daemon-clean:
 	$(MAKE) -C vendor/newrelic daemon-clean
+	rm -f newrelic-daemon
 
 .PHONY: dynamic
 dynamic: libnewrelic.so

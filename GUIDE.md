@@ -79,7 +79,7 @@ gcc -o test_app test_app.c -L. -lnewrelic -lpcre -lm -pthread -rdynamic
 Start the daemon:
 
 ```sh
-./bin/newrelic-daemon -f -logfile stdout -loglevel debug
+./newrelic-daemon -f -logfile stdout -loglevel debug
 ```
 
 Run your test application and check the `c-agent.log` file for output.
@@ -592,7 +592,7 @@ For example, the following invocation of the daemon configures logging to take
 place at `stdout` and at loglevel `debug`.
 
 ```sh
-./bin/newrelic-daemon -f -logfile stdout -loglevel debug
+./newrelic-daemon -f -logfile stdout -loglevel debug
 ```
 
 The daemon also has four log levels: `error`, `warning`, `info` or `debug`.

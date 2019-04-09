@@ -19,29 +19,23 @@ Running unit tests requires cmake 2.8 or higher.
 
 Compiling the New Relic daemon requires Go 1.4 or higher.
 
-### Agent
+### Building
 
-Building the agent should be as simple as:
+Building the agent and daemon should be as simple as:
 
 ```sh
 make
 ```
 
-This will create a `libnewrelic.a` in this directory, ready to link against.
+This will create two files in this directory:
 
-### Daemon
+* `libnewrelic.a`: the static C SDK library, ready to link against.
+* `newrelic-daemon`: the daemon binary, ready to run.
 
-To build the daemon, run:
-
-```sh
-make daemon
-```
-
-This creates `vendor/newrelic/bin/daemon`. You can then start the daemon in the
-foreground with:
+You can start the daemon in the foreground with:
 
 ```sh
-./vendor/newrelic/bin/daemon -f --logfile stdout --loglevel debug
+./newrelic-daemon -f --logfile stdout --loglevel debug
 ```
 
 ## Using the agent
