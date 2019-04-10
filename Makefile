@@ -93,7 +93,7 @@ axiom-clean:
 daemon: newrelic-daemon
 
 newrelic-daemon:
-	$(MAKE) -C vendor/newrelic daemon
+	$(MAKE) USE_SYSTEM_CERTS=1 -C vendor/newrelic daemon
 	cp vendor/newrelic/bin/daemon newrelic-daemon
 
 .PHONY: daemon-clean

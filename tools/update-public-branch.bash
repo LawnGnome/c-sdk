@@ -130,7 +130,8 @@ vendor/newrelic/Makefile
 vendor/newrelic/src
 VERSION"
 
-force_black_list="vendor/newrelic/src/newrelic/collector/compile_certs.go"
+force_black_list="vendor/newrelic/src/newrelic/collector/compile_certs.go
+vendor/newrelic/src/newrelic/collector/certs_newrelic.go"
 
 blacklist=$(
     comm -23 -- \
