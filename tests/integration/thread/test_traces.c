@@ -25,7 +25,8 @@ newrelic_start_segment() adds and reparents segments in threads.
     [{"name":"other/s1",
       "scope":"OtherTransaction/Action/basic"},           [5, "??", "??", "??", "??", "??"]],
     [{"name":"other/s2",
-      "scope":"OtherTransaction/Action/basic"},           [5, "??", "??", "??", "??", "??"]]
+      "scope":"OtherTransaction/Action/basic"},           [5, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/C/api/set_segment_parent"},  [10, "??", "??", "??", "??", "??"]]
   ]
 ]
 */

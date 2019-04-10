@@ -24,7 +24,8 @@ segment 2.
     [{"name":"other/s1",
       "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]],
     [{"name":"other/s2",
-      "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]]
+      "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/C/api/set_segment_parent_root"},  [1, "??", "??", "??", "??", "??"]]
   ]
 ]
 */

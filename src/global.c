@@ -101,3 +101,16 @@ void newrelic_shutdown(void) {
   nrl_close_log_file();
   newrelic_log_configured = false;
 }
+
+void newrelic_add_api_supportability_metric(nrtxn_t* txn, const char* name) {
+  char* metric;
+  if (NULL == name || NULL == txn) {
+    return;
+  }
+
+  metric = nr_formatf("Supportability/C/api/%s", name);
+
+  nrm_force_add(txn->unscoped_metrics, metric, 0);
+
+  nr_free(metric);
+}

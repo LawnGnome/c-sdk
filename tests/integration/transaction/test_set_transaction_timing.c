@@ -31,6 +31,24 @@ Manually setting a transaction's timing must alter its timestamp and duration.
 ]
 */
 
+/*EXPECT_METRICS
+[
+  "?? agent run id",
+  "?? start time",
+  "?? stop time",
+  [
+    [{"name":"OtherTransaction/Action/basic"},               [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransaction/all"},                        [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime"},                   [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime/Action/basic"},      [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/C/api/set_transaction_timing"}, [1, "??", "??", "??", "??", "??"]],
+    [{"name":"other/segment"},                               [1, "??", "??", "??", "??", "??"]],
+    [{"name":"other/segment",
+      "scope":"OtherTransaction/Action/basic"},              [1, "??", "??", "??", "??", "??"]]
+  ]
+]
+*/
+
 #include "common.h"
 
 RUN_NONWEB_TXN("basic") {

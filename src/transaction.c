@@ -2,6 +2,7 @@
 
 #include "app.h"
 #include "config.h"
+#include "global.h"
 #include "segment.h"
 #include "transaction.h"
 
@@ -11,6 +12,7 @@
 #include "nr_txn.h"
 #include "util_logging.h"
 #include "util_memory.h"
+#include "util_strings.h"
 
 newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
                                                const char* name) {
@@ -32,6 +34,8 @@ bool newrelic_set_transaction_timing(newrelic_txn_t* transaction,
   }
 
   nrt_mutex_lock(&transaction->lock);
+  newrelic_add_api_supportability_metric(transaction->txn,
+                                         "set_transaction_timing");
   ret = nr_txn_set_timing(transaction->txn, start_time, duration);
   nrt_mutex_unlock(&transaction->lock);
 
@@ -41,6 +45,7 @@ bool newrelic_set_transaction_timing(newrelic_txn_t* transaction,
 bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
   newrelic_txn_t* transaction;
   bool ret = true;
+  char* version_metric;
 
   if ((NULL == transaction_ptr) || (NULL == *transaction_ptr)) {
     nrl_error(NRL_INSTRUMENT, "unable to end a NULL transaction");
@@ -52,6 +57,11 @@ bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr) {
   nrt_mutex_lock(&transaction->lock);
   {
     nrtxn_t* txn = transaction->txn;
+
+    version_metric
+        = nr_formatf("Supportability/C/NewrelicVersion/%s", newrelic_version());
+    nr_txn_force_single_count(txn, version_metric);
+    nr_free(version_metric);
 
     nr_txn_end(txn);
 

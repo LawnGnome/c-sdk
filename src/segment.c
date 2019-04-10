@@ -1,6 +1,7 @@
 #include "libnewrelic.h"
 #include "datastore.h"
 #include "external.h"
+#include "global.h"
 #include "segment.h"
 #include "transaction.h"
 
@@ -139,6 +140,8 @@ bool newrelic_set_segment_parent(newrelic_segment_t* segment,
   }
 
   nrt_mutex_lock(segment->txn_lock);
+  newrelic_add_api_supportability_metric(segment->transaction,
+                                         "set_segment_parent");
   ret = nr_segment_set_parent(segment->segment, parent->segment);
   nrt_mutex_unlock(segment->txn_lock);
 
@@ -168,6 +171,8 @@ bool newrelic_set_segment_parent_root(newrelic_segment_t* segment) {
 
   nrt_mutex_lock(segment->txn_lock);
   {
+    newrelic_add_api_supportability_metric(segment->transaction,
+                                           "set_segment_parent_root");
     ret = nr_segment_set_parent(segment->segment,
                                 segment->transaction->segment_root);
   }

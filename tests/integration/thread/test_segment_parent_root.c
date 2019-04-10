@@ -14,13 +14,14 @@ Reparent segments with the root segment in different threads.
   "?? start time",
   "?? stop time",
   [
-    [{"name":"OtherTransaction/Action/basic"},            [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransaction/all"},                     [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime"},                [1, "??", "??", "??", "??", "??"]],
-    [{"name":"OtherTransactionTotalTime/Action/basic"},   [1, "??", "??", "??", "??", "??"]],
-    [{"name":"other/child"},				  [10000, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransaction/Action/basic"},                [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransaction/all"},                         [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime"},                    [1, "??", "??", "??", "??", "??"]],
+    [{"name":"OtherTransactionTotalTime/Action/basic"},       [1, "??", "??", "??", "??", "??"]],
+    [{"name":"other/child"},                                  [10000, "??", "??", "??", "??", "??"]],
     [{"name":"other/child",
-      "scope":"OtherTransaction/Action/basic"},           [10000, "??", "??", "??", "??", "??"]]
+      "scope":"OtherTransaction/Action/basic"},               [10000, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/C/api/set_segment_parent_root"}, [10000, "??", "??", "??", "??", "??"]]
   ]
 ]
 */

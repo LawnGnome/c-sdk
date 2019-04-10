@@ -25,7 +25,9 @@ newrelic_set_segment_parent() should override the default parent settings.
     [{"name":"other/s2",
       "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]],
     [{"name":"other/s3",
-      "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]]
+      "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/C/api/set_segment_parent"},  [1, "??", "??", "??", "??", "??"]]
+
   ]
 ]
 */

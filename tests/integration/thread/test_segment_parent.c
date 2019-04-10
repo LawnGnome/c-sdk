@@ -19,11 +19,12 @@ Reparent segments in different threads.
     [{"name":"OtherTransactionTotalTime"},                [1, "??", "??", "??", "??", "??"]],
     [{"name":"OtherTransactionTotalTime/Action/basic"},   [1, "??", "??", "??", "??", "??"]],
     [{"name":"other/parent"},                             [1, "??", "??", "??", "??", "??"]],
-    [{"name":"other/child"},				  [10000, "??", "??", "??", "??", "??"]],
+    [{"name":"other/child"},                              [10000, "??", "??", "??", "??", "??"]],
     [{"name":"other/parent",
       "scope":"OtherTransaction/Action/basic"},           [1, "??", "??", "??", "??", "??"]],
     [{"name":"other/child",
-      "scope":"OtherTransaction/Action/basic"},           [10000, "??", "??", "??", "??", "??"]]
+      "scope":"OtherTransaction/Action/basic"},           [10000, "??", "??", "??", "??", "??"]],
+    [{"name":"Supportability/C/api/set_segment_parent"},  [10000, "??", "??", "??", "??", "??"]]
   ]
 ]
 */

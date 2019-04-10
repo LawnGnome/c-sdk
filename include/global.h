@@ -6,6 +6,7 @@
  */
 #ifndef LIBNEWRELIC_GLOBAL_H
 #define LIBNEWRELIC_GLOBAL_H
+#include "nr_txn.h"
 
 /*!
  * @brief Actually initialise the C agent.
@@ -39,5 +40,14 @@ void newrelic_shutdown(void);
  * Whether the log system has been initialised.
  */
 extern bool newrelic_log_configured;
+
+/*!
+ * @brief Add api supportability metrics to the transaction.
+ *
+ * @param name The name of the api function, this will be added to the end of
+ * the metric.
+ * @param txn The Transaction that the metric will be attached to.
+ */
+void newrelic_add_api_supportability_metric(nrtxn_t* txn, const char* name);
 
 #endif /* LIBNEWRELIC_GLOBAL_H */
