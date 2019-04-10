@@ -58,3 +58,4 @@ tests/integration/*/*.log
 #
 .idea/
 
+newrelic-daemon

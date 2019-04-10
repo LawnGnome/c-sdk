@@ -7,11 +7,11 @@ CPPFLAGS := -I$(LIBNEWRELIC_INCLUDE) -I$(NEWRELIC_EXAMPLES) $(shell pcre-config 
 LDFLAGS := -rdynamic
 LIBS := $(LIBNEWRELIC_LIB) common.o -lpcre -pthread -lm
 
-all: test_app
+all: test_app test_app_trigger
 
 .PHONY: clean
 clean:
-	rm -r *.o test_app
+	rm -r *.o test_app test_app_trigger
 
 test_app: test_app.o common.o
 	$(CC) $(LDFLAGS) -o $@ $< $(LIBS)
