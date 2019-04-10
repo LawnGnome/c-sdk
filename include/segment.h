@@ -15,6 +15,9 @@ typedef struct _newrelic_segment_t {
   nr_segment_t* segment;
   nrtxn_t* transaction;
 
+  /*! The lock inherited from the transaction. */
+  nrthread_mutex_t* txn_lock;
+
   /* Type fields. Which union is valid depends on segment->type, which is the
    * source of truth for what type of segment this is. */
   union {

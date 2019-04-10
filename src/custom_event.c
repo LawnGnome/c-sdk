@@ -27,8 +27,12 @@ void newrelic_record_custom_event(newrelic_txn_t* transaction,
     return;
   }
 
-  nr_txn_record_custom_event(transaction->txn, (*event)->type,
-                             (*event)->attributes);
+  nrt_mutex_lock(&transaction->lock);
+  {
+    nr_txn_record_custom_event(transaction->txn, (*event)->type,
+                               (*event)->attributes);
+  }
+  nrt_mutex_unlock(&transaction->lock);
 
   // free the event after it's been recorded
   newrelic_discard_custom_event(event);

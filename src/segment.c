@@ -112,11 +112,15 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
   }
   nrt_mutex_unlock(&transaction->lock);
 
+  segment->txn_lock = &transaction->lock;
+
   return segment;
 }
 
 bool newrelic_set_segment_parent(newrelic_segment_t* segment,
                                  newrelic_segment_t* parent) {
+  bool ret;
+
   if (NULL == segment) {
     nrl_error(NRL_INSTRUMENT, "unable to set the parent on a NULL segment");
     return false;
@@ -134,10 +138,16 @@ bool newrelic_set_segment_parent(newrelic_segment_t* segment,
     return false;
   }
 
-  return nr_segment_set_parent(segment->segment, parent->segment);
+  nrt_mutex_lock(segment->txn_lock);
+  ret = nr_segment_set_parent(segment->segment, parent->segment);
+  nrt_mutex_unlock(segment->txn_lock);
+
+  return ret;
 }
 
 bool newrelic_set_segment_parent_root(newrelic_segment_t* segment) {
+  bool ret;
+
   if (NULL == segment) {
     nrl_error(NRL_INSTRUMENT, "unable to set the parent on a NULL segment");
     return false;
@@ -156,19 +166,31 @@ bool newrelic_set_segment_parent_root(newrelic_segment_t* segment) {
     return false;
   }
 
-  return nr_segment_set_parent(segment->segment,
-                               segment->transaction->segment_root);
+  nrt_mutex_lock(segment->txn_lock);
+  {
+    ret = nr_segment_set_parent(segment->segment,
+                                segment->transaction->segment_root);
+  }
+  nrt_mutex_unlock(segment->txn_lock);
+
+  return ret;
 }
 
 bool newrelic_set_segment_timing(newrelic_segment_t* segment,
                                  newrelic_time_us_t start_time,
                                  newrelic_time_us_t duration) {
+  bool ret;
+
   if (NULL == segment) {
     nrl_error(NRL_INSTRUMENT, "unable to set timing on a NULL segment");
     return false;
   }
 
-  return nr_segment_set_timing(segment->segment, start_time, duration);
+  nrt_mutex_lock(segment->txn_lock);
+  ret = nr_segment_set_timing(segment->segment, start_time, duration);
+  nrt_mutex_unlock(segment->txn_lock);
+
+  return ret;
 }
 
 bool newrelic_end_segment(newrelic_txn_t* transaction,
