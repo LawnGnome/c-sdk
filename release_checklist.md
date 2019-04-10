@@ -47,3 +47,5 @@
 9. [For production only] Send an email to `agent-releases@newrelic.com` with the release notes.
 
 10. [For production only] Are there new docs staged? If so tell the `#documentation` `@hero` to release the docs!
+
+11. [For production only] Ensure that the supportability metric for the new C SDK version has been added to [Angler](https://source.datanerd.us/agents/angler/).
