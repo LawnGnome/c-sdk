@@ -21,6 +21,24 @@
  */
 time_t nr_last_log_max_apps = 0;
 
+bool nr_app_consider_appinfo(nrapp_t* app, time_t now) {
+  nr_status_t result = NR_FAILURE;
+  if (NULL == app) {
+    return false;
+  }
+
+  if (nr_agent_should_do_app_daemon_query(app, now)) {
+    app->last_daemon_query = now;
+    result = nr_cmd_appinfo_tx(nr_get_daemon_fd(), app);
+    if (NR_APP_OK == app->state) {
+      app->failed_daemon_query_count = 0;
+    } else {
+      app->failed_daemon_query_count += 1;
+    }
+  }
+  return result == NR_SUCCESS;
+}
+
 /*
  * Purpose : Determine if an application matches the given information.
  *
@@ -409,13 +427,21 @@ int nr_agent_should_do_app_daemon_query(const nrapp_t* app, time_t now) {
   if ((now - app->last_daemon_query) > period) {
     return 1;
   }
+
+  /*
+   * If last_daemon_query is more than NR_APP_REFRESH_QUERY_PERIOD_SECONDS
+   * seconds in the future, we want an appinfo query to bring it back
+   * from the future
+   */
+  if (app->last_daemon_query > (now + NR_APP_REFRESH_QUERY_PERIOD_SECONDS)) {
+    return 1;
+  }
   return 0;
 }
 
 nrapp_t* nr_agent_find_or_add_app(nrapplist_t* applist,
                                   const nr_app_info_t* info,
                                   nrobj_t* (*settings_callback_fn)(void)) {
-  time_t now = time(0);
   nrapp_t* app;
 
   if (0 == nr_app_info_valid(info)) {
@@ -443,15 +469,7 @@ nrapp_t* nr_agent_find_or_add_app(nrapplist_t* applist,
   /*
    * Query the daemon about the state of the application, if appropriate.
    */
-  if (nr_agent_should_do_app_daemon_query(app, now)) {
-    app->last_daemon_query = now;
-    nr_cmd_appinfo_tx(nr_get_daemon_fd(), app);
-    if (NR_APP_OK == app->state) {
-      app->failed_daemon_query_count = 0;
-    } else {
-      app->failed_daemon_query_count += 1;
-    }
-  }
+  nr_app_consider_appinfo(app, time(0));
 
   if (NR_APP_OK == app->state) {
     return app;

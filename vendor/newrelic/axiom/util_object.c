@@ -1291,9 +1291,11 @@ static const char* parse_string(nrintobj_t* item, const char* str) {
     return 0; /* not a string! */
   }
 
-  while (*ptr != '\"' && (unsigned char)*ptr > 31 && ++len) {
-    if (*ptr++ == '\\') {
+  for (len = 0; *ptr != '\"'; len++, ptr++) {
+    if ('\\' == *ptr) {
       ptr++; /* Skip escaped quotes. */
+    } else if ((unsigned char)*ptr < 32) {
+      return 0; /* Not a valid string! */
     }
   }
 
@@ -1395,6 +1397,7 @@ static const char* json_skip(const char* in) {
 }
 
 nrobj_t* nro_create_from_json(const char* json) {
+  const char* next;
   nrintobj_t* rv;
 
   if ((0 == json) || (0 == json[0])) {
@@ -1403,7 +1406,11 @@ nrobj_t* nro_create_from_json(const char* json) {
 
   rv = (nrintobj_t*)nr_zalloc(sizeof(nrintobj_t));
 
-  if (0 == parse_value(rv, json_skip(json))) {
+  next = parse_value(rv, json_skip(json));
+  if (0 == next) {
+    nro_internal_delete(rv, 1);
+    return 0;
+  } else if (!('\0' == *next || '\0' == *json_skip(next))) {
     nro_internal_delete(rv, 1);
     return 0;
   }

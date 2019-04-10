@@ -45,35 +45,6 @@
 #define NR_PHP_APP_NAME_DEFAULT "PHP Application"
 
 /*
- * As of PHP {5.4, 5.5} the maximum flag bit is (from Zend/zend_compile.h)
- *      ZEND_ACC_DONE_PASS_TWO    0x08000000
- * As of  PHP {5.6} the maximum flag bit is:
- *      ZEND_ACC_HAS_TYPE_HINTS   0x10000000
- * Our flag bit starts at:
- *      NR_PHP_ACC_INSTRUMENTED   0x40000000
- * so we are safe.
- *
- * The reason we set this flag is because in PHP 5.2.5 and
- * lower, the reserved resources are not guaranteed to be initialized to
- * NULL. The only way to initialize them to null is to be a zend_extension
- * and define an op_array_ctor_func_t. We don't want to be a zend_extension
- * yet, so we use this flag instead.
- *
- * We only set this flag if we truly instrumented the function by putting
- * a pointer to a wraprec in the reserved resource offset.
- *
- * In PHP 7, we rely entirely on the reserved pointer, as there are no
- * remaining bits in the function flags that are unused.
- *
- * TODO(aharvey): consider if we can remove this altogether, now that PHP 5.2
- * support has been dropped; the key will be whether ionCube has updated its
- * extensions to prevent the crashes we saw without this flag.
- */
-#ifndef PHP7
-#define NR_PHP_ACC_INSTRUMENTED 0x40000000
-#endif /* !PHP7 */
-
-/*
  * Purpose : Checks if the given feature flag is enabled.
  *
  * Params  : 1. The feature flag to check.

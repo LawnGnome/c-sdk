@@ -359,10 +359,40 @@ For information that is more in depth, see
 When the script is completed, the PHP engine again calls all extensions letting
 them know that. This is called the "RSHUTDOWN" phase and it gives extensions
 the opportunity to clean up and release any resources it allocated when the
-request started. During this phase the PHP agent finalizes the metrics table,
-and then sends a dump of all of the data gathered during the request to the
-daemon. It then releases all the memory associated with the transaction, and
-the agent is done.
+request started.
+
+At this point, the transaction ends. This freezes the transaction name, if that
+hasn't already occurred, and then starts the process of building the data
+products to be sent to New Relic.
+
+Firstly, the tree of segments within the transaction is iterated in full. All
+segments have their exclusive time calculated, and metrics associated with
+individual segments are created. Furthermore, the total time of the transaction
+is calculated: unlike the duration (which is the wallclock time taken from the
+start of the transaction to the end), the total time is the sum of the
+exclusive time for every segment. If asynchronous or multi-threaded processing
+has occurred, then the total time will usually be greater than the duration.
+
+If the duration of the transaction is long enough to be eligible for a
+transaction trace, then the slowest 2,000 segments are placed into a set.
+Simultaneously, the most interesting 1,000 segments are added to a span event
+set.
+
+Once the total time has been calculated, duration and total time metrics,
+intrinsics, and attributes are created on the transaction.
+
+If span events or a transaction trace need to be generated, then another pass
+over the segment tree is performed. This pass writes the JSON for the
+transaction trace for segments that were in the trace set, and span events are
+added to the span event reservoir based on the segments in the span event set.
+As some span events may be omitted, span events created at this stage are
+parented to the closest ancestor that is in the span event reservoir.
+
+Once this process is complete, the agent sends the metric tables, events,
+transaction trace, and error trace to the daemon, encoded in Flatbuffers.
+
+Finally, the agent releases all the memory associated with the transaction, and
+the transaction is done.
 
 ### PHP Termination
 

@@ -390,7 +390,7 @@ static void test_read_times_out(void) {
   /* This range is very large to account for Valgrind time dilation */
   tlib_pass_if_true("times out",
   /*
-   * TODO(msl): Figure out why this had to be so large on BSD and sometimes on
+   * TODO: Figure out why this had to be so large on BSD and sometimes on
    * linux
    */
 #if defined(__FreeBSD__) || defined(__linux__)

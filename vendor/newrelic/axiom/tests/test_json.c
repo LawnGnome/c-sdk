@@ -256,9 +256,9 @@ static void test_json_worker(void) {
 
   /*
    * Use a 26 bit (5 byte) encoding, which can't(?) be translated using
-   * surrogate pairs. rrh wasn't able to find an example of a 26-bit (5-byte)
-   * encoding character, so just made one up. The behavior of the encoder is
-   * pretty much undefined.
+   * surrogate pairs. There does not seem to be an example of a 26-bit (5-byte)
+   * encoding character, so here's a creative invention. The behavior of
+   * the encoder is pretty much undefined.
    */
   count = test_nr_json_escape(&dest,
                               "26-bit encoding "

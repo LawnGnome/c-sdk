@@ -338,13 +338,19 @@ static void test_find_or_add_app_high_security_mismatch(void) {
   nr_app_info_destroy_fields(&info);
 }
 
+/*
+ * This global variable allows us to control the app state
+ * set by the local nr_cmd_appinfo_tx mock function.
+ */
+nr_status_t nr_cmd_appinfo_tx_state = NR_APP_OK;
+
 nr_status_t nr_cmd_appinfo_tx(int daemon_fd NRUNUSED, nrapp_t* app) {
   test_app_state_t* p = (test_app_state_t*)tlib_getspecific();
 
   p->cmd_appinfo_called += 1;
 
   if (p->cmd_appinfo_succeed) {
-    app->state = NR_APP_OK;
+    app->state = nr_cmd_appinfo_tx_state;
     return NR_SUCCESS;
   }
 
@@ -642,6 +648,113 @@ static void test_verify_id(void) {
   nr_app_info_destroy_fields(&info);
 }
 
+static void test_app_consider_appinfo(void) {
+  nrapp_t app;
+  time_t now = time(0);
+  // null checks
+  tlib_pass_if_false("nr_app_consider_appinfo: null check",
+                     nr_app_consider_appinfo(NULL, time(0)),
+                     "Expected false, got true");
+
+  app.state = NR_APP_OK;
+  app.failed_daemon_query_count = 0;
+  app.last_daemon_query = (int)now - 1;
+  tlib_pass_if_false("nr_app_consider_appinfo: one second ago",
+                     nr_app_consider_appinfo(&app, now),
+                     "Expected false, got true");
+
+  app.state = NR_APP_OK;
+  app.failed_daemon_query_count = 0;
+  app.last_daemon_query = (int)now - 60;
+  tlib_pass_if_true("nr_app_consider_appinfo: one minute ago",
+                    nr_app_consider_appinfo(&app, now),
+                    "Expected true, got false");
+
+  tlib_pass_if_equal("nr_app_consider_appinfo: state", NR_APP_OK, app.state,
+                     nrapptype_t, "%d");
+
+  tlib_pass_if_int_equal("nr_app_consider_appinfo: failed_daemon_query_count",
+                         app.failed_daemon_query_count, 0);
+
+  // If the real time clock (RTC) was adjusted by hand
+  // and the time's far enough in the future, appinfo updates
+  app.state = NR_APP_OK;
+  app.last_daemon_query = (int)now + 60;
+  app.failed_daemon_query_count = 0;
+  tlib_pass_if_true("nr_app_consider_appinfo: one minute in to the future",
+                    nr_app_consider_appinfo(&app, now),
+                    "Expected true, got false");
+
+  tlib_pass_if_equal("nr_app_consider_appinfo: state", NR_APP_OK, app.state,
+                     nrapptype_t, "%d");
+
+  tlib_pass_if_int_equal("nr_app_consider_appinfo: failed_daemon_query_count",
+                         app.failed_daemon_query_count, 0);
+
+  tlib_pass_if_true("nr_app_consider_appinfo: last_daemon_query",
+                    app.last_daemon_query < (int)now + 60,
+                    "Expected updated last_daemon_query");
+
+  // If the real time clock (RTC) was adjusted by hand
+  // and the time's NOT far enough in the future, appinfo does not update
+  app.state = NR_APP_OK;
+  app.last_daemon_query = (int)now + NR_APP_REFRESH_QUERY_PERIOD_SECONDS - 1;
+  app.failed_daemon_query_count = 0;
+  tlib_pass_if_false("nr_app_consider_appinfo: one minute in to the future",
+                     nr_app_consider_appinfo(&app, now),
+                     "Expected true, got false");
+
+  tlib_pass_if_equal("nr_app_consider_appinfo: state", NR_APP_OK, app.state,
+                     nrapptype_t, "%d");
+
+  tlib_pass_if_int_equal("nr_app_consider_appinfo: failed_daemon_query_count",
+                         app.failed_daemon_query_count, 0);
+}
+
+static void test_app_consider_appinfo_failure(void) {
+  nrapp_t app;
+  time_t now = time(0);
+  nr_status_t original_state;
+
+  // grab the original return value of the mocked nr_cmd_appinfo
+  original_state = nr_cmd_appinfo_tx_state;
+
+  // mock the status we want nr_cmd_appinfo to return
+  nr_cmd_appinfo_tx_state = NR_APP_UNKNOWN;
+
+  // tests that failed_daemon_query_count is set on a failure
+  app.state = NR_APP_OK;
+  app.last_daemon_query = (int)now - 60;
+  app.failed_daemon_query_count = 0;
+
+  tlib_pass_if_true("nr_app_consider_appinfo: one minute ago",
+                    nr_app_consider_appinfo(&app, now),
+                    "Expected true, got false");
+
+  tlib_pass_if_equal("nr_app_consider_appinfo: state", NR_APP_UNKNOWN,
+                     app.state, nrapptype_t, "%d");
+
+  tlib_pass_if_int_equal("nr_app_consider_appinfo: failed_daemon_query_count ",
+                         app.failed_daemon_query_count, 1);
+
+  // tests that failed_daemon_query_count is _incremented_ on a failure
+  app.state = NR_APP_OK;
+  app.last_daemon_query = (int)now - 60;
+  app.failed_daemon_query_count = 1;
+  tlib_pass_if_true("nr_app_consider_appinfo: one minute ago",
+                    nr_app_consider_appinfo(&app, now),
+                    "Expected true, got false");
+
+  tlib_pass_if_equal("nr_app_consider_appinfo: state", NR_APP_UNKNOWN,
+                     app.state, nrapptype_t, "%d");
+
+  tlib_pass_if_int_equal("nr_app_consider_appinfo: failed_daemon_query_count ",
+                         app.failed_daemon_query_count, 2);
+
+  // restore the original return value of the mocked nr_cmd_appinfo
+  nr_cmd_appinfo_tx_state = original_state;
+}
+
 tlib_parallel_info_t parallel_info
     = {.suggested_nthreads = 4, .state_size = sizeof(test_app_state_t)};
 
@@ -654,4 +767,6 @@ void test_main(void* p NRUNUSED) {
   test_agent_should_do_app_daemon_query();
   test_agent_find_or_add_app();
   test_verify_id();
+  test_app_consider_appinfo();
+  test_app_consider_appinfo_failure();
 }
