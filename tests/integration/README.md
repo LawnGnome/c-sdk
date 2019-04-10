@@ -413,7 +413,7 @@ The following macros are provided:
 
 In each test file only one of those macros can be used.
 
-By default an agent log file `./c_agent.log` is created. This path can be
+By default an agent log file `./c_sdk.log` is created. This path can be
 changed by setting the environment variable `NEW_RELIC_LOG_FILE`.
 <div align="right">
     <b><a href="#table-of-contents">↥ back to the table of contents</a></b>

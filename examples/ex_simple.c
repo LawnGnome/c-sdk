@@ -19,7 +19,7 @@ int main(void) {
   config
       = newrelic_create_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
 
-  if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
+  if (!newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO)) {
     printf("Error configuring logging.\n");
     return -1;
   }

@@ -30,4 +30,4 @@ ex_%.out: ex_%.o common.o ../libnewrelic.a
 	$(CC) -c $< -o $@ -I$(LIBNEWRELIC_H_LOCATION) $(PCRE_CFLAGS)
 
 clean:
-	rm -f *.o $(EXAMPLES) c_agent.log
+	rm -f *.o $(EXAMPLES) c_sdk.log

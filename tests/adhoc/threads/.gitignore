@@ -2,6 +2,6 @@
 # Byproducts from building and running threads
 #
 threads
-c_agent.log
+c_sdk.log
 *.o
 vgcore.*

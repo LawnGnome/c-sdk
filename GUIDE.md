@@ -27,7 +27,7 @@ int main(void) {
 
   config = newrelic_create_app_config("YOUR_APP_NAME", "_NEW_RELIC_LICENSE_KEY_");
 
-  if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
+  if (!newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO)) {
     printf("Error configuring logging.\n");
     return -1;
   }
@@ -564,7 +564,7 @@ By default, logs output to standard error. You may change this by calling
 log level to info.
 
 ```c
-  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
+  newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO);
 ```
 
 The C agent logs have four log levels, as defined by the `enum _newrelic_loglevel_t`

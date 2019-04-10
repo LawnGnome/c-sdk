@@ -19,4 +19,4 @@ stress_app:	stress_app.o ../../libnewrelic.a
 	$(CC) -c $< -o $@ -I$(LIBNEWRELIC_H_LOCATION) -I$(AXIOM_LOCATION)
 
 clean:
-	rm -f stress_app *.o c_agent.log
+	rm -f stress_app *.o c_sdk.log

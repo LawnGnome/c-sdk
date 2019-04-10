@@ -39,7 +39,7 @@ int main(void) {
   char* host = getenv("NEW_RELIC_HOST");
 
   /* No explicit newrelic_init(); we'll let the defaults work their magic. */
-  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_DEBUG);
+  newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_DEBUG);
 
   app = test_app_create_app(license, host, app_name);
 

@@ -36,7 +36,7 @@ bool customize_config(newrelic_app_config_t** config_ptr) {
 }
 
 bool example_init(void) {
-  if (!newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO)) {
+  if (!newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO)) {
     printf("Error configuring logging.\n");
     return false;
   }

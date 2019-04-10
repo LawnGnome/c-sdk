@@ -14,7 +14,7 @@ newrelic_app_t* newrelic_get_app(void) {
   newrelic_app_t* app = 0;
   newrelic_app_config_t* config = 0;
 
-  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_INFO);
+  newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO);
 
   /* Staging account 432507 */
   config = newrelic_create_app_config(

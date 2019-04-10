@@ -2,5 +2,5 @@
 # Byproducts from building and running the test_app
 #
 test_app
-c_agent.log
+c_sdk.log
 *.o
