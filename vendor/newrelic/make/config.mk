@@ -134,3 +134,24 @@ ifeq (1,$(ENABLE_COVERAGE))
   CFLAGS += -fprofile-arcs -ftest-coverage
   LDFLAGS += --coverage
 endif
+
+#
+# Conditionally compile Go files to use the system certs.
+#
+ifeq (1,$(USE_SYSTEM_CERTS))
+	GO_TAGS += use_system_certs
+endif
+
+#
+# Conditionally compile Go files for integration tests.
+#
+ifeq (1,$(INTEGRATION_TAGS))
+	GO_TAGS += integration
+endif
+
+#
+# If Go build tags exist prepend the tags flag.
+#
+ifneq (,$(GO_TAGS))
+	GO_TAGS := -tags='$(GO_TAGS)'
+endif

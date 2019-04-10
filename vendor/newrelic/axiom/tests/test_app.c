@@ -342,7 +342,7 @@ static void test_find_or_add_app_high_security_mismatch(void) {
  * This global variable allows us to control the app state
  * set by the local nr_cmd_appinfo_tx mock function.
  */
-nr_status_t nr_cmd_appinfo_tx_state = NR_APP_OK;
+nrapptype_t nr_cmd_appinfo_tx_state = NR_APP_OK;
 
 nr_status_t nr_cmd_appinfo_tx(int daemon_fd NRUNUSED, nrapp_t* app) {
   test_app_state_t* p = (test_app_state_t*)tlib_getspecific();
@@ -350,7 +350,7 @@ nr_status_t nr_cmd_appinfo_tx(int daemon_fd NRUNUSED, nrapp_t* app) {
   p->cmd_appinfo_called += 1;
 
   if (p->cmd_appinfo_succeed) {
-    app->state = nr_cmd_appinfo_tx_state;
+    app->state = (int)nr_cmd_appinfo_tx_state;
     return NR_SUCCESS;
   }
 
@@ -714,7 +714,7 @@ static void test_app_consider_appinfo(void) {
 static void test_app_consider_appinfo_failure(void) {
   nrapp_t app;
   time_t now = time(0);
-  nr_status_t original_state;
+  nrapptype_t original_state;
 
   // grab the original return value of the mocked nr_cmd_appinfo
   original_state = nr_cmd_appinfo_tx_state;

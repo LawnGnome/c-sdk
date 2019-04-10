@@ -175,6 +175,8 @@ func generateTests() error {
 }
 
 var certBundleTmpl = `
+// +build use_system_certs
+
 package collector
 
 // AUTO-GENERATED - DO NOT EDIT

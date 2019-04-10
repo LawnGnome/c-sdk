@@ -17,7 +17,7 @@ export GO15VENDOREXPERIMENT=1
 # GOBIN affects the behavior of go install, ensure it is unset.
 unexport GOBIN
 
-GOFLAGS += -ldflags '-X newrelic/version.Number=$(AGENT_VERSION) -X newrelic/version.Commit=$(GIT_COMMIT) -X newrelic/secrets.NewrelicCollectorHost=$(NEWRELIC_COLLECTOR_HOST) -X newrelic/secrets.NewrelicLicenseKey=$(NEWRELIC_LICENSE_KEY) -X newrelic/secrets.WhiteList=$(WHITE_LIST) -X newrelic/secrets.NewrelicCollectorKeys=$(NEWRELIC_COLLECTOR_KEYS)'
+GOFLAGS := -ldflags '-X newrelic/version.Number=$(AGENT_VERSION) -X newrelic/version.Commit=$(GIT_COMMIT) -X newrelic/secrets.NewrelicCollectorHost=$(NEWRELIC_COLLECTOR_HOST) -X newrelic/secrets.NewrelicLicenseKey=$(NEWRELIC_LICENSE_KEY) -X newrelic/secrets.WhiteList=$(WHITE_LIST) -X newrelic/secrets.NewrelicCollectorKeys=$(NEWRELIC_COLLECTOR_KEYS)' $(GO_TAGS)
 
 GCOVRFLAGS += -e "agent/tests/*" -e "axiom/tests/*" -e ".*\.h" -o
 
@@ -187,8 +187,9 @@ daemon_bench: go-minimum-version
 	$(GO) test $(GOFLAGS) -bench=. ./...
 
 .PHONY: daemon_integration
-daemon_integration: go-minimum-version
-	$(GO) test $(GOFLAGS) -tags integration ./...
+daemon_integration:
+	$(MAKE) INTEGRATION_TAGS=1 go-minimum-version
+	$(GO) test $(GOFLAGS) ./...
 
 DAEMON_COV_FILE = daemon_coverage.out
 .PHONY: daemon_cover

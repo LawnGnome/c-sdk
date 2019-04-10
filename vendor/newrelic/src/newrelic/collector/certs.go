@@ -10,12 +10,6 @@ var (
 	DefaultCertPool *x509.CertPool
 )
 
-func init() {
-	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM([]byte(nrCABundle))
-	DefaultCertPool = pool
-}
-
 func newCertPoolFromFiles(files []string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 
