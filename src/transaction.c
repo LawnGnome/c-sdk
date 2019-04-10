@@ -7,6 +7,7 @@
 #include "transaction.h"
 
 #include "nr_agent.h"
+#include "nr_app.h"
 #include "nr_attributes.h"
 #include "nr_commands.h"
 #include "nr_txn.h"
@@ -103,6 +104,11 @@ newrelic_txn_t* newrelic_start_transaction(newrelic_app_t* app,
               "unable to start transaction with a NULL application");
     return NULL;
   }
+
+  /*
+   * Query the daemon about the state of the application, if appropriate.
+   */
+  nr_app_consider_appinfo(app->app, time(0));
 
   transaction = nr_malloc(sizeof(newrelic_txn_t));
   if (NR_FAILURE == nrt_mutex_init(&transaction->lock, 0)) {

@@ -16,6 +16,9 @@ clean:
 test_app: test_app.o common.o
 	$(CC) $(LDFLAGS) -o $@ $< $(LIBS)
 
+test_app_trigger: test_app_trigger.o common.o
+	$(CC) $(LDFLAGS) -o $@ $< $(LIBS)
+
 # based on the implicit rule, but looks for common.c above
 common.o:
 	$(CC) -c $(CPPFLAGS) $(CFLAGS) -o common.o ../../../examples/common.c
