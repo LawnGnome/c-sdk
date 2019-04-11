@@ -131,7 +131,8 @@ vendor/newrelic/src
 VERSION"
 
 force_black_list="vendor/newrelic/src/newrelic/collector/compile_certs.go
-vendor/newrelic/src/newrelic/collector/certs_newrelic.go"
+vendor/newrelic/src/newrelic/collector/certs_newrelic.go
+vendor/newrelic/make/secrets.mk"
 
 blacklist=$(
     comm -23 -- \
