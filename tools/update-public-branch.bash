@@ -115,7 +115,7 @@ Doxyfile
 examples
 GUIDE.md
 include
-LICENSE.txt
+LICENSE
 make
 Makefile
 README.md

@@ -26,7 +26,7 @@ mv libnewrelic.a libnewrelic/
 mv examples/ libnewrelic/examples/
 mv include/libnewrelic.h libnewrelic/
 mv GUIDE.md libnewrelic/
-mv LICENSE.txt libnewrelic/
+mv LICENSE libnewrelic/
 
 #archive and gzip the project
 tar -cvf ${BASE_FILE_NAME}.tar libnewrelic 

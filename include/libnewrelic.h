@@ -2,7 +2,7 @@
  * @file libnewrelic.h
  *
  * @brief Generic library to communicate with New Relic. See
- * accompanying GUIDE.md and LICENSE.txt for more information.
+ * accompanying GUIDE.md and LICENSE for more information.
  */
 #ifndef LIBNEWRELIC_H
 #define LIBNEWRELIC_H
@@ -175,15 +175,15 @@ typedef struct _newrelic_transaction_tracer_config_t {
  * are recorded in a transaction.
  */
 typedef struct _newrelic_datastore_segment_config_t {
-  /*! If set to true for a transaction, instance names are reported to New Relic.
-   *  More specifically, the host and port_path_or_id fields in a
+  /*! If set to true for a transaction, instance names are reported to New
+   * Relic. More specifically, the host and port_path_or_id fields in a
    *  newrelic_datastore_segment_params_t passed to
    *  newrelic_datastore_start_segment() is reported when the
    *  corresponding transaction is reported. */
   bool instance_reporting;
 
-  /*! If set to true for a transaction, database names are reported to New Relic.
-   *  More specifically, the database_name field in a
+  /*! If set to true for a transaction, database names are reported to New
+   * Relic. More specifically, the database_name field in a
    *  newrelic_datastore_segment_params_t passed to
    *  newrelic_datastore_start_segment() is reported when the
    *  corresponding transaction is reported. */
