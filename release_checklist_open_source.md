@@ -82,3 +82,5 @@
    have access to set its status to "Published".
 
 6. Send an email to `agent-releases@newrelic.com` with the release notes.
+
+7. [For production only] Ensure that any new supportability metrics for the latest C SDK release have been added to [Angler](https://source.datanerd.us/agents/angler/).
