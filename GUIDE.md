@@ -94,6 +94,7 @@ Run your test application and check the `c-agent.log` file for output.
   * Custom events
   * Custom metrics
   * Manual timing
+  * Manual segment parenting
 * Logging
 
 ### Configuration
@@ -544,6 +545,63 @@ All told, this pair of API calls offers users a powerful means to customize
 transaction and segment timing values according to their systems' needs. But
 with great power comes great responsibility.  Misuse of these calls can create
 summary values that are inconsistent at the New Relic user interface.
+
+## Manual segment parenting
+
+The C SDK automatically parents segments as you create them. In almost all
+applications, this automatic parenting is effective for producing a meaningful
+transaction trace from the segment instrumentation. In some rare cases, users
+may want to manually parent segments. For example, there may be an asynchronous
+process invoked by a particular segment of the application; it may be more
+useful to visualize this segment as a child of the top-level call of the
+transaction. For scenarios such as this, the C SDK provides two API calls with
+which users may manually reparent segments.
+
+Users may set the parent for a segment using `newrelic_set_segment_parent`, as
+shown in the example below.
+
+```c
+  seg_a = newrelic_start_segment(txn, "A", "Custom");
+  seg_b = newrelic_start_segment(txn, "B", "Custom");
+  seg_c = newrelic_start_segment(txn, "C", "Custom");
+  newrelic_set_segment_parent(seg_c, seg_a);
+```
+
+This makes `seg_a` the parent of `seg_c`. Please note that the C SDK doesn't
+allow the creation of cycles by manual reparenting.
+
+```c
+  seg_a = newrelic_start_segment(txn, "A", "Custom");
+  seg_b = newrelic_start_segment(txn, "B", "Custom");
+  ret = newrelic_set_segment_parent(seg_a, seg_b);
+  if (false == ret) {
+    /* cycle creation forbidden */
+  }
+```
+
+In the example above, the C SDK would automatically make `seg_a` the parent of
+`seg_b`. Manually making `seg_b` the parent of `seg_a` would create a cycle.
+The C SDK forbids this, logs an error, and `newrelic_set_segment_parent` returns
+`false` in this case.
+
+Starting a transaction always creates a root segment, which serves as the root
+of the transaction's segment tree. The C SDK does not allow access to this root
+segment. If users want to manually reparent segments with the root segment, this
+can be done with the function `newrelic_set_segment_parent_root`.
+
+```c
+  seg_c = newrelic_start_segment(txn, "C", "Custom");
+  newrelic_set_segment_parent_root(seg_c);
+```
+
+This makes `seg_c` a direct child of the transaction's root segment.
+
+You can find working examples of segment reparenting in `examples/ex_segment.c`.
+
+Manual segment parenting is a powerful feature that gives users complete
+control over the structure of the transaction's segment tree. It should be used
+with great caution, as it can result in misleading and inaccurate information in
+APM.
 
 ## Logging
 
