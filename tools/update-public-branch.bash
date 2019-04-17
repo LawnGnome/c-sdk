@@ -120,6 +120,7 @@ make
 Makefile
 README.md
 src
+STYLEGUIDE.md
 tests
 vendor/cmocka
 vendor/Makefile
