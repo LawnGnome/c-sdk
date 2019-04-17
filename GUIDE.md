@@ -1,13 +1,35 @@
 # C SDK
 
-Generic library to communicate with New Relic.
+This is the New Relic C SDK! If your application does not use other New Relic APM agent languages, you can use the C SDK to take advantage of New Relic's monitoring capabilities and features to instrument a wide range of applications.
+
+## Table of Contents
+1. [Requirements](#requirements)
+1. [Getting Started](#getting-started)
+1. [Features](#features)
+    1. [Configuration](#configuration)
+    1. [Segment Instrumentation](#segment-instrumentation)
+        1. [External Segments](#external-segments)
+        1. [Custom Segments](#custom-segments)
+        1. [Datastore Segments](#datastore-segments)
+            1. [Slow Query Tracing for Datastore Segments](#slow-query-tracing-for-datastore-segments)
+    1. [Error Instrumentation](#error-instrumentation)
+    1. [Creating Custom Events](#creating-custom-events)
+    1. [Custom Metrics](#custom-metrics)
+    1. [Manual Timing](#manual-timing)
+1. [Logging](#logging)
+    1. [C SDK Logs](#c-sdk-logs)
+    1. [Daemon Logs](#daemon-logs)
+1. [About](#about)
+    1. [Thread Safety](#thread-safety)
+    1. [SDK-Daemon Communication](#sdk-daemon-communication)
+    1. [Memory Management](#memory-management)
 
 ## Requirements
 
 Refer to [README.md](README.md#requirements) for detailed compatibility
 requirements.
 
-## Getting started
+## Getting Started
 
 Instrument your code. Consider the brief program below or look at the
 `examples` directory for source and Makefiles highlighting particular features.
@@ -37,7 +59,7 @@ int main(void) {
     return -1;
   }
 
-  /* Wait up to 10 seconds for the agent to connect to the daemon */
+  /* Wait up to 10 seconds for the SDK to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   newrelic_destroy_app_config(&config);
 
@@ -82,7 +104,11 @@ Start the daemon:
 ./newrelic-daemon -f -logfile stdout -loglevel debug
 ```
 
-Run your test application and check the `c-agent.log` file for output.
+Run your test application and check the `c_sdk.log` file for output.
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ## Features
 * Transactions
@@ -99,7 +125,7 @@ Run your test application and check the `c-agent.log` file for output.
 
 ### Configuration
 
-The C agent's configuration is stored in a `newrelic_app_config_t`, which is created
+The C SDK's configuration is stored in a `newrelic_app_config_t`, which is created
 like so.
 
 ```c
@@ -116,12 +142,12 @@ and `log_filename`, used to configure the application's logging. They also
 include `transaction_tracer` and `datastore_tracer`.  All the fields of
 `newrelic_app_config_t` are detailed in `libnewrelic.h`.
 
-The `transaction_tracer` field configures the behavior of the C agent's
+The `transaction_tracer` field configures the behavior of the C SDK's
 transaction tracer using a `newrelic_transaction_tracer_config_t`.  At New Relic,
 a transaction trace gives a detailed snapshot of a single transaction in your
 application. A transaction trace records the available function calls, database
 calls, and external calls. The `transaction_tracer` configuration describes how
-the C agent chooses transactions for reporting to New Relic.  This includes
+the C SDK chooses transactions for reporting to New Relic.  This includes
 the threshold over which a transaction becomes traced, whether slow sql
 queries are reported, the format of reported sql, and the threshold for
 slow sql queries.  By default, the configuration returned by
@@ -132,22 +158,28 @@ an industry standard for measuring user satisfaction. All the fields of
 `newrelic_transaction_tracer_config_t` are detailed in `libnewrelic.h`.
 
 The `datastore_tracer` field configures how datastore segments are recorded
-in a transaction, whether or not the C agent reports database host names,
+in a transaction, whether or not the C SDK reports database host names,
 database ports, and database names. By default, the configuration returned
 by `newrelic_create_app_config()` configures datastore segments with `instance_reporting`
 and `database_name_reporting` both enabled. All the fields of
 `newrelic_datastore_segment_config_t` are detailed in `libnewrelic.h`.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### Segment Instrumentation
 
-The C agent provides several API functions for creating optional *segment*
+The C SDK provides several API functions for creating optional *segment*
 instrumentation.  Segments allow you to measure the time taken by specific
-portions of a transaction.  The agent allows you to create three different
+portions of a transaction.  The SDK allows you to create three different
 segment types:
 
 * **External Segment**. Useful for timing an external call, like an HTTP GET request.
 * **Custom Segment**. Useful for timing arbitrary application code.
 * **Datastore Segment**. Useful for timing a datastore call, like a MySQL SELECT query.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### External Segments
 
@@ -189,6 +221,9 @@ that New Relic uses to identify a segment. These parameters also drive
 the user interface in APM. Only the `.uri` field is required. Documentation
 for each field is available in `libnewrelic.h`. A working code sample
 is available in `examples/ex_external.c`.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### Custom Segments
 
@@ -216,6 +251,9 @@ on active transactions.
 ```
 
 You can also find a working code sample in `examples/ex_custom.c`.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### Datastore Segments
 
@@ -268,6 +306,9 @@ parameters that New Relic uses to identify your segment. New Relic also uses
 these values to drive its user interface in APM. Only the `.product` field is
 required. Documentation for each field is available in `libnewrelic.h`. A
 working code sample is available in `examples/ex_datastore.c`.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 #### Slow Query Tracing for Datastore Segments
 
@@ -276,11 +317,11 @@ for
 [Slow Query tracing](https://docs.newrelic.com/docs/apm/applications-menu/monitoring/viewing-slow-query-details).
 Only SQL-like databases are eligible for slow query tracing.   If your
 datastore segment's `.product` is set to `Firebird`, `Informix`, `MSSQL`,
-`MySQL`, `Oracle`, `Postgres`, `SQLite`, or `Sybase`, the C-Agent will make
+`MySQL`, `Oracle`, `Postgres`, `SQLite`, or `Sybase`, the C SDK will make
 your segment eligible for slow query tracing.
 
 Both the time threshold to trigger a slow query trace and whether slow query
-tracing is enabled are controlled via the C-Agent's **application**
+tracing is enabled are controlled via the C SDK's **application**
 configuration, specifically the `datastore_reporting.*` fields.
 
 ```c
@@ -302,10 +343,13 @@ configuration, specifically the `datastore_reporting.*` fields.
 
     /* ...  */
 ```
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
-### Error instrumentation
+### Error Instrumentation
 
-The agent provides the function `newrelic_notice_error()` so that customers
+The SDK provides the function `newrelic_notice_error()` so that customers
 may record transaction errors. Errors recorded in this manner are displayed in
 [error traces](https://docs.newrelic.com/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors#traces-table)
 at New Relic's Error Analytics dashboard; they are available to query through
@@ -315,10 +359,10 @@ When recording an error using `newrelic_notice_error()`, callers must supply fou
 parameters to the function, as indicated in `libnewrelic.h`. Among these
 parameters are `priority` and `errclass`.
 
-The agent is capped at reporting 100 error traces per minute. Supposing that over
+The SDK is capped at reporting 100 error traces per minute. Supposing that over
 100 errors are noticed during a single minute, the total number of errors are
 reported in New Relic metrics; only 100 would be available at the Error Analytic's
-dashboard. That said, in the pool of errors collected by the agent, the `priority`
+dashboard. That said, in the pool of errors collected by the SDK, the `priority`
 of an error indicates which errors should be saved in the event that the cap has
 been exceeded. Higher values take priority over lower values.
 
@@ -373,10 +417,13 @@ meaningful:
     /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf0) [0x7f39062d6830]
     ./ex_notice_error.out() [0x4020b9]
 ```
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### Creating Custom Events
 
-The agent provides a Custom Events API that allows users to send custom events to
+The SDK provides a Custom Events API that allows users to send custom events to
 New Relic Insights.  To send an event, start a transaction and use the
 `newrelic_create_custom_event` and `newrelic_record_custom_event` functions
 
@@ -407,6 +454,9 @@ via the `newrelic_custom_event_add_*` family of functions.
 Don't forget to review the
 [Insights custom data requirements and limits](https://docs.newrelic.com/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits)
 for guidance on what are and aren't allowed values inside of a custom event.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 #### Memory Lifecycle for Custom Events
 
@@ -424,10 +474,13 @@ memory in order to avoid leaks in your program.
 
     newrelic_discard_custom_event(&custom_event);
 ```
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### Custom Metrics
 
-The agent provides the function `newrelic_record_custom_metric`, which allows users to
+The SDK provides the function `newrelic_record_custom_metric`, which allows users to
 record custom timing metrics. To create a custom metric, just provide a name/identifier
 and an amount of time in milliseconds to the function, (along with the active
 transaction).
@@ -446,11 +499,14 @@ To learn more about collecting custom metrics, including naming strategies to
 avoid metric grouping issues (also calls MGIs) read the
 [Collect Custom Metrics](https://docs.newrelic.com/docs/agents/manage-apm-agents/agent-data/collect-custom-metrics)
 documentation.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
-## Manual timing
+### Manual Timing
 
-The C agent provides a pair of API calls with which users may manually change
-transaction timing and individual segment timing. Though the C agent is
+The C SDK provides a pair of API calls with which users may manually change
+transaction timing and individual segment timing. Though the C SDK is
 incredibly effective at automatically timing transactions and segments,
 providing users with this kind of timing allows them to achieve consistent
 timing values across the New Relic Platform and their own internal monitoring
@@ -545,6 +601,9 @@ All told, this pair of API calls offers users a powerful means to customize
 transaction and segment timing values according to their systems' needs. But
 with great power comes great responsibility.  Misuse of these calls can create
 summary values that are inconsistent at the New Relic user interface.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ## Manual segment parenting
 
@@ -605,27 +664,30 @@ APM.
 
 ## Logging
 
-The New Relic C agent and its daemon have their own logs:
+The New Relic C SDK and its daemon have their own logs:
 
-**C agent logs**: These logs are generated due to errors in how you've
-instrumented your code using the New Relic C agent API calls.
+**C SDK logs**: These logs are generated due to errors in how you've
+instrumented your code using the New Relic C SDK API calls.
 
-**Daemon logs**: These are logs related to the data transfer between the agent
+**Daemon logs**: These are logs related to the data transfer between the SDK
 and the daemon as well as the transmission of data to New Relic.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
-### C agent logs
+### C SDK logs
 
-The C agent API calls log an error when they are supplied with ill-formed parameters.
+The C SDK API calls log an error when they are supplied with ill-formed parameters.
 By default, logs output to standard error. You may change this by calling
 `newrelic_configure_log()`. For example, the following call to
-`newrelic_configure_log()` sets the log file to `c-agent.log` and the
+`newrelic_configure_log()` sets the log file to `c_sdk.log` and the
 log level to info.
 
 ```c
   newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO);
 ```
 
-The C agent logs have four log levels, as defined by the `enum _newrelic_loglevel_t`
+The C SDK logs have four log levels, as defined by the `enum _newrelic_loglevel_t`
 in `libnewrelic.h`.  Listed in priority order, they are:
 
 ```c
@@ -637,6 +699,9 @@ in `libnewrelic.h`.  Listed in priority order, they are:
 
 The `NEWRELIC_LOG_DEBUG` is the most verbose level of the four log levels;
 `NEWRELIC_LOG_INFO` is the default log level.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ### Daemon logs
 
@@ -656,10 +721,10 @@ place at `stdout` and at loglevel `debug`.
 The daemon also has four log levels: `error`, `warning`, `info` or `debug`.
 The `debug` log level is the most verbose level of the four log levels.
 
-In cases where you are troubleshooting problems with your New Relic APM C agent
+In cases where you are troubleshooting problems with your New Relic APM C SDK
 performance, consider the following steps.
 
-1. Set the log level in your C agent to `NEWRELIC_LOG_DEBUG` using the API call
+1. Set the log level in your C SDK to `NEWRELIC_LOG_DEBUG` using the API call
 `newrelic_configure_log()`.
 1. Recompile your application with the altered call to `newrelic_configure_log()`.
 1. Restart your application.
@@ -668,10 +733,13 @@ performance, consider the following steps.
 1. Examine your logs and use the information to diagnose the problem.
 1. When you are finished troubleshooting, reset the logs' levels. Do not keep
 them at `NEWRELIC_LOG_DEBUG` and `debug`.
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
 
 ## About
 
-### Thread safety
+### Thread Safety
 The C SDK supports instrumentation of multi-threaded applications, but needs to
 be initialized before instrumenting multiple threads. When calling any of the
 following functions, ensure that they are called on the main thread before any
@@ -680,12 +748,15 @@ other C SDK functions are called:
 * `newrelic_configure_log`
 * `newrelic_init`
 
-### Agent-daemon communication
-The agent makes blocking writes to the daemon. Unless the kernel is resource-
+### SDK-Daemon Communication
+The SDK makes blocking writes to the daemon. Unless the kernel is resource-
 starved, it will handle these writes efficiently.
 
-### Memory management
-The C Agent's memory use is proportional to the amount of data sent. The libc
+### Memory Management
+The C SDK's memory use is proportional to the amount of data sent. The libc
 calls `malloc` and `free` are used extensively. The dominant memory cost is
 user-provided data, including custom attributes, events, and metric names.
 
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to the table of contents</a></b>
+</div>
