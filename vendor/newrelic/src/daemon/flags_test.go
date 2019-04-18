@@ -20,7 +20,6 @@ func TestParseFlagsWithAll(t *testing.T) {
 		LogLevel:        3,
 		AuditFile:       "audit.log",
 		ConfigFile:      "file.config",
-		TLS:             true,
 		Foreground:      true,
 		Role:            0,
 		Agent:           true,
@@ -39,7 +38,6 @@ func TestParseFlagsWithAll(t *testing.T) {
 		"-logfile", "log.log",
 		"-loglevel", "info",
 		"-auditlog", "audit.log",
-		"-tls",
 		"-f",
 		"-foreground",
 		"-agent",
@@ -235,7 +233,7 @@ func TestDefineShimHighlevel(t *testing.T) {
 	args = []string{
 		`--define=logfile=/better/than/good/its.log`,
 		"--define", "ssl_ca_path=/blammo",
-		`--define=ssl='false'`,
+		`--define=foreground='true'`,
 		`--define=proxy="doctorevil:correcthorsebatterystaple@proxy-server.bad.domain"`,
 	}
 	flagSet = createFlagSet(cfg)
@@ -258,7 +256,7 @@ func TestDefineShimHighlevel(t *testing.T) {
 	// Looks like only the config parser accepts them.
 	cfg = &Config{}
 	args = []string{
-		`--define="ssl=false"`,
+		`--define="foreground=true"`,
 	}
 	flagSet = createFlagSet(cfg)
 	err = flagSet.Parse(args)

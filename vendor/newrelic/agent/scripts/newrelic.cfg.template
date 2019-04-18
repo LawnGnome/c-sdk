@@ -98,14 +98,6 @@
 # Default: "/tmp/.newrelic.sock"
 #port="/tmp/.newrelic.sock"
 
-# Setting: ssl
-# Type   : boolean
-# Purpose: If you prefer the daemon to use the secure HTTP (https) protocol
-#          when communicating with the New Relic collector servers, set this
-#          to true.
-# Default: true (as of version 3.6)
-#ssl=true
-
 # Setting: ssl_ca_bundle
 # Type   : string
 # Purpose: Sets the location of a file containing CA certificates in PEM

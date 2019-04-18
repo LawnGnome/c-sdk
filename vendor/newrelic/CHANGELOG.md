@@ -8,6 +8,15 @@
 
 ### Upgrade Notices ###
 
+* The daemon may no longer be invoked with the `--tls` flag.  With version 8.0.0
+of the PHP Agent, the `newrelic.daemon.ssl` ini setting had been removed to increase 
+security, but one could still invoke the daemon from the command line with `--tls true`.
+Command-line invocations of the daemon with the `--tls` flag will cause the invocation
+to fail.  
+
+As with all versions of the PHP Agent since 8.0.0, TLS is always used for communication 
+with New Relic Servers.
+
 ### Notes ###
 
 ### Bug Fixes ###

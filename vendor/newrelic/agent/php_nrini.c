@@ -626,32 +626,6 @@ static PHP_INI_MH(nr_daemon_port_mh) {
   return SUCCESS;
 }
 
-static PHP_INI_MH(nr_daemon_ssl_mh) {
-  int val;
-
-  (void)entry;
-  (void)NEW_VALUE_LEN;
-  (void)mh_arg1;
-  (void)mh_arg2;
-  (void)mh_arg3;
-  (void)stage;
-  NR_UNUSED_TSRMLS;
-
-  val = nr_bool_from_str(NEW_VALUE);
-
-  if (-1 == val) {
-    return FAILURE;
-  }
-
-  if (val) {
-    NR_PHP_PROCESS_GLOBALS(use_https) = 1;
-  } else {
-    NR_PHP_PROCESS_GLOBALS(use_https) = 0;
-  }
-
-  return SUCCESS;
-}
-
 static PHP_INI_MH(nr_daemon_ssl_cafile_mh) {
   (void)entry;
   (void)mh_arg1;
@@ -1636,11 +1610,6 @@ PHP_INI_ENTRY_EX("newrelic.daemon.port",
                  NR_PHP_SYSTEM,
                  nr_daemon_port_mh,
                  0)
-PHP_INI_ENTRY_EX("newrelic.daemon.ssl",
-                 "1",
-                 NR_PHP_SYSTEM,
-                 nr_daemon_ssl_mh,
-                 nr_enabled_disabled_dh)
 PHP_INI_ENTRY_EX("newrelic.daemon.ssl_ca_bundle",
                  "",
                  NR_PHP_SYSTEM,
