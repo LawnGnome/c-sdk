@@ -17,7 +17,6 @@ typedef struct _nrphpglobals_t {
   int mpm_bad;              /* True if we're disabled due to the worker MPM */
   int cli;                  /* Set to 1 if this is a cli/cgi invocation */
   int port;                 /* Port for daemon */
-  int use_https;            /* Have the daemon use https */
   char* ssl_cafile;         /* Path to SSL CA bundle */
   char* ssl_capath;         /* Path to directory of SSL CA certs */
   char* collector;          /* Collector host */

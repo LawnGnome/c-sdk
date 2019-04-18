@@ -307,7 +307,6 @@ PHP_MINIT_FUNCTION(newrelic) {
   nr_php_global_init();
   NR_PHP_PROCESS_GLOBALS(enabled) = 1;
   NR_PHP_PROCESS_GLOBALS(our_module_number) = module_number;
-  NR_PHP_PROCESS_GLOBALS(use_https) = 1;
   NR_PHP_PROCESS_GLOBALS(php_version) = nr_php_get_php_version_number(TSRMLS_C);
   NR_PHP_PROCESS_GLOBALS(upgrade_license_key)
       = nr_php_check_for_upgrade_license_key();
@@ -409,13 +408,6 @@ PHP_MINIT_FUNCTION(newrelic) {
       daemon_args.proxy = NR_PHP_PROCESS_GLOBALS(proxy);
       daemon_args.sockfile = NR_PHP_PROCESS_GLOBALS(udspath);
       daemon_args.tcp_port = NR_PHP_PROCESS_GLOBALS(port);
-
-      if (0 == NR_PHP_PROCESS_GLOBALS(use_https)) {
-        nrl_warning(NRL_INIT,
-                    "deprecated newrelic.daemon.ssl setting ignored.  Daemon "
-                    "always connects via https/tls.");
-      }
-
       daemon_args.tls_cafile = NR_PHP_PROCESS_GLOBALS(ssl_cafile);
       daemon_args.tls_capath = NR_PHP_PROCESS_GLOBALS(ssl_capath);
 

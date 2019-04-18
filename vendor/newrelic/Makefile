@@ -8,7 +8,9 @@ GCOVR ?= gcovr
 
 include make/config.mk
 include make/version.mk
-include make/secrets.mk
+
+# Include the secrets file if it exists, but if it doesn't, that's OK too.
+-include make/secrets.mk
 
 # Configure an isolated workspace for the Go daemon.
 export GOPATH=$(CURDIR)
