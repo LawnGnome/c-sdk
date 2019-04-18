@@ -6,25 +6,26 @@
 
 ### New Features ###
 
-* Requests for Laravel's built-in automatic handling of CORS HTTP OPTIONS requests
-  will now be given the transaction name `_CORS_HTTP`
-
 ### Upgrade Notices ###
+
+* The daemon may no longer be invoked with the `--tls` flag.  With version 8.0.0
+of the PHP Agent, the `newrelic.daemon.ssl` ini setting had been removed to increase 
+security, but one could still invoke the daemon from the command line with `--tls true`.
+Command-line invocations of the daemon with the `--tls` flag will cause the invocation
+to fail.  
+
+As with all versions of the PHP Agent since 8.0.0, TLS is always used for communication 
+with New Relic Servers.
 
 ### Notes ###
 
 ### Bug Fixes ###
 
-* A potential segfault when using PHP 7.3, opcache and multiple PHP workers has
-  been fixed.
+* When obfuscating SQL, comments are stripped without any loss of the SQL itself.
 
-* Uncaught exceptions within a job being executed by a Laravel Queue worker are
-  now reported correctly.
-
-* Invoking [`function_exists()`](https://secure.php.net/function_exists) on a
-  function disabled with the
-  [`disable_functions`](https://secure.php.net/manual/en/ini.core.php#ini.disable-functions)
-  configuration directive will now correctly return `false`.
+* Predis 0.8 commands that used the synchronous `executeCommand()` code path
+  (for example, `HSET`) on a clustered connection did not generate metrics.
+  This has been fixed.
 
 ### Internal Changes ###
 
@@ -40,6 +41,7 @@
 
 | Release Number | Release Date |
 | ------------- |-------------|
+| [8.6.0](#860) | 2019-03-14 |
 | [8.5.0](#850) | 2018-12-19 |
 | [8.4.0](#840) | 2018-12-05 |
 | [8.3.0](#830) | 2018-10-08 |
@@ -109,6 +111,36 @@
 | [4.4.5.35](#44535) | 2014-01-08 |
 | [4.3.5.33](#43533) | 2013-12-11 |
 
+## 8.6 ##
+
+### End of Life Notices ###
+
+### New Features ###
+
+* Requests for Laravel's built-in automatic handling of CORS HTTP OPTIONS requests
+  will now be given the transaction name `_CORS_HTTP`
+
+### Upgrade Notices ###
+
+### Notes ###
+
+### Bug Fixes ###
+
+* A potential segfault when using PHP 7.3, opcache and multiple PHP workers has
+  been fixed.
+
+* Uncaught exceptions within a job being executed by a Laravel Queue worker are
+  now reported correctly.
+
+* Invoking [`function_exists()`](https://secure.php.net/function_exists) on a
+  function disabled with the
+  [`disable_functions`](https://secure.php.net/manual/en/ini.core.php#ini.disable-functions)
+  configuration directive will now correctly return `false`.
+
+### Internal Changes ###
+
+### Acquia-only Notes ###
+
 ## 8.5 ##
 
 ### End of Life Notices ###
@@ -128,8 +160,6 @@
 ### Internal Changes ###
 
 ### Acquia-only Notes ###
-
-## Contents ##
 
 ## 8.4 ##
 

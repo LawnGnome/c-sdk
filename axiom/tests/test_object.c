@@ -768,21 +768,7 @@ static void test_nro_json_corner_cases(void) {
   nro_delete(obj);
 
   obj = nro_create_from_json("-1.0e500"); /* out of range for a double */
-  t = nro_type(obj);
-  /*
-   * If a number is invalid because it is too big, the parser treats it as a
-   * long and only returns the integer portion (in this case -1).
-   */
-  tlib_pass_if_true("test_nro_json_corner_cases -1.0e500", NR_OBJECT_LONG == t,
-                    "t=%d", (int)t);
-  l = nro_get_long(obj, &err);
-  tlib_pass_if_true("test_nro_json_corner_cases -1.0e500", NR_SUCCESS == err,
-                    "err=%d", (int)err);
-  if (NR_SUCCESS == err) {
-    tlib_pass_if_true("test_nro_json_corner_cases -1.0e500", (int64_t)-1 == l,
-                      "l=" NR_INT64_FMT, l);
-  }
-  nro_delete(obj);
+  tlib_pass_if_null("out of range double", obj);
 
   obj = nro_create_from_json(
       "1000000000000000000000000"); /* exceeds LLONG_MAX */
@@ -891,6 +877,9 @@ static void test_nro_mangled_json(void) {
 
   obj = nro_create_from_json("}}}");
   tlib_pass_if_true("test_nro_mangled_json", NULL == obj, "obj=%p", obj);
+
+  tlib_pass_if_null("single quote", nro_create_from_json("\""));
+  tlib_pass_if_null("odd quotes", nro_create_from_json("\"\"\""));
 }
 
 static void test_basic_creation(void) {

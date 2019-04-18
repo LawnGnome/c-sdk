@@ -63,9 +63,6 @@ extern void* nr_realloc(void* oldptr, size_t newsize) NRMALLOCSZ(2);
 extern void* nr_reallocarray(void* ptr, size_t nmemb, size_t size) NRMALLOC
     NRCALLOCSZ(2, 3);
 
-extern void* nr_reallocarray(void* ptr, size_t nmemb, size_t size) NRMALLOC
-    NRCALLOCSZ(2, 3);
-
 /*
  * Semantics: strdup (NULL) always succeeds.
  */

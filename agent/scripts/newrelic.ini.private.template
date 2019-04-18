@@ -53,17 +53,6 @@
 ;
 ;newrelic.special = show_executes, show_execute_params, show_execute_stack, show_execute_returns, show_executes_untrimmed
 
-; Setting: newrelic.daemon.ssl
-; Type   : boolean
-; Scope  : system
-; Default: true (as of version 3.6)
-; Info   : Sets whether or not communication with New Relic data collectors
-;          should use a secure HTTP connection or not.
-;          Functionality removed from customers as of protocol 15
-;          (agent version 8.0). The Daemon no longer supports disabling TLS.
-;
-;newrelic.daemon.ssl = true
-
 ; Setting: newrelic.special.appinfo_timeout
 ; Type   : integer (time in msec)
 ; Scope  : system

@@ -12,11 +12,13 @@ static char* default_database;
 static char* default_port;
 static char* system_host_name;
 
-static void declare_parameters_class(TSRMLS_D) {
-  tlib_php_request_eval(
-      "namespace Predis\\Connection;"
-      "interface ParametersInterface { public function __get($name); }"
-      "class Parameters implements ParametersInterface {"
+static void declare_parameters_class(const char* ns,
+                                     const char* iface,
+                                     const char* klass TSRMLS_DC) {
+  char* source = nr_formatf(
+      "namespace %s;"
+      "interface %s { public function __get($name); }"
+      "class %s implements %s {"
       "public function __construct($scheme, $host, $port, $path, $database) {"
       "$this->scheme = $scheme;"
       "$this->host = $host;"
@@ -25,7 +27,12 @@ static void declare_parameters_class(TSRMLS_D) {
       "$this->database = $database;"
       "}"
       "public function __get($name) { return $this->$name; }"
-      "}" TSRMLS_CC);
+      "}",
+      ns, iface, klass, iface);
+
+  tlib_php_request_eval(source TSRMLS_CC);
+
+  nr_free(source);
 }
 
 /*
@@ -377,15 +384,19 @@ static void test_create_datastore_instance_from_array(TSRMLS_D) {
   tlib_php_request_end();
 }
 
-static void test_create_datastore_instance_from_parameters_object(TSRMLS_D) {
+static void test_create_datastore_instance_from_parameters_object(
+    const char* ns,
+    const char* iface,
+    const char* klass TSRMLS_DC) {
   zval* input = NULL;
+  char* source;
 
   tlib_php_request_start();
-  declare_parameters_class(TSRMLS_C);
+  declare_parameters_class(ns, iface, klass TSRMLS_CC);
 
-  input = tlib_php_request_eval_expr(
-      "new \\Predis\\Connection\\Parameters(null, null, null, null, "
-      "null)" TSRMLS_CC);
+  source = nr_formatf("new \\%s\\%s(null, null, null, null, null)", ns, klass);
+  input = tlib_php_request_eval_expr(source TSRMLS_CC);
+  nr_free(source);
   assert_datastore_instance_equals_destroy(
       "empty object",
       &((nr_datastore_instance_t){
@@ -397,9 +408,10 @@ static void test_create_datastore_instance_from_parameters_object(TSRMLS_D) {
           input TSRMLS_CC));
   nr_php_zval_free(&input);
 
-  input = tlib_php_request_eval_expr(
-      "new \\Predis\\Connection\\Parameters('unix', null, null, "
-      "'/tmp/redis.sock', null)" TSRMLS_CC);
+  source = nr_formatf(
+      "new \\%s\\%s('unix', null, null, '/tmp/redis.sock', null)", ns, klass);
+  input = tlib_php_request_eval_expr(source TSRMLS_CC);
+  nr_free(source);
   assert_datastore_instance_equals_destroy(
       "unix object",
       &((nr_datastore_instance_t){
@@ -411,9 +423,10 @@ static void test_create_datastore_instance_from_parameters_object(TSRMLS_D) {
           input TSRMLS_CC));
   nr_php_zval_free(&input);
 
-  input = tlib_php_request_eval_expr(
-      "new \\Predis\\Connection\\Parameters('tcp', 'foo.bar', 9999, null, "
-      "1)" TSRMLS_CC);
+  source
+      = nr_formatf("new \\%s\\%s('tcp', 'foo.bar', 9999, null, 1)", ns, klass);
+  input = tlib_php_request_eval_expr(source TSRMLS_CC);
+  nr_free(source);
   assert_datastore_instance_equals_destroy(
       "tcp object",
       &((nr_datastore_instance_t){
@@ -472,13 +485,17 @@ static void test_create_datastore_instance_from_string(TSRMLS_D) {
   tlib_php_request_end();
 }
 
-static void test_create_datastore_instance_from_connection_params(TSRMLS_D) {
+static void test_create_datastore_instance_from_connection_params(
+    const char* ns,
+    const char* iface,
+    const char* klass TSRMLS_DC) {
   size_t i;
   zval** invalid_zvals;
   zval* input = NULL;
+  char* source;
 
   tlib_php_request_start();
-  declare_parameters_class(TSRMLS_C);
+  declare_parameters_class(ns, iface, klass TSRMLS_CC);
 
   /*
    * Since the function being tested is basically just a big switch based on
@@ -510,9 +527,9 @@ static void test_create_datastore_instance_from_connection_params(TSRMLS_D) {
           input TSRMLS_CC));
   nr_php_zval_free(&input);
 
-  input = tlib_php_request_eval_expr(
-      "new \\Predis\\Connection\\Parameters(null, null, 9999, null, "
-      "null)" TSRMLS_CC);
+  source = nr_formatf("new \\%s\\%s(null, null, 9999, null, null)", ns, klass);
+  input = tlib_php_request_eval_expr(source TSRMLS_CC);
+  nr_free(source);
   assert_datastore_instance_equals_destroy(
       "parameters object",
       &((nr_datastore_instance_t){
@@ -524,9 +541,12 @@ static void test_create_datastore_instance_from_connection_params(TSRMLS_D) {
           input TSRMLS_CC));
   nr_php_zval_free(&input);
 
-  input = tlib_php_request_eval_expr(
-      "function () { return new Predis\\Connection\\Parameters(null, "
-      "'callable', null, null, null); }" TSRMLS_CC);
+  source = nr_formatf(
+      "function () { return new \\%s\\%s(null, 'callable', null, null, null); "
+      "}",
+      ns, klass);
+  input = tlib_php_request_eval_expr(source TSRMLS_CC);
+  nr_free(source);
   assert_datastore_instance_equals_destroy(
       "parameters object",
       &((nr_datastore_instance_t){
@@ -680,6 +700,8 @@ static void test_is_methods(TSRMLS_D) {
 
   test_is_method(nr_predis_is_aggregate_connection, "Predis\\Connection",
                  "AggregateConnectionInterface" TSRMLS_CC);
+  test_is_method(nr_predis_is_aggregate_connection, "Predis\\Connection",
+                 "AggregatedConnectionInterface" TSRMLS_CC);
   test_is_method(nr_predis_is_aggregate_connection, "Predis\\Network",
                  "IConnectionCluster" TSRMLS_CC);
   test_is_method(nr_predis_is_command, "Predis\\Command",
@@ -692,8 +714,12 @@ static void test_is_methods(TSRMLS_D) {
                  "IConnection" TSRMLS_CC);
   test_is_method(nr_predis_is_node_connection, "Predis\\Connection",
                  "NodeConnectionInterface" TSRMLS_CC);
+  test_is_method(nr_predis_is_node_connection, "Predis\\Connection",
+                 "SingleConnectionInterface" TSRMLS_CC);
   test_is_method(nr_predis_is_node_connection, "Predis\\Network",
                  "IConnectionSingle" TSRMLS_CC);
+  test_is_method(nr_predis_is_parameters, "Predis\\Connection",
+                 "ConnectionParametersInterface" TSRMLS_CC);
   test_is_method(nr_predis_is_parameters, "Predis\\Connection",
                  "ParametersInterface" TSRMLS_CC);
   test_is_method(nr_predis_is_parameters, "Predis",
@@ -809,9 +835,24 @@ void test_main(void* p NRUNUSED) {
 
   test_create_datastore_instance_from_fields(TSRMLS_C);
   test_create_datastore_instance_from_array(TSRMLS_C);
-  test_create_datastore_instance_from_parameters_object(TSRMLS_C);
   test_create_datastore_instance_from_string(TSRMLS_C);
-  test_create_datastore_instance_from_connection_params(TSRMLS_C);
+
+  // Version 0.8.
+  test_create_datastore_instance_from_parameters_object(
+      "Predis\\Connection", "ConnectionParametersInterface",
+      "ConnectionParameters" TSRMLS_CC);
+  // Version 1.x.
+  test_create_datastore_instance_from_parameters_object(
+      "Predis\\Connection", "ParametersInterface", "Parameters" TSRMLS_CC);
+
+  // Version 0.8.
+  test_create_datastore_instance_from_connection_params(
+      "Predis\\Connection", "ConnectionParametersInterface",
+      "ConnectionParameters" TSRMLS_CC);
+  // Version 1.x.
+  test_create_datastore_instance_from_connection_params(
+      "Predis\\Connection", "ParametersInterface", "Parameters" TSRMLS_CC);
+
   test_get_operation_name_from_object(TSRMLS_C);
   test_is_methods(TSRMLS_C);
   test_retrieve_datastore_instance(TSRMLS_C);

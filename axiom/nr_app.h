@@ -182,4 +182,19 @@ extern char* nr_app_create_printable_license(const char* license);
  */
 extern void nr_app_info_destroy_fields(nr_app_info_t* info);
 
+/*
+ * Purpose : Decides whether the daemon should be queried for appinfo,
+ *           and if so, does the work of querying the daemon.  Function may
+ *           change app->state.
+ *
+ *           Used by agents to ensure they have the latest "state of the world"
+ *           from the daemon (has daemon disconnected, etc.)
+ *
+ * Params  : 1. The application
+ *           2. The current time
+ *
+ * Returns : Returns true is appinfo was queried, false if it was not
+ */
+bool nr_app_consider_appinfo(nrapp_t* app, time_t now);
+
 #endif /* NR_APP_HDR */

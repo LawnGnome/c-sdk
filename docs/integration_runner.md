@@ -210,6 +210,16 @@ Directives: Misc
 --------------------------------------------------
 There's a few extra directive that don't fit nicely into any one category.
 
+`/*EXPECT_HARVEST`: The EXPECT_HARVEST directive allows a test writer to tell the integration runner that no harvest is expected by supplying a value of `no`
+
+```
+/*EXPECT_HARVEST
+no
+*/
+```
+
+This is useful in testing cases where we expect the agent to be disabled or ignored.
+
 `/*DESCRIPTION`: The DESCRIPTION directive is neither a configuration directive, or a test directive.  This is meant for humans to read and understand the context/scope/intention of a test case.
 
 `/*XFAIL`: The XFAIL directive allows a test writer to mark a test as e**X**pected to fail.  A XFAIL directive should contain descriptive test describing why the test writer expects the test to fail.

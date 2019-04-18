@@ -438,11 +438,12 @@ static inline int nr_predis_is_object_one_of(const zval* obj,
 int nr_predis_is_aggregate_connection(const zval* obj TSRMLS_DC) {
   return nr_predis_is_object_one_of(
       obj,
-      ((const char* [2]){
+      ((const char* [3]){
           "Predis\\Connection\\AggregateConnectionInterface",
+          "Predis\\Connection\\AggregatedConnectionInterface",
           "Predis\\Network\\IConnectionCluster",
       }),
-      2 TSRMLS_CC);
+      3 TSRMLS_CC);
 }
 
 int nr_predis_is_command(const zval* obj TSRMLS_DC) {
@@ -467,21 +468,23 @@ int nr_predis_is_connection(const zval* obj TSRMLS_DC) {
 int nr_predis_is_node_connection(const zval* obj TSRMLS_DC) {
   return nr_predis_is_object_one_of(
       obj,
-      ((const char* [2]){
+      ((const char* [3]){
           "Predis\\Connection\\NodeConnectionInterface",
+          "Predis\\Connection\\SingleConnectionInterface",
           "Predis\\Network\\IConnectionSingle",
       }),
-      2 TSRMLS_CC);
+      3 TSRMLS_CC);
 }
 
 int nr_predis_is_parameters(const zval* obj TSRMLS_DC) {
   return nr_predis_is_object_one_of(
       obj,
-      ((const char* [2]){
+      ((const char* [3]){
+          "Predis\\Connection\\ConnectionParametersInterface",
           "Predis\\Connection\\ParametersInterface",
           "Predis\\IConnectionParameters",
       }),
-      2 TSRMLS_CC);
+      3 TSRMLS_CC);
 }
 
 NR_PHP_WRAPPER(nr_predis_connection_readResponse) {

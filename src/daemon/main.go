@@ -36,8 +36,6 @@ Options:
    --port <port>              Listen on the specified port or socket file path
    --proxy <url>              Proxy credentials to use
    --auditlog <file>          Set the path to the audit file
-   --tls <bool>               Use TLS for communicating with New Relic servers
-                              Default: true
    --cafile <file>            Set the path to root CA bundle
    --capath <dir>             Set the path to a directory of root CA certs
    --define <setting>=<value> Set a setting (as in newrelic.cfg) to a value
@@ -105,7 +103,6 @@ type Config struct {
 	LogLevel          log.Level      `config:"loglevel"`                       // Log level
 	AuditFile         string         `config:"auditlog"`                       // Path to audit log
 	ConfigFile        string         `config:"-"`                              // Location of config file
-	TLS               bool           `config:"ssl"`                            // Whether to use TLS
 	Foreground        bool           `config:"-"`                              // Remain in foreground
 	Role              Role           `config:"-"`                              // This daemon's role
 	Utilization       bool           `config:"-"`                              // Whether to print utilization data and exit
@@ -252,10 +249,6 @@ func main() {
 	}
 	log.Debugf("process role is %v", cfg.Role)
 
-	if !cfg.TLS {
-		log.Warnf("TLS is set to false. Ignoring deprecated functionality. TLS enabled.")
-	}
-
 	run(cfg)
 	os.Exit(exitStatus)
 }
@@ -279,7 +272,6 @@ func createFlagSet(cfg *Config) *flag.FlagSet {
 	flagSet.StringVar(&cfg.LogFile, "logfile", cfg.LogFile, "")
 	flagSet.Var(&cfg.LogLevel, "loglevel", "LogLevel")
 	flagSet.StringVar(&cfg.AuditFile, "auditlog", cfg.AuditFile, "")
-	flagSet.BoolVar(&cfg.TLS, "tls", cfg.TLS, "")
 	flagSet.BoolVar(&cfg.Utilization, "utilization", cfg.Utilization, "")
 	flagSet.BoolVar(&cfg.Foreground, "f", cfg.Foreground, "")
 	flagSet.BoolVar(&cfg.Foreground, "foreground", cfg.Foreground, "")
@@ -309,7 +301,6 @@ func createLegacyFlagSet(cfg *Config) *flag.FlagSet {
 	legacyFlagSet.StringVar(&cfg.LogFile, "l", cfg.LogFile, "")
 	legacyFlagSet.Var(&cfg.LogLevel, "d", "LogLevel")
 	legacyFlagSet.StringVar(&cfg.AuditFile, "a", cfg.AuditFile, "")
-	legacyFlagSet.BoolVar(&cfg.TLS, "tls", cfg.TLS, "")
 	legacyFlagSet.BoolVar(&cfg.Foreground, "f", cfg.Foreground, "")
 	legacyFlagSet.BoolVar(&cfg.Agent, "A", cfg.Agent, "")
 	legacyFlagSet.StringVar(&cfg.CAFile, "b", cfg.CAFile, "")
@@ -333,7 +324,6 @@ var (
 		LogLevel:     log.LogInfo,
 		LogFile:      "",
 		AuditFile:    "",
-		TLS:          true,
 		MaxFiles:     2048, // to match the legacy daemon behavior
 		NoPidfile:    false,
 		DetectAWS:    true,

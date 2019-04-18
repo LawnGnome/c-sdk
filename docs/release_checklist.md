@@ -316,8 +316,11 @@ key feature(s) or improvement(s) in the release.
 
 #### 10. Update Core Configuration Version Number
 
-Update the `php_agent_version` configuration variable in the
-[Core App system configuration](https://rpm-admin.newrelic.com/admin/system_configurations?utf8=%E2%9C%93&q%5Bkey_contains%5D=php&commit=Filter&order=key_asc)
+Update the `php_agent_version` configuration variable in the following places
+
+- [Core App system Configuration](https://rpm-admin.newrelic.com/admin/system_configurations?utf8=%E2%9C%93&q%5Bkey_contains%5D=php&commit=Filter&order=key_asc)
+- [EU Core App System Configuration](https://rpm-admin.eu.newrelic.com/admin/system_configurations?utf8=%E2%9C%93&q%5Bkey_contains%5D=php&commit=Filter&order=key_asc)
+- [Staging Core App System Configuration](https://staging-rpm-admin.newrelic.com/admin/system_configurations?utf8=%E2%9C%93&q%5Bkey_contains%5D=php_agent&commit=Filter&order=key_asc)
 
 Also note the existence of the related `min_php_agent_version` ... which is not
 typically updated.

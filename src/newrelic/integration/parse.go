@@ -28,6 +28,7 @@ var (
 		"EXPECT":                  parseExpect,
 		"EXPECT_REGEX":            parseExpectRegex,
 		"EXPECT_SCRUBBED":         parseExpectScrubbed,
+		"EXPECT_HARVEST":          parseExpectHarvest,
 		"EXPECT_SLOW_SQLS":        parseSlowSQLs,
 		"EXPECT_TRACED_ERRORS":    parseTracedErrors,
 		"EXPECT_TXN_TRACES":       parseTxnTraces,
@@ -37,7 +38,7 @@ var (
 )
 
 func ParseTestFile(name string) *Test {
-	test := &Test{Name: name}
+	test := NewTest(name)
 	test.Path, _ = filepath.Abs(name)
 
 	if test.IsC() {
@@ -238,6 +239,14 @@ func parseExpectScrubbed(test *Test, content []byte) error {
 	test.expectScrubbed = content
 	return nil
 }
+
+func parseExpectHarvest(test *Test, content []byte) error {
+	if "no" == strings.TrimSpace(string(content)) {
+		test.SetExpectHarvest(false)
+	}
+	return nil
+}
+
 func parseConfig(test *Test, content []byte) error {
 	test.Config = string(bytes.TrimSpace(content))
 	return nil

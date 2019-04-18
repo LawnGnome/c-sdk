@@ -102,8 +102,9 @@
  *   dill                    17Oct2018 (8.4) (Tanya and Amanda)
  *   eggplant                01Dec2018 (8.5) (Alan)
  *   flax                    21Dec2018 (8.6) (Alan)
+ *   gin                     29Mar2019 (8.7) (Johannes)
  */
-#define NR_CODENAME "flax"
+#define NR_CODENAME "gin"
 
 const char* nr_version(void) {
   return NR_STR2(NR_VERSION);

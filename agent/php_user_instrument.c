@@ -458,25 +458,12 @@ void nr_php_user_function_add_declared_callback(const char* namestr,
  * overwrite those pointers. We try to detect that by validating the
  * stored pointers.
  *
- *
- * Checking NR_PHP_ACC_INSTRUMENTED, PHP 5.*
- * -----------------------------------------
- *
- * For ancient versions of PHP, setting and checking the function flag
- * is necessary, as reserved pointers might not be initialized to 0.
- * This also hardens us against badly behaved Zend extensions which
- * potentially overwrite our reserved pointer in the oparray.
- *
- *
- * Mangled process id, PHP 7.3+
- * ----------------------------
- *
  * Since PHP 7.3, OpCache stores functions and oparrays in shared
  * memory. Consequently, the wraprec pointers we store in the oparray
  * might be overwritten by other processes. Dereferencing an overwritten
  * wraprec pointer will most likely cause a crash.
  *
- * The remedy, only applied for PHP 7.3+:
+ * The remedy, applied for all PHP versions:
  *
  *  1. All wraprec pointers are stored in a global vector.
  *
@@ -500,7 +487,6 @@ void nr_php_user_function_add_declared_callback(const char* namestr,
 
 void nr_php_op_array_set_wraprec(zend_op_array* op_array,
                                  nruserfn_t* func TSRMLS_DC) {
-#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
   uintptr_t index;
 
   if (NULL == op_array || NULL == func) {
@@ -516,25 +502,10 @@ void nr_php_op_array_set_wraprec(zend_op_array* op_array,
   index |= (NRPRG(pid) << 16);
 
   op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)] = (void*)index;
-#else
-  NR_UNUSED_TSRMLS
-
-#ifndef PHP7
-  /*
-   * In PHP 5, we set a function flag, as the reserved pointer may not be
-   * initialised to NULL in ancient versions of PHP 5.2. In PHP 7, we don't
-   * touch the function flags.
-   */
-  op_array->fn_flags |= NR_PHP_ACC_INSTRUMENTED;
-#endif /* !PHP7 */
-
-  op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)] = (void*)func;
-#endif /* PHP >= 7.3 */
 }
 
 nruserfn_t* nr_php_op_array_get_wraprec(
     const zend_op_array* op_array TSRMLS_DC) {
-#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
   uintptr_t index;
   uint64_t pid;
 
@@ -561,26 +532,4 @@ nruserfn_t* nr_php_op_array_get_wraprec(
   }
 
   return (nruserfn_t*)nr_vector_get(NRPRG(user_function_wrappers), index);
-#else
-  int offset = NR_PHP_PROCESS_GLOBALS(zend_offset);
-
-  NR_UNUSED_TSRMLS
-
-  if (nrunlikely(NULL == op_array)) {
-    return NULL;
-  }
-  if (NULL == op_array->function_name) {
-    return NULL;
-  }
-#ifndef PHP7
-  if (0 == (op_array->fn_flags & NR_PHP_ACC_INSTRUMENTED)) {
-    return NULL;
-  }
-#endif /* !PHP7 */
-  if (offset < 0) {
-    return NULL;
-  }
-
-  return (nruserfn_t*)op_array->reserved[NR_PHP_PROCESS_GLOBALS(zend_offset)];
-#endif /* PHP >= 7.3 */
 }
