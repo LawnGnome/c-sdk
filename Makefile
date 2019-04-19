@@ -56,7 +56,7 @@ else
 # This rule builds a static axiom library and a static C SDK library, and
 # then uses GNU ar's MRI support to smoosh them together into a single,
 # beautiful library.
-libnewrelic.a: combine.mri axiom src-static
+libnewrelic.a: make/combine.mri axiom src-static
 	$(AR) -M < $<
 endif
 

@@ -110,7 +110,6 @@ fi
 raw_white_list=".clang-format
 .gitignore
 CHANGELOG.md
-combine.mri
 Doxyfile
 examples
 GUIDE.md
