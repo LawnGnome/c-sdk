@@ -1,7 +1,7 @@
 /*!
  * @file stack.h
  *
- * @brief Function declarations necessary to support backtraces in the C agent.
+ * @brief Function declarations necessary to support backtraces.
  */
 #ifndef LIBNEWRELIC_STACK_H
 #define LIBNEWRELIC_STACK_H

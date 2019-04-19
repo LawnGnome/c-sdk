@@ -1,7 +1,7 @@
 /*!
  * ex_common.c
  *
- * @brief Common function implementations for New Relic C-Agent example code.
+ * @brief Common function implementations for New Relic C SDK example code.
  *
  */
 #include <stdio.h>
@@ -12,7 +12,7 @@
 #include "common.h"
 
 /*
- * @brief Customize an agent configuration
+ * @brief Customize a configuration
  *
  * @param [in] config_ptr The address of an agent configuration created using
  * newrelic_create_app_config().
@@ -27,7 +27,7 @@ bool customize_config(newrelic_app_config_t** config_ptr) {
     if (NULL != collector) {
       strcpy(config->redirect_collector, collector);
     } else {
-      printf("Using default agent configuration for collector...\n");
+      printf("Using default SDK configuration for collector...\n");
     }
 
     return true;

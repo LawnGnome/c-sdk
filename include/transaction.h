@@ -1,8 +1,7 @@
 /*!
  * @file transaction.h
  *
- * @brief Function declarations necessary to support starting transactions
- * in the C agent.
+ * @brief Function declarations necessary to support starting transactions.
  */
 #ifndef LIBNEWRELIC_TRANSACTION_H
 #define LIBNEWRELIC_TRANSACTION_H

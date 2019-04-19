@@ -2,7 +2,7 @@
  * @file custom_event.h
  *
  * @brief Type definitions, constants, and function declarations necessary to
- * support adding custom events to transactions in the C Agent.
+ * support adding custom events to transactions in the C SDK.
  */
 #ifndef LIBNEWRELIC_ATTRIBUTE_H
 #define LIBNEWRELIC_ATTRIBUTE_H

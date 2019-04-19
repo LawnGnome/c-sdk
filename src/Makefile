@@ -37,7 +37,7 @@ version.o: version.c Makefile .deps/compile_flags .deps/version_flags $(C_AGENT_
 	$(CC) $(C_AGENT_CPPFLAGS) $(VERSION_FLAGS) $(CPPFLAGS) $(C_AGENT_CFLAGS) $(PCRE_CFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 
 #
-# Note that this rule only builds the C agent object files into the static
+# Note that this rule only builds the C SDK object files into the static
 # library. The parent Makefile takes care of bundling this static library with
 # the axiom static library.
 #

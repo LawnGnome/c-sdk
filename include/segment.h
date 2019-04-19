@@ -22,7 +22,7 @@ typedef struct _newrelic_segment_t {
    * source of truth for what type of segment this is. */
   union {
     struct {
-      /* The C agent datastore API offers that the user supplies segment
+      /* The datastore API offers that the user supplies segment
        * metadata at a segment's start. The user-facing functions,
        * newrelic_start_datastore_segment() and newrelic_start_external_segment(),
        * perform a few checks on this metadata and then save it here. This metadata

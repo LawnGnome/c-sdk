@@ -12,7 +12,7 @@ get interesting results.
 
 ## Requirements
 
-* The C agent.
+* The C SDK.
 * A compiler and standard C++ library that supports C++14.
 * A recent-ish version of Boost; whatever ships on an up to date distro is
   probably fine.
@@ -21,7 +21,7 @@ get interesting results.
 
 `make` will build a `threads` binary that can be run.
 
-By default, the Makefile will look for the C agent at the project root, but you
+By default, the Makefile will look for the C SDK at the project root, but you
 can override this by providing the `LIBNEWRELIC_LIB` variable with the path to
 the `libnewrelic.a` you would like to use. Similarly, `LIBNEWRELIC_INCLUDE` may
 be used to override the include directory that will be used.

@@ -2,7 +2,7 @@
  * @file config.h
  *
  * @brief Type definitions, constants, and function declarations necessary to
- * support the C Agent's configuration.
+ * support the C SDK's configuration.
  */
 #ifndef LIBNEWRELIC_CONFIG_H
 #define LIBNEWRELIC_CONFIG_H
@@ -23,7 +23,7 @@
 nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting);
 
 /*!
- * @brief Create a set of default agent configuration options
+ * @brief Create a set of default SDK configuration options
  *
  * @return A newly allocated nrtxnopt_t struct, which must be released
  * 				 with nr_free() when no longer required.
@@ -31,7 +31,7 @@ nr_tt_recordsql_t newrelic_validate_recordsql(newrelic_tt_recordsql_t setting);
 nrtxnopt_t* newrelic_get_default_options(void);
 
 /*!
- * @brief Convert a C agent configuration into transaction options.
+ * @brief Convert a C SDK configuration into transaction options.
  *
  * @param [in] config The configuration to convert. If NULL, default options
  *                    will be returned.

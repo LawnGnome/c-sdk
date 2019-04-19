@@ -51,7 +51,7 @@ newrelic_segment_t* newrelic_start_datastore_segment(
 
   /* If the ds_type is the default, log that the datastore segment has
    * been created for an unsupported datastore product. Logging this fact here
-   * may help to uncover future mysteries in supporting the agent. */
+   * may help to uncover future mysteries in support. */
   if (NR_DATASTORE_OTHER == ds_type) {
     nrl_info(NRL_INSTRUMENT, "instrumenting unsupported datastore product");
   }
@@ -59,7 +59,7 @@ newrelic_segment_t* newrelic_start_datastore_segment(
   /* Actually start the segment. */
   nrt_mutex_lock(&transaction->lock);
   {
-    /* Set up the C agent wrapper struct. */
+    /* Set up the C SDK wrapper struct. */
     segment = newrelic_segment_create(transaction->txn);
     if (NULL == segment) {
       goto unlock_and_end;

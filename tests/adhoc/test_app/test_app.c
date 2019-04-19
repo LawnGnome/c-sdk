@@ -116,7 +116,7 @@ static newrelic_app_t* test_app_create_app(const char* license,
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   config->transaction_tracer.duration_us = 1;
 
-  /* Wait up to 10 seconds for the agent to connect to the daemon */
+  /* Wait up to 10 seconds for the SDK to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   newrelic_destroy_app_config(&config);
 

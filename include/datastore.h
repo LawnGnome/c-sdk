@@ -2,7 +2,7 @@
  * @file datastore.h
  *
  * @brief Type definitions, constants, and function declarations necessary to
- * support datastore segments, or axiom datastore nodes, for the C agent.
+ * support datastore segments, or axiom datastore nodes, for the C SDK.
  */
 #ifndef LIBNEWRELIC_DATASTORE_H
 #define LIBNEWRELIC_DATASTORE_H

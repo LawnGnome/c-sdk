@@ -2,14 +2,14 @@
  * @file global.h
  *
  * @brief Internal functions used to support global (per-process)
- * configuration, setup, and teardown of the C agent.
+ * configuration, setup, and teardown of the C SDK.
  */
 #ifndef LIBNEWRELIC_GLOBAL_H
 #define LIBNEWRELIC_GLOBAL_H
 #include "nr_txn.h"
 
 /*!
- * @brief Actually initialise the C agent.
+ * @brief Actually initialise the C SDK.
  *
  * @param [in] daemon_socket The path to the daemon socket.
  * @param [in] time_limit_ms The time, in milliseconds, to wait for the daemon
@@ -19,9 +19,9 @@
 bool newrelic_do_init(const char* daemon_socket, int time_limit_ms);
 
 /*!
- * @brief Ensure that the C agent has been initialised.
+ * @brief Ensure that the C SDK has been initialised.
  *
- * If the C agent has not previously been initialised, this is equivalent to a
+ * If the C SDK has not previously been initialised, this is equivalent to a
  * call to newrelic_init(NULL, 0).
  *
  * @return true on success; false otherwise.
@@ -29,7 +29,7 @@ bool newrelic_do_init(const char* daemon_socket, int time_limit_ms);
 bool newrelic_ensure_init(void);
 
 /*!
- * @brief Shut down the C agent.
+ * @brief Shut down the C SDK.
  *
  * In the normal course of events, this is handled by an atexit() handler
  * installed by newrelic_do_init().

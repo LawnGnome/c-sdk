@@ -1,5 +1,5 @@
 /*DESCRIPTION
-Affirm that the agent can allocate a string, used it to create a metric,
+Affirm that the SDK can allocate a string, used it to create a metric,
 and then free it before the transaction sends without ill effect.
 */
 

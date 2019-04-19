@@ -1,7 +1,7 @@
 THISDIR  := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 #
-# Set up the basic variables required to build the C agent. This is mostly
+# Set up the basic variables required to build the C SDK. This is mostly
 # knowing where we are in the filesystem and setting up the appropriate
 # compiler flags.
 #

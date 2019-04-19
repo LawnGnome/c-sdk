@@ -2,7 +2,7 @@
  * @file external.h
  *
  * @brief Type definitions, constants, and function declarations necessary to
- * support external segments in the C Agent.
+ * support external segments in the C SDK.
  */
 #ifndef LIBNEWRELIC_EXTERNAL_H
 #define LIBNEWRELIC_EXTERNAL_H

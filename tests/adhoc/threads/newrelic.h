@@ -1,5 +1,5 @@
 /*
- * A handful of basic wrappers for C agent functions.
+ * A handful of basic wrappers for C SDK functions.
  */
 #ifndef THREADS_NEWRELIC_HDR
 #define THREADS_NEWRELIC_HDR

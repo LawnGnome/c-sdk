@@ -37,7 +37,7 @@ Here's a brief description of each flag -- if you're curious about specific impl
 Flag | Description
 ---|---
 `-loglevel` | The loglevel flag allows a user to specify a logging level for the C SDK , normally set via a call to `newrelic_configure_log()`.
-`-output-dir` | The output-dir flag allows a user to specify a custom folder for the C SDK log file (`c_agent.log`) and the integration_runner/daemon log file (`integration-tests.log`).
+`-output-dir` | The output-dir flag allows a user to specify a custom folder for the C SDK log file (`c_sdk.log`) and the integration_runner/daemon log file (`integration-tests.log`).
 `-pattern` | A shell pattern describing the set of tests that should be run.  The default value runs all the tests. Similarly, `./bin/integration_runner -pattern test_instance*.c` executes any test starting with `test_instance`.
 `-port` | The port flag allows a user to specify which port the integration_runner/daemon will run under.
 `-retry` | The retry flag allows a user to specify how many times the integration runner will attempt to re-run each individual test.
@@ -115,7 +115,7 @@ There are also directives that test the instrumentation output of the C SDK. Wil
 
 ###### `EXPECT_ANALYTICS_EVENTS`
 
-A transaction events payload is an array of transaction events. Transaction events map to a single web transaction observed by the agent.
+A transaction events payload is an array of transaction events. Transaction events map to a single web transaction observed by the SDK. 
 ```
 /*EXPECT_ANALYTICS_EVENTS
 [
@@ -218,7 +218,7 @@ The event format is identical to analytics events.
 
 ###### `EXPECT_SPAN_EVENTS` 
 
-Spans are used with distributed tracing, you can read more [here](https://docs.newrelic.com/docs/apm/distributed-tracing/ui-data/span-event). The structure of the span event json can be seen in the code that generates it [here](../../php_agent/axiom/cmd_txndata_transmit.c#l103-l149).
+Spans are used with distributed tracing, you can read more [here](https://docs.newrelic.com/docs/apm/distributed-tracing/ui-data/span-event). The structure of the span event json can be seen in the code that generates it [here](../../vendor/newrelic/axiom/cmd_txndata_transmit.c#l103-l149).
  
  
  Example:
@@ -396,7 +396,7 @@ The XFAIL directive is used to mark a test as ignored. The test should describe 
 
 ### Write tests using predefined helper macros
 
-C Agent integration tests can include the file `common.h`. This file provides a
+C SDK integration tests can include the file `common.h`. This file provides a
 `main` function as well as some macros that should avoid repetitive boilerplate
 code in tests.
 
@@ -413,7 +413,7 @@ The following macros are provided:
 
 In each test file only one of those macros can be used.
 
-By default an agent log file `./c_sdk.log` is created. This path can be
+By default an SDK log file `./c_sdk.log` is created. This path can be
 changed by setting the environment variable `NEW_RELIC_LOG_FILE`.
 <div align="right">
     <b><a href="#table-of-contents">↥ back to the table of contents</a></b>

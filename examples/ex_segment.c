@@ -35,7 +35,7 @@ int main(void) {
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   config->transaction_tracer.duration_us = 1;
 
-  /* Wait up to 10 seconds for the agent to connect to the daemon */
+  /* Wait up to 10 seconds for the SDK to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   newrelic_destroy_app_config(&config);
 
@@ -58,10 +58,10 @@ int main(void) {
    * Note that this means that seg_a must outlive (at least) the call to
    * newrelic_set_segment_parent() for seg_c.
    */
-  seg_a = newrelic_start_segment(txn, "A", "Parented by agent");
+  seg_a = newrelic_start_segment(txn, "A", "Parented by SDK");
   sleep(1);
 
-  seg = newrelic_start_segment(txn, "B", "Parented by agent");
+  seg = newrelic_start_segment(txn, "B", "Parented by SDK");
   sleep(1);
 
   seg_c = newrelic_start_segment(txn, "C", "Manually reparented");

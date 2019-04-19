@@ -2,7 +2,7 @@
  * @file app.h
  *
  * @brief Type definitions, constants, and function declarations necessary to
- * support application initialization and connection for the C agent.
+ * support application initialization and connection for the C SDK.
  */
 #ifndef LIBNEWRELIC_APP_H
 #define LIBNEWRELIC_APP_H
@@ -18,7 +18,7 @@ typedef struct _nr_app_and_info_t {
    * upon connection. */
   nr_app_info_t* app_info;
 
-  /*! C Agent configuration options. */
+  /*! C SDK configuration options. */
   newrelic_app_config_t* config;
 
   /*! The application lock. */

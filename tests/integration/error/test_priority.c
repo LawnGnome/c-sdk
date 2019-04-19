@@ -1,5 +1,5 @@
 /*DESCRIPTION
-The agent should report the error with the highest priority.
+The SDK should report the error with the highest priority.
 */
 
 /*CONFIG

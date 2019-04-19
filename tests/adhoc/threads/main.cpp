@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
 
   newrelic_configure_log("stdout", NEWRELIC_LOG_DEBUG);
 
-  // Set up the agent configuration.
+  // Set up the SDK configuration.
   Config config(vm["appname"].as<std::string>(),
                 vm.count("licence") ? vm["licence"].as<std::string>()
                                     : vm["license"].as<std::string>());

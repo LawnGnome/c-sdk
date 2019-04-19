@@ -1,7 +1,7 @@
 /*!
  * @file common.h
  *
- * @brief Common constants and function declarations for New Relic C-Agent
+ * @brief Common constants and function declarations for New Relic C SDK
  * example code.
  */
 #ifndef LIBNEWRELIC_COMMON_H

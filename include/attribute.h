@@ -2,7 +2,7 @@
  * @file attribute.h
  *
  * @brief Type definitions, constants, and function declarations necessary to
- * support adding custom attributes to transactions in the C Agent.
+ * support adding custom attributes to transactions in the C SDK.
  */
 #ifndef LIBNEWRELIC_ATTRIBUTE_H
 #define LIBNEWRELIC_ATTRIBUTE_H

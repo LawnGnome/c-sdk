@@ -32,11 +32,11 @@ int main(void) {
   }
 
   // if host isn't defined we just won't assign
-  // it, and the agent will use the default
+  // it, and the SDK will use the default
   char* host = getenv("NEW_RELIC_HOST");
 
   /* No explicit newrelic_init(); we'll let the defaults work their magic. */
-  newrelic_configure_log("./c_agent.log", NEWRELIC_LOG_DEBUG);
+  newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_DEBUG);
 
   app = test_app_create_app(license, host, app_name);
 
@@ -83,7 +83,7 @@ static newrelic_app_t* test_app_create_app(const char* license,
   config->transaction_tracer.threshold = NEWRELIC_THRESHOLD_IS_OVER_DURATION;
   config->transaction_tracer.duration_us = 1;
 
-  /* Wait up to 10 seconds for the agent to connect to the daemon */
+  /* Wait up to 10 seconds for the SDK to connect to the daemon */
   app = newrelic_create_app(config, 10000);
   newrelic_destroy_app_config(&config);
 

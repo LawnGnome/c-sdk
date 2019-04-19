@@ -1,5 +1,5 @@
 /*DESCRIPTION
-The agent should report the last error when newrelic_notice_error is called
+The SDK should report the last error when newrelic_notice_error is called
 multiple times with the same error priority.
 */
 

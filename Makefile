@@ -31,7 +31,7 @@ export CMOCKA_INCLUDE
 PCRE_CFLAGS := $(shell pcre-config --cflags)
 
 #
-# We pull in the current agent version from the VERSION file, and expose it to
+# We pull in the current SDK version from the VERSION file, and expose it to
 # the source code as the NEWRELIC_VERSION preprocessor define.
 #
 AGENT_VERSION := $(shell if test -f VERSION; then cat VERSION; fi)
@@ -43,7 +43,7 @@ all: libnewrelic.a newrelic-daemon
 
 ifeq (Darwin,$(UNAME))
 #
-# This rule builds a static axiom library and a static C agent library, and
+# This rule builds a static axiom library and a static C SDK library, and
 # then uses macOS's special libtool to smoosh them together into a single,
 # beautiful library.
 #
@@ -53,7 +53,7 @@ libnewrelic.a: axiom src-static
 	$(LIBTOOL) -static -o $@ vendor/newrelic/axiom/libaxiom.a src/libnewrelic.a
 else
 #
-# This rule builds a static axiom library and a static C agent library, and
+# This rule builds a static axiom library and a static C SDK library, and
 # then uses GNU ar's MRI support to smoosh them together into a single,
 # beautiful library.
 libnewrelic.a: combine.mri axiom src-static
