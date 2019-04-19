@@ -91,7 +91,12 @@ Or, just to compile them:
 make tests
 ```
 
-## License
+## Licensing
 
-The C SDK is licensed under the
-[Apache 2.0 License](https://github.com/newrelic/c-sdk/tree/master/LICENSE).
+The New Relic C SDK 
+[is licensed under the Apache 2.0 License](https://github.com/newrelic/c-sdk/tree/master/LICENSE)
+
+The C SDK also uses source code from third party libraries. Full details on
+which libraries are used and the terms under which they are licensed can be
+found in the 
+[third party notices document](https://github.com/newrelic/c-sdk/tree/master/THIRD_PARTY_NOTICES.md).

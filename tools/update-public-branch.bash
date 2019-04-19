@@ -125,7 +125,6 @@ tests
 vendor/cmocka
 vendor/Makefile
 vendor/newrelic/axiom
-vendor/newrelic/LICENSE.txt
 vendor/newrelic/make
 vendor/newrelic/Makefile
 vendor/newrelic/src
