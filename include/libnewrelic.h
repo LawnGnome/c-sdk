@@ -1,8 +1,12 @@
 /*!
  * @file libnewrelic.h
  *
- * @brief Generic library to communicate with New Relic. See
- * accompanying GUIDE.md and LICENSE for more information.
+ * @brief This is the New Relic C SDK! If your application does not use other
+ * New Relic APM agent languages, you can use the C SDK to take advantage of
+ * New Relic's monitoring capabilities and features to instrument a wide range
+ * of applications.
+ *
+ * See accompanying GUIDE.md and LICENSE.txt for more information.
  */
 #ifndef LIBNEWRELIC_H
 #define LIBNEWRELIC_H
@@ -14,17 +18,22 @@
 extern "C" {
 #endif
 
-/*! @brief Agent configuration used to indicate the datastore product being
- * instrumented.  Used to populate the product field of a
- * struct _newrelic_datastore_segment_params_t.  Datastore product names are
- * used across New Relic agents and the following constants assist users in
- * maintaining consistent product names. */
-
-/* The following product constants represent the SQL-like datastores that
- * this agent supports.  When the struct _newrelic_tt_recordsql_t setting of the
- * agent is set to NEWRELIC_SQL_RAW or NEWRELIC_SQL_OBFUSCATED, the query
- * param of the struct _newrelic_datastore_segment_config_t is reported to
- * New Relic. */
+/**
+ *  @name Datastore product names with query instrumentation support
+ *
+ *  The product field of the newrelic_datastore_segment_params_t specifies
+ *  the datastore type of a datastore segment.  For example, "MySQL" indicates
+ *  that the segment's query is against a MySQL database. New Relic recommends using
+ *  the predefined NEWRELIC_DATASTORE_FIREBIRD through NEWRELIC_DATASTORE_SYBASE
+ *  constants for this field.
+ *
+ *  For the SQL-like datastores which are supported by the C SDK, when the
+ *  record_sql field of the newrelic_transaction_tracer_config_t is set
+ *  to NEWRELIC_SQL_RAW or NEWRELIC_SQL_OBFUSCATED, the query param of the
+ *  newrelic_datastore_segment_config_t is reported to
+ *  New Relic.
+ */
+//!@{
 #define NEWRELIC_DATASTORE_FIREBIRD "Firebird"
 #define NEWRELIC_DATASTORE_INFORMIX "Informix"
 #define NEWRELIC_DATASTORE_MSSQL "MSSQL"
@@ -33,26 +42,40 @@ extern "C" {
 #define NEWRELIC_DATASTORE_POSTGRES "Postgres"
 #define NEWRELIC_DATASTORE_SQLITE "SQLite"
 #define NEWRELIC_DATASTORE_SYBASE "Sybase"
+//@}
 
-/* The following product constants represent the datastores that are not
- * SQL-like. As such, the query param of the
- * struct _newrelic_datastore_segment_config_t is not reported to
- * New Relic. */
+/**
+ *  @name Datastore product names without query instrumentation support
+ *
+ *  The product field of newrelic_datastore_segment_params_t specifies
+ *  the datastore type of a datastore segment.
+ *
+ *  If the product field points to a string that is one of
+ *  NEWRELIC_DATASTORE_MEMCACHE through NEWRELIC_DATASTORE_OTHER, the resulting
+ *  datastore segment shall be instrumented as an unsupported datastore; this
+ *  datastore's query language has no obfuscation support and its query cannot
+ *  securely be reported to New Relic.
+ */
+//!@{
 #define NEWRELIC_DATASTORE_MEMCACHE "Memcached"
 #define NEWRELIC_DATASTORE_MONGODB "MongoDB"
 #define NEWRELIC_DATASTORE_ODBC "ODBC"
 #define NEWRELIC_DATASTORE_REDIS "Redis"
 #define NEWRELIC_DATASTORE_OTHER "Other"
+//@}
 
-/*!
- * @brief Application.
+/**
+ * @brief A New Relic application.  Once an application configuration is
+ * created with newrelic_create_app_config(), call newrelic_create_app()
+ * to create an application to report data to the daemon; the daemon,
+ * in turn, reports data to New Relic.
  *
  * @see newrelic_create_app().
  */
 typedef struct _nr_app_and_info_t newrelic_app_t;
 
-/*!
- * @brief Transaction. A transaction is started using
+/**
+ * @brief A New Relic transaction. A transaction is started using
  * newrelic_start_web_transaction() or
  * newrelic_start_non_web_transaction(). A started, or active, transaction is
  * stopped using newrelic_end_transaction(). One may modify a transaction
@@ -61,89 +84,135 @@ typedef struct _nr_app_and_info_t newrelic_app_t;
  */
 typedef struct _newrelic_txn_t newrelic_txn_t;
 
-/*!
- * @brief A time, measured in microseconds.
+/**
+ * @brief A time, measured in microseconds.  C SDK configuration and API
+ * calls with time-related parameters expect this type.  For an example
+ * configuration, see newrelic_transaction_tracer_config_t.
  */
 typedef uint64_t newrelic_time_us_t;
 
-/*!
- * @brief Log levels.  An enumeration of the possible log levels for an agent
+/**
+ * @brief Log levels.  An enumeration of the possible log levels for an SDK
  * configuration, or newrelic_app_config_t.  The highest priority loglevel
  * is NEWRELIC_LOG_ERROR.  The level NEWRELIC_LOG_DEBUG offers the greatest
  * verbosity.
  *
- * @see struct _newrelic_app_config_t
+ * @see newrelic_app_config_t
  */
 typedef enum _newrelic_loglevel_t {
+
+  /** The highest-priority loglevel; only errors are logged. */
   NEWRELIC_LOG_ERROR,
+
+  /** The loglevel for warnings and errors. */
   NEWRELIC_LOG_WARNING,
+
+  /** The loglevel for informational logs, warnings, and errors. */
   NEWRELIC_LOG_INFO,
+
+  /** The highest-verbosity loglevel. */
   NEWRELIC_LOG_DEBUG,
 } newrelic_loglevel_t;
 
-/*!
- * @brief Record SQL settings.
+/**
+ * @brief Configuration values used to configure how SQL queries
+ * are recorded and reported to New Relic.
  *
- * @see struct _newrelic_transaction_tracer_config_t
+ * @see newrelic_transaction_tracer_config_t
  */
 typedef enum _newrelic_tt_recordsql_t {
+  /** When the record_sql field of the newrelic_transaction_tracer_config_t
+   *  is set to NEWRELIC_SQL_OFF, no queries are reported to New Relic. */
   NEWRELIC_SQL_OFF,
+
+  /** For the SQL-like datastores which are supported by the C SDK, when the
+   *  record_sql field of the newrelic_transaction_tracer_config_t is set
+   *  to NEWRELIC_SQL_RAW the query param of the
+   *  newrelic_datastore_segment_config_t is reported as-is to New Relic.
+   *
+   *  @warning This setting is not recommended. */
   NEWRELIC_SQL_RAW,
+
+  /** For the SQL-like datastores which are supported by the C SDK, when the
+   *  record_sql field of the newrelic_transaction_tracer_config_t is set
+   *  to NEWRELIC_SQL_RAW the query param of the
+   *  newrelic_datastore_segment_config_t is reported to New Relic with
+   *  alphanumeric characters set to '?'*/
   NEWRELIC_SQL_OBFUSCATED
 } newrelic_tt_recordsql_t;
 
-/*! @brief Agent configuration used to configure the behaviour of the
+/** @brief Configuration values used to configure the behaviour of the
  * transaction tracer.
+ *
+ *  @see newrelic_transaction_tracer_config_t
  */
 typedef enum _newrelic_transaction_tracer_threshold_t {
-  /*! Use 4*apdex(T) as the minimum time a transaction must take before it is
+  /** Use 4*apdex(T) as the minimum time a transaction must take before it is
    *  eligible for a transaction trace.
    */
   NEWRELIC_THRESHOLD_IS_APDEX_FAILING,
 
-  /*! Use the value given in the duration_us field as the minimum time a
+  /** Use the value given in the duration_us field as the minimum time a
    *  transaction must take before it is eligible for a transaction trace.
    */
   NEWRELIC_THRESHOLD_IS_OVER_DURATION,
 } newrelic_transaction_tracer_threshold_t;
 
-/*! @brief Agent configuration used to configure transaction tracing. */
+/** @brief Configuration used to configure transaction tracing. */
 typedef struct _newrelic_transaction_tracer_config_t {
-  /*! Whether to enable transaction traces.
+  /**
+   *  @brief Whether to enable transaction traces.
+   *
    *  Default: true.
    */
   bool enabled;
 
-  /*! Whether to consider transactions for trace generation based on the apdex
+  /**
+   *  @brief Whether to consider transactions for trace generation based on the apdex
    *  configuration or a specific duration.
+   *
    *  Default: NEWRELIC_THRESHOLD_IS_APDEX_FAILING.
    */
   newrelic_transaction_tracer_threshold_t threshold;
 
-  /*! If the agent configuration threshold is set to
+  /**
+   *  @brief If the SDK configuration threshold is set to
    *  NEWRELIC_THRESHOLD_IS_OVER_DURATION, this field specifies the minimum
    *  transaction time before a trace may be generated, in microseconds.
+   *
    *  Default: 0.
    */
   newrelic_time_us_t duration_us;
 
-  /*! Sets the threshold above which the New Relic agent will record a
+  /**
+   *  @brief Sets the threshold above which the New Relic SDK will record a
    *  stack trace for a transaction trace, in microseconds.
+   *
    *  Default: 500000, or 0.5 seconds.
    */
   newrelic_time_us_t stack_trace_threshold_us;
 
+  /**
+   *  @brief The datastore_reporting field of newrelic_transaction_tracer_config_t
+   *  is a collection of configuration values that control how certain
+   *  characteristics of datastore queries are recorded. */
   struct {
-    /*! Controls whether slow datastore queries are recorded.  If set to true
-     *  for a transaction, the transaction tracer records the top-10 slowest
-     *  queries along with a stack trace of where the call occurred.
+    /**
+     *  @brief Controls whether slow datastore queries are recorded.
+     *
+     *  If set to true for a transaction, the transaction tracer records
+     *  the top-10 slowest queries along with a stack trace of where the
+     *  call occurred.
+     *
      *  Default: true.
      */
     bool enabled;
 
-    /*! Controls the format of the sql put into transaction traces for supported
-     *  sql-like products. Only relevant if the above
-     *  datastore_reporting.enabled field is set to true.
+    /**
+     *  @brief Controls the format of the sql put into transaction traces for
+     *  supported sql-like products.
+     *
+     *  Only relevant if the datastore_reporting.enabled field is set to true.
      *
      *  - If set to NEWRELIC_SQL_OFF, transaction traces have no sql in them.
      *  - If set to NEWRELIC_SQL_RAW, the sql is added to the transaction
@@ -153,16 +222,19 @@ typedef struct _newrelic_transaction_tracer_config_t {
      *    as 'SELECT * FROM table WHERE foo = ?'.  These obfuscated queries are
      *    added to the transaction trace for supported datastore products.
      *
-     *  New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
+     *  @warning New Relic highly discourages the use of the NEWRELIC_SQL_RAW setting
      *  in production environments.
      *
      *  Default: NEWRELIC_SQL_OBFUSCATED.
      */
     newrelic_tt_recordsql_t record_sql;
 
-    /*! Specify the threshold above which a datastore query is considered
-     *  "slow", in microseconds.  Only relevant if the above
-     *  datastore_reporting.enabled field is set to true.
+    /**
+     *  @brief Specify the threshold above which a datastore query is considered
+     *  "slow", in microseconds.
+     *
+     *  Only relevant if the datastore_reporting.enabled field is set to true.
+     *
      *  Default: 500000, or 0.5 seconds.
      */
     newrelic_time_us_t threshold_us;
@@ -170,20 +242,26 @@ typedef struct _newrelic_transaction_tracer_config_t {
 
 } newrelic_transaction_tracer_config_t;
 
-/*!
- * @brief Agent configuration used to configure how datastore segments
+/**
+ * @brief Configuration used to configure how datastore segments
  * are recorded in a transaction.
  */
 typedef struct _newrelic_datastore_segment_config_t {
-  /*! If set to true for a transaction, instance names are reported to New
+  /** @brief Configuration which controls whether datastore instance
+   *  names are reported to New Relic.
+   *
+   * If set to true for a transaction, instance names are reported to New
    * Relic. More specifically, the host and port_path_or_id fields in a
    *  newrelic_datastore_segment_params_t passed to
    *  newrelic_datastore_start_segment() is reported when the
    *  corresponding transaction is reported. */
   bool instance_reporting;
 
-  /*! If set to true for a transaction, database names are reported to New
-   * Relic. More specifically, the database_name field in a
+  /** @brief Configuration which controls whether datastore database
+   *  names are reported to New Relic.
+   *
+   *  If set to true for a transaction, database names are reported to New
+   *  Relic. More specifically, the database_name field in a
    *  newrelic_datastore_segment_params_t passed to
    *  newrelic_datastore_start_segment() is reported when the
    *  corresponding transaction is reported. */
@@ -191,79 +269,111 @@ typedef struct _newrelic_datastore_segment_config_t {
 
 } newrelic_datastore_segment_config_t;
 
+/**
+ * @brief Optional configuration for the underlying communication mechanism
+ * between an instrumented application and the daemon. The default is to use
+ * a UNIX-domain socket located at /tmp/.newrelic.sock. If this default works
+ * for your system, creating this configuration is not necessary. */
 typedef struct _newrelic_process_config_t {
-  /*! Optional.  Specifies the underlying communication mechanism for the
-   *  agent daemon.   The default is to use a UNIX-domain socket located at
-   *  /tmp/.newrelic.sock. If you want to use UNIX domain sockets then this
-   *  value must begin with a "/". Setting this to an integer value in the
-   *  range 1-65534 will instruct the daemon to listen on a normal TCP socket
-   *  on the port specified. On Linux, an abstract socket can be created by
-   *  prefixing the socket name with '@'.
+  /**
+   *  @brief Specify the communication mechanism by setting daemon_socket to a
+   *  socket name.
+   *
+   *  Domain Sockets: If you want to use UNIX domain sockets as the underlying
+   *  communication mechanism, the name assigned to daemon_socket
+   *  must begin with a "/", e.g., "/domain_socket".
+   *
+   *  TCP Socket: If you want to use a normal TCP socket, set daemon_socket
+   *  to an integer value in the range 1-65534.  This instructs the daemon
+   *  to listen on a normal TCP socket on the port specified.
+   *
+   *  Abstract Socket: If you want to use an abstract socket, the name
+   *  assigned to daemon_socket must begin with a "@",
+   *  e.g., "@abstract_socket".
    */
   char daemon_socket[512];
 } newrelic_process_config_t;
 
-/*!
- * @brief Agent configuration used to describe application name, license key, as
+/**
+ * @brief Configuration used to describe application name, license key, as
  * well as optional transaction tracer and datastore configuration.
  *
  * @see newrelic_create_app_config().
  */
 typedef struct _newrelic_app_config_t {
-  /*! Specifies the name of the application to which data shall be reported.
+  /**
+   * @brief Specifies the name of the application to which data shall be reported.
    */
   char app_name[255];
 
-  /*! Specifies the New Relic license key to use.
+  /**
+   * @brief Specifies the New Relic license key to use.
    */
   char license_key[255];
 
-  /*! Optional.  Specifies the New Relic provided host. There is little reason
+  /**
+   *  @brief Optional.  Specifies the New Relic provided host. There is little reason
    *  to ever change this from the default.
    */
   char redirect_collector[100];
 
-  /*! Optional. Specifies the file to be used for agent logs.  If no filename
-   *  is provided, no logging shall occur.
+  /**
+   *  @brief Optional. Specifies the file to be used for C SDK logs.
+   *
+   *  If no filename is provided, no logging shall occur.
    */
   char log_filename[512];
 
-  /*! Optional. Specifies the logfile's level of detail. There is little reason
-   * to change this from the default value except under the guidance of
-   * technical support.
+  /**
+   * @brief Optional. Specifies the logfile's level of detail.
+   *
+   * There is little reason to change this from the default value except
+   * in troubleshooting scenarios.
    *
    * Must be one of the following values: NEWRELIC_LOG_ERROR,
    * NEWRELIC_LOG_WARNING NEWRELIC_LOG_INFO (default), NEWRELIC_LOG_DEBUG.
    */
   newrelic_loglevel_t log_level;
 
-  /*! Optional. The transaction tracer configuration. By default, the
-   *  configuration returned by newrelic_new_config() will enable transaction
-   *  traces, with the threshold set to NEWRELIC_THRESHOLD_IS_APDEX_FAILING.
+  /**
+   *  @brief Optional. The transaction tracer configuration.
+   *
+   *  By default, the configuration returned by newrelic_new_config()
+   *  will enable transaction traces, with the threshold set to
+   *  NEWRELIC_THRESHOLD_IS_APDEX_FAILING.
    */
   newrelic_transaction_tracer_config_t transaction_tracer;
 
-  /*! Optional. The datastore tracer configuration.  By default, the
-   *  configuration returned by newrelic_new_config() will enable datastore
-   *  segments with instance_reporting and database_name_reporting set
-   *  to true.
+  /**
+   *  @brief Optional. The datastore tracer configuration.
+   *
+   *  By default, the configuration returned by newrelic_new_config()
+   *  will enable datastore segments with instance_reporting and
+   *  database_name_reporting set to true.
    */
   newrelic_datastore_segment_config_t datastore_tracer;
 
 } newrelic_app_config_t;
 
-/*!
+/**
  * @brief Segment configuration used to instrument calls to databases and object
  * stores.
  */
 typedef struct _newrelic_datastore_segment_params_t {
-  /*! Specifies the datastore type, e.g., "MySQL", to indicate that the segment
-   *  represents a query against a MySQL database. New Relic recommends using
-   *  the predefined NEWRELIC_DATASTORE_FIREBIRD through
+  /**
+   *  @brief Specifies the datastore type, e.g., "MySQL", to indicate that the segment
+   *  represents a query against a MySQL database.
+   *
+   *  New Relic recommends using the predefined NEWRELIC_DATASTORE_FIREBIRD through
    *  NEWRELIC_DATASTORE_SYBASE constants for this field. If this field points
    *  to a string that is not one of NEWRELIC_DATASTORE_FIREBIRD through
    *  NEWRELIC_DATASTORE_SYBASE, the resulting datastore segment shall be
    *  instrumented as an unsupported datastore.
+   *
+   *  For SQL-like datastores supported by the C SDK, when the
+   *  record_sql field of the newrelic_transaction_tracer_config_t is set
+   *  to NEWRELIC_SQL_RAW or NEWRELIC_SQL_OBFUSCATED, the query param of the
+   *  newrelic_datastore_segment_config_t is reported to New Relic.
    *
    *  This field is required to be a non-empty, null-terminated string that does
    *  not include any slash characters.  Empty strings are replaced with the
@@ -271,7 +381,8 @@ typedef struct _newrelic_datastore_segment_params_t {
    */
   char* product;
 
-  /*! Optional. Specifies the table or collection being used or queried against.
+  /**
+   *  @brief Optional. Specifies the table or collection being used or queried against.
    *
    *  If provided, this field is required to be a null-terminated string that
    *  does not include any slash characters. It is also valid to use the default
@@ -280,7 +391,8 @@ typedef struct _newrelic_datastore_segment_params_t {
    */
   char* collection;
 
-  /*! Optional. Specifies the operation being performed: for example, "select"
+  /**
+   *  @brief Optional. Specifies the operation being performed: for example, "select"
    *  for an SQL SELECT query, or "set" for a Memcached set operation.
    *  While operations may be specified with any case, New Relic suggests
    *  using lowercase.
@@ -292,7 +404,8 @@ typedef struct _newrelic_datastore_segment_params_t {
    */
   char* operation;
 
-  /*! Optional. Specifies the datahost host name.
+  /**
+   *  @brief Optional. Specifies the datahost host name.
    *
    *  If provided, this field is required to be a null-terminated string that
    *  does not include any slash characters. It is also valid to use the default
@@ -301,23 +414,28 @@ typedef struct _newrelic_datastore_segment_params_t {
    */
   char* host;
 
-  /*! Optional. Specifies the port or socket used to connect to the datastore.
+  /**
+   *  @brief Optional. Specifies the port or socket used to connect to the
+   *  datastore.
    *
    *  If provided, this field is required to be a null-terminated string.
    */
   char* port_path_or_id;
 
-  /*! Optional. Specifies the database name or number in use.
+  /**
+   *  @brief Optional. Specifies the database name or number in use.
    *
    *  If provided, this field is required to be a null-terminated string.
    */
   char* database_name;
 
-  /*! Optional. Specifies the database query that was sent to the server.
+  /**
+   *  @brief Optional. Specifies the database query that was sent to the server.
+   *
    *  For security reasons, this value is only used if you set product to
    *  a supported sql-like datastore, NEWRELIC_DATASTORE_FIREBIRD,
    *  NEWRELIC_DATASTORE_INFORMIX, NEWRELIC_DATASTORE_MSSQL, etc. This
-   *  allows the agent to correctly obfuscate the query. When the product
+   *  allows the SDK to correctly obfuscate the query. When the product
    *  is set otherwise, no query information is reported to New Relic.
    *
    *  If provided, this field is required to be a null-terminated string.
@@ -326,16 +444,16 @@ typedef struct _newrelic_datastore_segment_params_t {
 
 } newrelic_datastore_segment_params_t;
 
-/*! @brief Parameters used when creating an external segment. */
+/** @brief Segment configuration used to instrument external calls. */
 typedef struct _newrelic_external_segment_params_t {
-  /*!
-   * The URI that was loaded. This field is required to be a null-terminated
+  /**
+   * @brief The URI that was loaded. This field is required to be a null-terminated
    * string containing a valid URI, and cannot be NULL.
    */
   char* uri;
 
-  /*!
-   * The procedure used to load the external resource.
+  /**
+   * @brief The procedure used to load the external resource.
    *
    * In HTTP contexts, this will usually be the request method (eg `GET`,
    * `POST`, et al). For non-HTTP requests, or protocols that encode more
@@ -349,8 +467,8 @@ typedef struct _newrelic_external_segment_params_t {
    */
   char* procedure;
 
-  /*!
-   * The library used to load the external resource.
+  /**
+   * @brief The library used to load the external resource.
    *
    * If provided, this field is required to be a null-terminated string that
    * does not include any slash characters. It is also valid to provide NULL,
@@ -359,8 +477,8 @@ typedef struct _newrelic_external_segment_params_t {
   char* library;
 } newrelic_external_segment_params_t;
 
-/*!
- * @brief Configure the C agent's logging system.
+/**
+ * @brief Configure the C SDK's logging system.
  *
  * If the logging system was previously initialized (either by a prior call to
  * newrelic_configure_log() or implicitly by a call to newrelic_init() or
@@ -375,8 +493,8 @@ typedef struct _newrelic_external_segment_params_t {
  */
 bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level);
 
-/*!
- * @brief Initialise the C agent with non-default settings.
+/**
+ * @brief Initialise the C SDK with non-default settings.
  *
  * Generally, this function only needs to be called explicitly if the daemon
  * socket location needs to be customised. By default, "/tmp/.newrelic.sock" is
@@ -394,20 +512,20 @@ bool newrelic_configure_log(const char* filename, newrelic_loglevel_t level);
  * domain socket instead of a filesystem path. If this is NULL, then the
  * default behaviour described above will be used.
  * @param [in] time_limit_ms The amount of time, in milliseconds, that the C
- * agent will wait for a response from the daemon before considering
+ * SDK will wait for a response from the daemon before considering
  * initialization to have failed. If this is 0, then a default value will be
  * used.
  * @return true on success; false otherwise.
  */
 bool newrelic_init(const char* daemon_socket, int time_limit_ms);
 
-/*!
+/**
  * @brief Create a populated application configuration.
  *
- * Given an application name and license key, this method returns an agent
+ * Given an application name and license key, this method returns an SDK
  * configuration. Specifically, it returns a pointer to a newrelic_app_config_t
  * with initialized app_name and license_key fields along with default values
- * for the remaining fields. The caller should free the agent configuration
+ * for the remaining fields. The caller should free the configuration
  * after the application has been created.
  *
  * @param [in] app_name The name of the application.
@@ -419,7 +537,7 @@ bool newrelic_init(const char* daemon_socket, int time_limit_ms);
 newrelic_app_config_t* newrelic_create_app_config(const char* app_name,
                                                   const char* license_key);
 
-/*!
+/**
  * @brief Destroy the application configuration.
  *
  * Given an allocated application configuration, newrelic_destroy_app_config()
@@ -435,10 +553,10 @@ newrelic_app_config_t* newrelic_create_app_config(const char* app_name,
  */
 bool newrelic_destroy_app_config(newrelic_app_config_t** config);
 
-/*!
+/**
  * @brief Create an application.
  *
- * Given an agent configuration, newrelic_create_app() returns a pointer to the
+ * Given a configuration, newrelic_create_app() returns a pointer to the
  * newly allocated application, or NULL if there was an error. If successful,
  * the caller should destroy the application with the supplied
  * newrelic_destroy_app() when finished.
@@ -450,12 +568,12 @@ bool newrelic_destroy_app_config(newrelic_app_config_t** config);
  * connecting to the daemon.
  *
  * @return A pointer to an allocated application, or NULL on error; any errors
- * resulting from a badly-formed agent configuration are logged.
+ * resulting from a badly-formed configuration are logged.
  */
 newrelic_app_t* newrelic_create_app(const newrelic_app_config_t* config,
                                     unsigned short timeout_ms);
 
-/*!
+/**
  * @brief Destroy the application.
  *
  * Given an allocated application, newrelic_destroy_app() closes the logfile
@@ -469,7 +587,7 @@ newrelic_app_t* newrelic_create_app(const newrelic_app_config_t* config,
  */
 bool newrelic_destroy_app(newrelic_app_t** app);
 
-/*!
+/**
  * @brief Start a web based transaction.
  *
  * Given an application pointer and transaction name, this function begins
@@ -485,7 +603,7 @@ bool newrelic_destroy_app(newrelic_app_t** app);
 newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
                                                const char* name);
 
-/*!
+/**
  * @brief Start a non-web based transaction.
  *
  * Given a valid application and transaction name, this function begins timing
@@ -501,7 +619,7 @@ newrelic_txn_t* newrelic_start_web_transaction(newrelic_app_t* app,
 newrelic_txn_t* newrelic_start_non_web_transaction(newrelic_app_t* app,
                                                    const char* name);
 
-/*!
+/**
  * @brief Override the timing for the given transaction.
  *
  * Transactions are normally timed automatically based on when they were started
@@ -528,13 +646,13 @@ bool newrelic_set_transaction_timing(newrelic_txn_t* transaction,
                                      newrelic_time_us_t start_time,
                                      newrelic_time_us_t duration);
 
-/*!
+/**
  * @brief End a transaction.
  *
  * Given an active transaction, this function stops the transaction's
  * timing, sends any data to the New Relic daemon, and destroys the transaction.
  *
- * @param [in] transaction The address of a pointer to an active transaction.
+ * @param [in] transaction_ptr The address of a pointer to an active transaction.
  *
  * @return false if transaction is NULL or points to NULL; false if data cannot
  * be sent to newrelic; true otherwise.
@@ -543,7 +661,7 @@ bool newrelic_set_transaction_timing(newrelic_txn_t* transaction,
  */
 bool newrelic_end_transaction(newrelic_txn_t** transaction_ptr);
 
-/*!
+/**
  * @brief Add a custom integer attribute to a transaction.
  *
  * Given an active transaction, this function appends an
@@ -559,7 +677,7 @@ bool newrelic_add_attribute_int(newrelic_txn_t* transaction,
                                 const char* key,
                                 const int value);
 
-/*!
+/**
  * @brief Add a custom long attribute to a transaction.
  *
  * Given an active transaction, this function appends a
@@ -575,7 +693,7 @@ bool newrelic_add_attribute_long(newrelic_txn_t* transaction,
                                  const char* key,
                                  const long value);
 
-/*!
+/**
  * @brief Add a custom double attribute to a transaction.
  *
  * Given an active transaction, this function appends a
@@ -591,7 +709,7 @@ bool newrelic_add_attribute_double(newrelic_txn_t* transaction,
                                    const char* key,
                                    const double value);
 
-/*!
+/**
  * @brief Add a custom string attribute to a transaction.
  *
  * Given an active transaction, this function appends a
@@ -607,7 +725,7 @@ bool newrelic_add_attribute_string(newrelic_txn_t* transaction,
                                    const char* key,
                                    const char* value);
 
-/*!
+/**
  * @brief Record an error in a transaction.
  *
  * Given an active transaction, this function records an error
@@ -624,19 +742,28 @@ void newrelic_notice_error(newrelic_txn_t* transaction,
                            const char* errmsg,
                            const char* errclass);
 
-/*!
- * @brief A segment within a transaction.
+/**
+ * @brief A segment within a transaction.  Within an active transaction,
+ * instrument additional segments for greater granularity.  Instrument
+ * external calls with newrelic_start_external_segment().  Instrument
+ * datastore calls with newrelic_start_datastore_segment().  Instrument
+ * arbitrary function calls or other code with newrelic_start_segment().
+ * All segments must be ended with newrelic_end_segment().  Examples of
+ * instrumenting segments are available in the examples directory.
  */
 typedef struct _newrelic_segment_t newrelic_segment_t;
 
-/*!
- * @brief A Custom Event
- *
- * @see newrelic_create_custom_event().
+/**
+ * @brief A Custom Event. The C SDK provides a Custom Events API
+ * that allows one to send custom events to New Relic Insights.
+ * To send an event, start a transaction and use the
+ * newrelic_create_custom_event() and newrelic_record_custom_event()
+ * functions. Examples of sending custom events are available in the
+ * examples directory.
  */
 typedef struct _newrelic_custom_event_t newrelic_custom_event_t;
 
-/*!
+/**
  * @brief Record the start of a custom segment in a transaction.
  *
  * Given an active transaction this function creates a custom segment to be
@@ -656,7 +783,7 @@ newrelic_segment_t* newrelic_start_segment(newrelic_txn_t* transaction,
                                            const char* name,
                                            const char* category);
 
-/*!
+/**
  * @brief Record the start of a datastore segment in a transaction.
  *
  * Given an active transaction and valid parameters, this function creates a
@@ -673,7 +800,7 @@ newrelic_segment_t* newrelic_start_datastore_segment(
     newrelic_txn_t* transaction,
     const newrelic_datastore_segment_params_t* params);
 
-/*!
+/**
  * @brief Start recording an external segment within a transaction.
  *
  * Given an active transaction, this function creates an external segment
@@ -688,14 +815,14 @@ newrelic_segment_t* newrelic_start_datastore_segment(
  * @return A pointer to an external segment, which may then be provided to
  *         newrelic_end_segment() when the external request is complete. If an
  *         error occurs when creating the external segment, NULL is returned,
- *         and a log message will be written to the agent log at LOG_ERROR
+ *         and a log message will be written to the SDK log at LOG_ERROR
  *         level.
  */
 newrelic_segment_t* newrelic_start_external_segment(
     newrelic_txn_t* transaction,
     const newrelic_external_segment_params_t* params);
 
-/*!
+/**
  * @brief Set the parent for the given segment.
  *
  * This function changes the parent for the given segment to another segment.
@@ -712,7 +839,7 @@ newrelic_segment_t* newrelic_start_external_segment(
 bool newrelic_set_segment_parent(newrelic_segment_t* segment,
                                  newrelic_segment_t* parent);
 
-/*!
+/**
  * @brief Set the transaction's root as the parent for the given segment.
  *
  * Transactions are represented by a collection of segments. Segments are
@@ -732,7 +859,7 @@ bool newrelic_set_segment_parent(newrelic_segment_t* segment,
  */
 bool newrelic_set_segment_parent_root(newrelic_segment_t* segment);
 
-/*!
+/**
  * @brief Override the timing for the given segment.
  *
  * Segments are normally timed automatically based on when they were started
@@ -754,26 +881,26 @@ bool newrelic_set_segment_timing(newrelic_segment_t* segment,
                                  newrelic_time_us_t start_time,
                                  newrelic_time_us_t duration);
 
-/*!
+/**
  * @brief Record the completion of a segment in a transaction.
  *
  * Given an active transaction, this function records the segment's metrics
  * on the transaction.
  *
  * @param [in] transaction An active transaction.
- * @param [in,out] segment The address of a valid segment.
+ * @param [in,out] segment_ptr The address of a valid segment.
  * Before the function returns, any segment_ptr memory is freed;
  * segment_ptr is set to NULL to avoid any potential double free errors.
  *
  * @return true if the parameters represented an active transaction
  * and custom segment to record as complete; false otherwise.
  * If an error occurred, a log message will be written to the
- * agent log at LOG_ERROR level.
+ * SDK log at LOG_ERROR level.
  */
 bool newrelic_end_segment(newrelic_txn_t* transaction,
                           newrelic_segment_t** segment_ptr);
 
-/*!
+/**
  * @brief Creates a custom event
  *
  * Attributes can be added to the custom event using the
@@ -791,7 +918,7 @@ bool newrelic_end_segment(newrelic_txn_t* transaction,
  */
 newrelic_custom_event_t* newrelic_create_custom_event(const char* event_type);
 
-/*!
+/**
  * @brief Frees the memory for custom events created via the
  * newrelic_create_custom_event function
  *
@@ -800,11 +927,11 @@ newrelic_custom_event_t* newrelic_create_custom_event(const char* event_type);
  * freed
  *
  * @param [in] event The address of a valid custom event, @see
- *             newrelic_create_custom_event.
+ *             newrelic_create_custom_event().
  */
 void newrelic_discard_custom_event(newrelic_custom_event_t** event);
 
-/*!
+/**
  * @brief Records the custom event.
  *
  * Given an active transaction, this function adds the custom event to the
@@ -812,19 +939,19 @@ void newrelic_discard_custom_event(newrelic_custom_event_t** event);
  *
  * @param [in] transaction pointer to a started transaction
  * @param [in] event The address of a valid custom event, @see
- *                   newrelic_create_custom_event.
+ *                   newrelic_create_custom_event().
  *
  * newrelic_create_custom_event
  */
 void newrelic_record_custom_event(newrelic_txn_t* transaction,
                                   newrelic_custom_event_t** event);
 
-/*!
+/**
  * @brief Adds an int key/value pair to the custom event's attributes
  *
  * Given a custom event, this function adds an integer attributes to the event.
  *
- * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event().
  * @param [in] key the string key for the key/value pair
  * @param [in] value the integer value of the key/value pair
  *
@@ -834,12 +961,12 @@ bool newrelic_custom_event_add_attribute_int(newrelic_custom_event_t* event,
                                              const char* key,
                                              int value);
 
-/*!
+/**
  * @brief Adds a long key/value pair to the custom event's attributes
  *
  * Given a custom event, this function adds a long attribute to the event.
  *
- * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event().
  * @param [in] key the string key for the key/value pair
  * @param [in] value the long value of the key/value pair
  *
@@ -849,12 +976,12 @@ bool newrelic_custom_event_add_attribute_long(newrelic_custom_event_t* event,
                                               const char* key,
                                               long value);
 
-/*!
+/**
  * @brief Adds a double key/value pair to the custom event's attributes
  *
  * Given a custom event, this function adds a double attribute to the event.
  *
- * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event().
  * @param [in] key the string key for the key/value pair
  * @param [in] value the double value of the key/value pair
  *
@@ -864,13 +991,13 @@ bool newrelic_custom_event_add_attribute_double(newrelic_custom_event_t* event,
                                                 const char* key,
                                                 double value);
 
-/*!
+/**
  * @brief Adds a string key/value pair to the custom event's attributes
  *
  * Given a custom event, this function adds a char* (string) attribute to the
  * event.
  *
- * @param [in] event A valid custom event, @see newrelic_create_custom_event.
+ * @param [in] event A valid custom event, @see newrelic_create_custom_event().
  * @param [in] key the string key for the key/value pair
  * @param [in] value the string value of the key/value pair
  *
@@ -880,18 +1007,18 @@ bool newrelic_custom_event_add_attribute_string(newrelic_custom_event_t* event,
                                                 const char* key,
                                                 const char* value);
 
-/*!
- * @brief Get the agent version.
+/**
+ * @brief Get the SDK version.
  *
- * @return A NULL terminated string containing the C agent version number. If
+ * @return A NULL-terminated string containing the C SDK version number. If
  * the version number is unavailable, the string "NEWRELIC_VERSION" will be
  * returned.
  *
- * This string is owned by the agent, and must not be freed or modified.
+ * This string is owned by the SDK, and must not be freed or modified.
  */
 const char* newrelic_version(void);
 
-/*
+/**
  * @brief Generate a custom metric.
  *
  * Given an active transaction and valid parameters, this function creates a
@@ -908,17 +1035,37 @@ bool newrelic_record_custom_metric(newrelic_txn_t* transaction,
                                    const char* metric_name,
                                    double milliseconds);
 
-/*
+/**
  * @brief Ignore the current transaction
  *
  * Given a transaction, this function instructs the C SDK to not send data to
  * New Relic for that transaction.
+ *
+ * @warning Even when newrelic_ignore_transaction() is called, one must still
+ * call newrelic_end_transaction() to free the memory used by the transaction
+ * and avoid a memory leak.
  *
  * @param [in] transaction A transaction.
  *
  * @return true on success.
  */
 bool newrelic_ignore_transaction(newrelic_txn_t* transaction);
+
+
+/**
+ * A list of examples for Doxygen to cross-reference.  If a function in
+ * libnewrelic.h appears in one of these examples, the example source
+ * file appears under the "Examples" header.
+ *
+ * \example ex_custom.c
+ * \example ex_datastore.c
+ * \example ex_external.c
+ * \example ex_notice_error.c
+ * \example ex_segment.c
+ * \example ex_simple.c
+ * \example ex_timing.c
+ *
+ */
 
 #ifdef __cplusplus
 }

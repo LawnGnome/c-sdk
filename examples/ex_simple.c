@@ -6,7 +6,7 @@
  * A standalone example that demonstrates to users how to
  * configure logging, configure an app, connect an app,
  * start a transaction and a segment, and cleanly destroy
- * everything.  Also available at docs.newrelic.com.
+ * everything.
  */
 #include "libnewrelic.h"
 

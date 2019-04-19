@@ -29,7 +29,7 @@ branch="$1"
 logfile=$(basename $0).log
 exec > $logfile
 
-# The branch which will hold the final state that can be syned to the public
+# The branch which will hold the final state that can be synced to the public
 # C SDK repository.
 #
 release_branch="public-branches/gh-pages"
@@ -51,8 +51,9 @@ do_cleanup
 # Check out the base branch and run doxygen.
 #
 git checkout $branch
+cd _doxygen
 doxygen
-
+cd ../
 
 # Step 2
 # ======

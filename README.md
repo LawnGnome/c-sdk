@@ -1,11 +1,44 @@
 # New Relic C SDK
 
-A generic library to communicate with New Relic from any language with a C FFI
-mechanism.
+This is the New Relic C SDK! If your application does not use other New Relic 
+APM agent languages, you can use the C SDK to take advantage of New Relic's
+monitoring capabilities and features to instrument a wide range of applications.
 
-## Building the agent
+## Need Help?
 
-### Requirements
+Here are recommendations for learning more:
+
+* Documentation is available at 
+[docs.newrelic.com](https://docs.newrelic.com/docs/c-sdk-table-contents)
+and [GUIDE.md](https://github.com/newrelic/c-sdk/blob/master/GUIDE.md?).
+
+* API usage information can be found in libnewrelic.h, available in the 
+[include directory](https://github.com/newrelic/c-sdk/tree/master/include). 
+Other header files are internal to the agent, and their stability 
+is not guaranteed. 
+
+* Working examples are available in the 
+[examples directory](https://github.com/newrelic/c-sdk/tree/master/examples).
+
+
+Do you have questions or are you experiencing unexpected behaviors with this 
+Open Source Software? 
+
+* Please engage with us on the 
+[New Relic Explorers Hub](https://discuss.newrelic.com/t/about-the-open-source-agents-sdks-category/58764).
+
+* If you’re confident your issue is a bug, please follow our 
+[bug reporting guidelines](https://github.com/newrelic/c-sdk/blob/master/CONTRIBUTING.md#filing-issues--bug-reports) 
+and open a GitHub Issue.
+
+## Contributing
+
+We'd love to get your contributions to improve the C SDK! Keep in mind when you 
+submit your pull request, you'll need to sign the CLA via the click-through 
+using CLA-Assistant. If you'd like to execute our corporate CLA, or if you 
+have any questions, please drop us an email at open-source@newrelic.com.
+
+## Requirements
 
 The C SDK works on 64-bit Linux operating systems with:
 
@@ -19,9 +52,10 @@ Running unit tests requires cmake 2.8 or higher.
 
 Compiling the New Relic daemon requires Go 1.4 or higher.
 
-### Building
+## Building the C SDK
 
-Building the agent and daemon should be as simple as:
+If your system meets the requirements, building the C SDK and 
+daemon should be as simple as:
 
 ```sh
 make
@@ -38,29 +72,12 @@ You can start the daemon in the foreground with:
 ./newrelic-daemon -f --logfile stdout --loglevel debug
 ```
 
-## Using the agent
+Then you can invoke your instrumented application.  Your application,
+which makes C SDK API calls, reports data to the daemon over a socket;
+in turn, the daemon reports the data to New Relic.
 
-API usage information can be found in [the guide](GUIDE.md).
 
-### Headers
-
-Note that only `include/libnewrelic.h` contains the stable, public API. Other
-header files are internal to the agent, and their stability is not guaranteed.
-
-### API reference
-
-You can use [doxygen](http://www.doxygen.nl/) to generate API reference
-documentation:
-
-```sh
-doxygen
-```
-
-This will create HTML output in the `html` directory.
-
-## Running tests
-
-### Unit tests
+## Tests
 
 To compile and run the unit tests:
 
@@ -74,7 +91,7 @@ Or, just to compile them:
 make tests
 ```
 
-### Ad hoc tests
+## License
 
-A number of ad hoc tests have been provided. More information can be found in
-[the ad hoc test readme](tests/adhoc/README.md).
+The C SDK is licensed under the
+[Apache 2.0 License](https://github.com/newrelic/c-sdk/tree/master/LICENSE).
