@@ -54,6 +54,7 @@ use(extensions) {
         job("$project-release-tests-axiom")
         job("$project-release-tests-axiom-valgrind")
         job("$project-release-tests-daemon-tests")
+        job("$project-release-tests-integration")
       }
 
       phase("Create a release branch", 'SUCCESSFUL') {
