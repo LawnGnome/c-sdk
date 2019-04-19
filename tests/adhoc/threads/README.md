@@ -13,7 +13,7 @@ get interesting results.
 ## Requirements
 
 * The C agent.
-* A compiler and standard C++ library that supports C++11.
+* A compiler and standard C++ library that supports C++14.
 * A recent-ish version of Boost; whatever ships on an up to date distro is
   probably fine.
 

@@ -80,8 +80,8 @@ class CustomSegment : public Segment {
                 const std::string& name,
                 const std::string& category)
       : Segment(
-            txn,
-            newrelic_start_segment(txn.txn, name.c_str(), category.c_str())) {
+          txn,
+          newrelic_start_segment(txn.txn, name.c_str(), category.c_str())) {
     if (nullptr == segment) {
       throw NewRelicError(boost::str(
           boost::format("unable to start custom segment on transaction %p with "

@@ -84,8 +84,8 @@ int main(int argc, char* argv[]) {
                                     : vm["license"].as<std::string>());
 
   std::strncpy(config.config->redirect_collector,
-               vm["host"].as<std::string>().c_str(), 255);
-  config.config->redirect_collector[254] = '\0';
+               vm["host"].as<std::string>().c_str(), 100);
+  config.config->redirect_collector[99] = '\0';
 
   // Wait up to five seconds for the application to connect.
   Application app(config, 5000);

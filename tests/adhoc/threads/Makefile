@@ -3,7 +3,7 @@ LIBNEWRELIC_INCLUDE := ../../../include
 LIBNEWRELIC_LIB := ../../../libnewrelic.a
 
 CPPFLAGS := -I$(AXIOM_INCLUDE) -I$(LIBNEWRELIC_INCLUDE) $(shell pcre-config --cflags)
-CXXFLAGS := -O0 -g3
+CXXFLAGS := -O0 -g3 -std=c++14
 LDFLAGS := -rdynamic
 LIBS := $(LIBNEWRELIC_LIB) -lpcre -pthread -lboost_program_options -lm
 
