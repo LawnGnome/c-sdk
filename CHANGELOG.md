@@ -10,6 +10,29 @@
 
 ### Upgrade Notices ###
 
+## 1.0.0 ##
+
+This is the first release of the New Relic C SDK! If your application does not use 
+other New Relic APM agent languages, you can use the C SDK to take advantage of 
+New Relic's monitoring capabilities and features to instrument a wide range of 
+applications.
+
+For more information, see:
+
+[Documentation](https://docs.newrelic.com/docs/c-sdk-table-contents): How to get 
+started with the C SDK, install and configure it, instrument transactions, 
+segments, and errors, use the C SDK API, and do some basic troubleshooting.
+
+### End of Life Notice ### 
+
+The previous APM Agent SDK is deprecated beta software. If you were previously
+using the Agent SDK, you can switch to the C SDK. Check the 
+[compatibility and requirements](https://docs.newrelic.com/docs/c-sdk-compatibility-requirements),
+and then 
+[instrument, compile and link your application's code](https://docs.newrelic.com/docs/install-c-sdk-compile-link-your-code) 
+to use the C SDK.  The C SDK currently does not support New Relic's HSM feature;
+this may impact how you schedule your transition away from the Agent SDK.
+
 ## 0.1.3 ##
 
 ### Bug Fixes ###
