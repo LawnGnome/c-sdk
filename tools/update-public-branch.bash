@@ -110,6 +110,8 @@ fi
 raw_white_list=".clang-format
 .gitignore
 CHANGELOG.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
 Doxyfile
 examples
 GUIDE.md
@@ -121,6 +123,7 @@ README.md
 src
 STYLEGUIDE.md
 tests
+THIRD_PARTY_NOTICES.md
 vendor/cmocka
 vendor/Makefile
 vendor/newrelic/axiom
