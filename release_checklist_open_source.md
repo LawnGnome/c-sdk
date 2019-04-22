@@ -59,8 +59,22 @@
 
    Base these tests on the updated `public-branches/master` branch.
 
-   Build and run examples, check if things show up correctly in the UI. Check
-   the documentation in `public-branches/gh-pages` for accuracy.
+   - Make sure the correct files are filtered out during the public branch
+     update. This can conviently be done by inspecting the output of this
+     command:
+     ```
+     git diff --name-only -r origin/master -r origin/public-branches/master
+     ```
+     `origin` is supposed to be the alias that refers to 
+     `git@source.datanerd.us/c-agent/c-agent`. If this alias name differs in
+     your case, replace the `origin` in the command above.
+
+     If files are filtered out that shouldn't be filtered out, adapt 
+     [update-public-branch.bash](./tools/update-public-branch.bash).
+
+   - Build and run examples, check if things show up correctly in the UI. Check
+     the documentation in `public-branches/gh-pages` for accuracy.
+
 
 4. Push release and documentation branches to the public repository.
 
