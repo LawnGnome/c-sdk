@@ -109,6 +109,7 @@ fi
 
 raw_white_list=".clang-format
 .gitignore
+.travis.yml
 CHANGELOG.md
 CODE_OF_CONDUCT.md
 CONTRIBUTING.md
