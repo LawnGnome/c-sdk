@@ -25,6 +25,9 @@
 
 2. Update public release and documentation branches.
 
+   | WARNING: If files are added to the whitelist in [tools/update-public-branches.bash](tools/update-public-branches.bash) that were present in the repository during previous synchronizations, follow steps described in [adding previously blacklisted files](#adding-previously-blacklisted-files). |
+   | --- |
+
    Start the process by building [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)
    with the `VERSION` number found in the [VERSION file](https://source.datanerd.us/c-agent/c-agent/blob/master/VERSION).
    Leave the  `GIT_REPO_BRANCH` set to `master`. The downstream jobs will 
@@ -98,3 +101,33 @@
 6. Send an email to `agent-releases@newrelic.com` with the release notes.
 
 7. [For production only] Ensure that any new supportability metrics for the latest C SDK release have been added to [Angler](https://source.datanerd.us/agents/angler/).
+
+## Adding previously blacklisted files
+
+1. Backup the files. Copy them to a destination outside your repository.
+
+2. Remove the files from the branch that you want publish. Then commit, push
+   and open a pull request.
+   ```sh
+   git rm <files>
+   git commit <files>
+   git push 
+   ```
+
+3. Once the pull request is merged, run through step 2 from the list above 
+   (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
+
+4. Copy the files back into the proper location inside the repository, add them
+   with `git add`, also add them to the whitelist in [tools/update-public-branches.bash](tools/update-public-branches.bash).
+   Then again commit, push and open a pull request.
+   ```sh
+   git add <files>
+   vi tools/update-public-branches.bash
+   git commit <files> tools/update-public-branches.bash
+   git push 
+   ```
+
+5. Once the pull request is merged, again, run through step 2 from the list
+   above (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
+
+6. Continue with step 3 from the list above.
