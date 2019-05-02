@@ -28,7 +28,7 @@ make clean > /dev/null
 git clean -fx > /dev/null
 
 # Remove things that we don't want to include in source tarballs.
-rm -rf .git php_agent/{agent,docs,hudson,packaging,repo-manager,suppressions,tests} tools release_checklist.md jenkins
+rm -rf .git php_agent/{agent,docs,hudson,packaging,repo-manager,suppressions,tests} tools jenkins
 find -name vendor.yml -delete
 echo 'done.'
 
