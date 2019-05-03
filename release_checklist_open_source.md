@@ -104,9 +104,13 @@
 
 ## Adding previously blacklisted files
 
-1. Backup the files. Copy them to a destination outside your repository.
+1. Make the sure the files to be added are not yet whitelisted in [tools/update-public-branches.bash](tools/update-public-branches.bash).
 
-2. Remove the files from the branch that you want publish. Then commit, push
+2. Run through step 2 from the list above (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
+
+3. Backup the files. Copy them to a destination outside your repository.
+
+4. Remove the files from the branch that you want publish. Then commit, push
    and open a pull request.
    ```sh
    git rm <files>
@@ -114,10 +118,10 @@
    git push 
    ```
 
-3. Once the pull request is merged, run through step 2 from the list above 
-   (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
+5. Once the pull request is merged, run through step 2 from the list above for
+   the second time (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
 
-4. Copy the files back into the proper location inside the repository, add them
+6. Copy the files back into the proper location inside the repository, add them
    with `git add`, also add them to the whitelist in [tools/update-public-branches.bash](tools/update-public-branches.bash).
    Then again commit, push and open a pull request.
    ```sh
@@ -127,7 +131,7 @@
    git push 
    ```
 
-5. Once the pull request is merged, again, run through step 2 from the list
-   above (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
+7. Once the pull request is merged, again, run through step 2 from the list
+   above for the third time (this step consists in running [c-sdk-cut-a-public-release](https://c-agent-build.pdx.vm.datanerd.us/job/c-sdk-cut-a-public-release)).
 
-6. Continue with step 3 from the list above.
+8. Continue with step 3 from the list above. Ask for a raise.
