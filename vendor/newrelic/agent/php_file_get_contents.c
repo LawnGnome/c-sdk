@@ -152,15 +152,18 @@ static void nr_php_file_get_contents_add_headers_internal(zval* context,
   }
 }
 
-static char* nr_php_file_get_contents_create_outbound_headers(nrtxn_t* txn) {
+static char* nr_php_file_get_contents_create_outbound_headers(
+    nrtxn_t* txn,
+    nr_segment_t* segment) {
   char* headers = NULL;
   char* x_newrelic_id = NULL;
   char* x_newrelic_transaction = NULL;
   char* x_newrelic_synthetics = NULL;
   char* newrelic = NULL;
 
-  nr_header_outbound_request(txn, &x_newrelic_id, &x_newrelic_transaction,
-                             &x_newrelic_synthetics, &newrelic);
+  nr_header_outbound_request(txn, segment, &x_newrelic_id,
+                             &x_newrelic_transaction, &x_newrelic_synthetics,
+                             &newrelic);
 
   if (txn && txn->special_flags.debug_cat) {
     nrl_verbosedebug(
@@ -251,7 +254,8 @@ zval* nr_php_file_get_contents_get_method(zval* context TSRMLS_DC) {
   return method;
 }
 
-void nr_php_file_get_contents_add_headers(zval* context TSRMLS_DC) {
+void nr_php_file_get_contents_add_headers(zval* context,
+                                          nr_segment_t* segment TSRMLS_DC) {
   char* headers = 0;
   zval* context_options = 0;
 
@@ -271,7 +275,8 @@ void nr_php_file_get_contents_add_headers(zval* context TSRMLS_DC) {
 
   context_options = nr_php_call(NULL, "stream_context_get_options", context);
 
-  headers = nr_php_file_get_contents_create_outbound_headers(NRPRG(txn));
+  headers
+      = nr_php_file_get_contents_create_outbound_headers(NRPRG(txn), segment);
   nr_php_file_get_contents_add_headers_internal(context, context_options,
                                                 headers TSRMLS_CC);
 
@@ -500,7 +505,8 @@ PHP_FUNCTION(newrelic_add_headers_to_context) {
   if (SUCCESS != rv) {
     return;
   }
-  nr_php_file_get_contents_add_headers(context TSRMLS_CC);
+  nr_php_file_get_contents_add_headers(
+      context, nr_txn_get_current_segment(NRPRG(txn), NULL) TSRMLS_CC);
 }
 
 /* Test scaffolding */

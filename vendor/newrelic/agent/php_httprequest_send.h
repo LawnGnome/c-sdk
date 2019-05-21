@@ -8,7 +8,9 @@
  * Purpose : Add cross process request headers to a HttpRequest instance
  *           before an httprequest::send call.
  */
-extern void nr_php_httprequest_send_request_headers(zval* this_var TSRMLS_DC);
+extern void nr_php_httprequest_send_request_headers(zval* this_var,
+                                                    nr_segment_t* segment
+                                                        TSRMLS_DC);
 
 /*
  * Purpose : Get the cross process response header from an HttpRequest instance

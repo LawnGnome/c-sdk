@@ -645,7 +645,7 @@ NR_PHP_WRAPPER(nr_laravel_queue_queue_createpayload) {
   /*
    * Get the "headers" that we need to attach to the payload.
    */
-  nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
+  nr_header_outbound_request(NRPRG(txn), auto_segment, &x_newrelic_id,
                              &x_newrelic_transaction, &x_newrelic_synthetics,
                              &newrelic);
 

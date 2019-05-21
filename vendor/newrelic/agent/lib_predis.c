@@ -82,12 +82,12 @@ static void nr_predis_command_destroy(nrtime_t* time) {
 }
 
 static inline nr_hashmap_t* nr_predis_get_commands(TSRMLS_D) {
-  if (NULL == NRPRG(predis_commands)) {
-    NRPRG(predis_commands)
+  if (NULL == NRTXNGLOBAL(predis_commands)) {
+    NRTXNGLOBAL(predis_commands)
         = nr_hashmap_create((nr_hashmap_dtor_func_t)nr_predis_command_destroy);
   }
 
-  return NRPRG(predis_commands);
+  return NRTXNGLOBAL(predis_commands);
 }
 
 static void nr_predis_instrument_connection(zval* conn TSRMLS_DC) {
@@ -544,17 +544,17 @@ NR_PHP_WRAPPER(nr_predis_connection_readResponse) {
    * have set predis_ctx to a non-NULL async context, so we use that to add an
    * async context to the datastore node.
    */
-  if (NRPRG(predis_ctx)) {
+  if (NRTXNGLOBAL(predis_ctx)) {
     /*
      * Since we need a unique async context for each element within the
      * pipeline, we'll concatenate the object ID onto the base context name
      * generated in the executePipeline() instrumentation.
      */
-    async_context = nr_formatf("%s." NR_UINT64_FMT, NRPRG(predis_ctx), index);
+    async_context
+        = nr_formatf("%s." NR_UINT64_FMT, NRTXNGLOBAL(predis_ctx), index);
   }
 
-  segment = nr_segment_start(NRPRG(txn), nr_txn_get_current_segment(NRPRG(txn)),
-                             async_context);
+  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
   nr_segment_set_timing(segment, *start, duration);
   nr_segment_datastore_end(segment, &params);
 
@@ -700,16 +700,16 @@ NR_PHP_WRAPPER(nr_predis_pipeline_executePipeline) {
    * We'll save any existing context just in case this is a nested pipeline.
    */
 
-  prev_predis_ctx = NRPRG(predis_ctx);
-  NRPRG(predis_ctx) = nr_formatf("Predis #" NR_TIME_FMT, nr_get_time());
+  prev_predis_ctx = NRTXNGLOBAL(predis_ctx);
+  NRTXNGLOBAL(predis_ctx) = nr_formatf("Predis #" NR_TIME_FMT, nr_get_time());
 
   NR_PHP_WRAPPER_CALL;
 
   /*
    * Restore any previous context on the way out.
    */
-  nr_free(NRPRG(predis_ctx));
-  NRPRG(predis_ctx) = prev_predis_ctx;
+  nr_free(NRTXNGLOBAL(predis_ctx));
+  NRTXNGLOBAL(predis_ctx) = prev_predis_ctx;
 }
 NR_PHP_WRAPPER_END
 

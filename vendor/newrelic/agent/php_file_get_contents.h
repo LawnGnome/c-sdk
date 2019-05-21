@@ -27,7 +27,9 @@ extern char* nr_php_file_get_contents_response_header(TSRMLS_D);
  *           testing.
  */
 extern void nr_php_file_get_contents_remove_headers(zval* context TSRMLS_DC);
-extern void nr_php_file_get_contents_add_headers(zval* context TSRMLS_DC);
+extern void nr_php_file_get_contents_add_headers(zval* context,
+                                                 nr_segment_t* segment
+                                                     TSRMLS_DC);
 extern PHP_FUNCTION(newrelic_add_headers_to_context);
 extern PHP_FUNCTION(newrelic_remove_headers_from_context);
 

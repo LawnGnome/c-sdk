@@ -3,10 +3,12 @@
  */
 #include "php_agent.h"
 #include "php_api_distributed_trace.h"
+#include "php_autorum.h"
 #include "php_execute.h"
 #include "php_globals.h"
 #include "php_hash.h"
 #include "php_header.h"
+#include "php_output.h"
 #include "php_samplers.h"
 #include "php_user_instrument.h"
 #include "php_txn_private.h"
@@ -610,6 +612,12 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   }
 
   /*
+   * Transaction globals must be zeroed out, whether the transaction can be
+   * started or not.
+   */
+  memset(&NRPRG(txn_globals), 0, sizeof(NRPRG(txn_globals)));
+
+  /*
    * This call will attempt to ensure we are connected to the daemon. It is
    * non-blocking so it is pretty quick. If we had no connection and the daemon
    * has since been brought back up, this will start the process of connecting
@@ -665,6 +673,7 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   opts.custom_parameters_enabled = NRINI(custom_parameters_enabled);
   opts.distributed_tracing_enabled = NRINI(distributed_tracing_enabled);
   opts.span_events_enabled = NRINI(span_events_enabled);
+  opts.max_span_events = NRINI(max_span_events);
 
   if ((0 == appnames) || (0 == appnames[0])) {
     appnames = NRINI(appnames);
@@ -702,24 +711,6 @@ nr_status_t nr_php_txn_begin(const char* appnames,
     return NR_FAILURE;
   }
 
-  NRPRG(cur_drupal_module_kids_duration) = 0;
-  NRPRG(cur_drupal_view_kids_duration) = 0;
-  NRPRG(cur_wordpress_hook_kids_duration) = 0;
-
-  NRPRG(generating_explain_plan) = 0;
-
-  NRPRG(guzzle_objs) = 0;
-
-  NRPRG(mysqli_links) = nr_mysqli_metadata_create();
-  NRPRG(mysqli_queries) = 0;
-
-  NRPRG(pdo_link_options) = 0;
-
-  NRPRG(predis_commands) = 0;
-  NRPRG(predis_ctx) = 0;
-  NRPRG(curl_headers) = 0;
-  NRPRG(curl_method) = 0;
-
   attribute_config = nr_php_create_attribute_config(TSRMLS_C);
   NRPRG(txn) = nr_txn_begin(app, &opts, attribute_config);
   nrt_mutex_unlock(&app->app_lock);
@@ -732,7 +723,6 @@ nr_status_t nr_php_txn_begin(const char* appnames,
     return NR_FAILURE;
   }
 
-  NRPRG(execute_count) = 0;
   nr_php_collect_x_request_start(TSRMLS_C);
   nr_php_set_initial_path(NRPRG(txn) TSRMLS_CC);
 
@@ -742,22 +732,43 @@ nr_status_t nr_php_txn_begin(const char* appnames,
     nr_txn_set_as_background_job(NRPRG(txn), "CLI SAPI");
   }
 
-  NRPRG(user_function_wrappers) = nr_vector_create(64, NULL, NULL);
-  NRPRG(pid) = getpid();
+  NRTXNGLOBAL(user_function_wrappers) = nr_vector_create(64, NULL, NULL);
+  NRTXNGLOBAL(mysqli_links) = nr_mysqli_metadata_create();
 
   nr_php_add_user_instrumentation(TSRMLS_C);
   nr_php_resource_usage_sampler_start(TSRMLS_C);
   nr_php_gather_global_params(NRPRG(txn) TSRMLS_CC);
 
-  NRPRG(txn)->special_flags.no_sql_parsing
+  NRTXN(special_flags.no_sql_parsing)
       = NR_PHP_PROCESS_GLOBALS(special_flags).no_sql_parsing;
-  NRPRG(txn)->special_flags.show_sql_parsing
+  NRTXN(special_flags.show_sql_parsing)
       = NR_PHP_PROCESS_GLOBALS(special_flags).show_sql_parsing;
-  NRPRG(txn)->special_flags.debug_cat
+  NRTXN(special_flags.debug_cat)
       = NR_PHP_PROCESS_GLOBALS(special_flags).debug_cat;
 
-  NRPRG(prepared_statements)
+  NRTXNGLOBAL(prepared_statements)
       = nr_hashmap_create(nr_php_txn_prepared_statement_destroy);
+
+  /*
+   * Install the cross process buffer handler:  See the documentation of
+   * nr_php_header_output_handler for explanation of its purpose and the
+   * the conditionals.
+   *
+   * Output handlers are technically request globals. However, one can only
+   * sensibly check whether to install them once one has an initialized
+   * transaction.
+   *
+   * Already installed handlers are not overwritten.
+   */
+  if (nr_rum_do_autorum(NRPRG(txn))) {
+    nr_php_output_install_handler("New Relic auto-RUM",
+                                  nr_php_rum_output_handler TSRMLS_CC);
+  }
+  if ((NR_STATUS_CROSS_PROCESS_START == NRTXN(status.cross_process))
+      && nr_php_has_request_header("HTTP_X_NEWRELIC_ID" TSRMLS_CC)) {
+    nr_php_output_install_handler("New Relic header",
+                                  nr_php_header_output_handler TSRMLS_CC);
+  }
 
   if (NRPRG(txn)->options.distributed_tracing_enabled) {
     char* payload = nr_php_get_request_header("HTTP_NEWRELIC" TSRMLS_CC);
@@ -842,8 +853,8 @@ static void nr_php_txn_do_shutdown(nrtxn_t* txn TSRMLS_DC) {
    */
   nr_php_capture_request_parameters(txn TSRMLS_CC);
 
-  nr_hashmap_destroy(&NRPRG(mysqli_queries));
-  nr_hashmap_destroy(&NRPRG(pdo_link_options));
+  nr_hashmap_destroy(&NRTXNGLOBAL(mysqli_queries));
+  nr_hashmap_destroy(&NRTXNGLOBAL(pdo_link_options));
 }
 
 void nr_php_txn_shutdown(TSRMLS_D) {
@@ -912,7 +923,7 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
 
     nrm_force_add(txn->unscoped_metrics,
                   "Supportability/execute/user/call_count",
-                  NRPRG(execute_count));
+                  NRTXNGLOBAL(execute_count));
 
     /* Add CPU and memory metrics */
     nr_php_resource_usage_sampler_end(TSRMLS_C);
@@ -938,20 +949,20 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
 
   nr_txn_destroy(&NRPRG(txn));
 
-  nr_hashmap_destroy(&NRPRG(guzzle_objs));
+  nr_hashmap_destroy(&NRTXNGLOBAL(guzzle_objs));
 
-  nr_free(NRPRG(predis_ctx));
-  nr_hashmap_destroy(&NRPRG(predis_commands));
+  nr_free(NRTXNGLOBAL(predis_ctx));
+  nr_hashmap_destroy(&NRTXNGLOBAL(predis_commands));
 
-  nr_hashmap_destroy(&NRPRG(prepared_statements));
-  nr_hashmap_destroy(&NRPRG(curl_headers));
-  nr_hashmap_destroy(&NRPRG(curl_method));
+  nr_hashmap_destroy(&NRTXNGLOBAL(prepared_statements));
+  nr_hashmap_destroy(&NRTXNGLOBAL(curl_headers));
+  nr_hashmap_destroy(&NRTXNGLOBAL(curl_method));
 
-  nr_mysqli_metadata_destroy(&NRPRG(mysqli_links));
+  nr_mysqli_metadata_destroy(&NRTXNGLOBAL(mysqli_links));
 
-  nr_free(NRPRG(curl_exec_x_newrelic_app_data));
+  nr_free(NRTXNGLOBAL(curl_exec_x_newrelic_app_data));
 
-  nr_vector_destroy(&NRPRG(user_function_wrappers));
+  nr_vector_destroy(&NRTXNGLOBAL(user_function_wrappers));
 
   return NR_SUCCESS;
 }

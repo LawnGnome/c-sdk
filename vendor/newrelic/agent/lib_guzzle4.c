@@ -256,6 +256,7 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_get_events) {
 static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_before) {
   nr_guzzle4_subscriber_event_args_t args;
   zval* request = NULL;
+  nr_segment_t* segment;
 
   if (NR_FAILURE
       == nr_guzzle4_subscriber_event_get_args(
@@ -278,12 +279,12 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_before) {
   /*
    * Add the request object to those we're tracking.
    */
-  nr_guzzle_obj_add(request, "Guzzle 4" TSRMLS_CC);
+  segment = nr_guzzle_obj_add(request, "Guzzle 4" TSRMLS_CC);
 
   /*
    * Set the request headers.
    */
-  nr_guzzle_request_set_outbound_headers(request TSRMLS_CC);
+  nr_guzzle_request_set_outbound_headers(request, segment TSRMLS_CC);
 
   nr_php_zval_free(&request);
   RETURN_TRUE;

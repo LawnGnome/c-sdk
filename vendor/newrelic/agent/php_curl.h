@@ -79,13 +79,15 @@ extern char* nr_php_curl_get_url(zval* curlres TSRMLS_DC);
 extern int nr_php_curl_should_instrument_proto(const char* url);
 
 /*
- * Purpose : Add the New Relic headers to the request. If the user added headers
- * using curl_setopt they will have been save in curl_headers and we be added as
- * well.
+ * Purpose : Add the New Relic headers to the request. If the user added
+ *           headers using curl_setopt they will have been saved in
+ *           curl_headers and will be added as well.
  *
- * Params : Curl Resource
+ * Params : 1. Curl Resource
+ *          2. The current segment.
  */
-extern void nr_php_curl_exec_set_httpheaders(zval* curlres TSRMLS_DC);
+extern void nr_php_curl_exec_set_httpheaders(zval* curlres,
+                                             nr_segment_t* segment TSRMLS_DC);
 
 extern char* nr_php_curl_exec_get_method(zval* curlres TSRMLS_DC);
 

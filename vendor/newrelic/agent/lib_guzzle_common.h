@@ -47,9 +47,12 @@ extern int nr_guzzle_does_zval_implement_has_emitter(zval* obj TSRMLS_DC);
  *
  * Params  : 1. The Request object.
  *           2. The version specific prefix for the async context name
+ *
+ * Returns : The external segment that will be used for the request.
  */
-extern void nr_guzzle_obj_add(const zval* obj,
-                              const char* async_context_prefix TSRMLS_DC);
+extern nr_segment_t* nr_guzzle_obj_add(const zval* obj,
+                                       const char* async_context_prefix
+                                           TSRMLS_DC);
 
 /*
  * Purpose : Finds the request metadata struct associated with the given
@@ -72,8 +75,11 @@ extern nr_status_t nr_guzzle_obj_find_and_remove(const zval* obj,
  *           Guzzle 3 or 4's MessageInterface.
  *
  * Params  : 1. The request object.
+ *           2. The current segment.
  */
-extern void nr_guzzle_request_set_outbound_headers(zval* request TSRMLS_DC);
+extern void nr_guzzle_request_set_outbound_headers(zval* request,
+                                                   nr_segment_t* segment
+                                                       TSRMLS_DC);
 
 /*
  * Purpose : Returns a header from an object implementing the Guzzle 3 or 4

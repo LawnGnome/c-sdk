@@ -153,7 +153,8 @@ PHP_FUNCTION(newrelic_create_distributed_trace_payload) {
     /* nr_txn_create_distributed_trace_payload() will return NULL if distributed
      * tracing is not enabled, so we don't need to handle that explicitly here.
      */
-    char* payload = nr_txn_create_distributed_trace_payload(NRPRG(txn));
+    char* payload = nr_txn_create_distributed_trace_payload(
+        NRPRG(txn), nr_txn_get_current_segment(NRPRG(txn), NULL));
 
     if (payload) {
       zend_update_property_string(nr_distributed_trace_payload_ce, return_value,

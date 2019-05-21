@@ -78,12 +78,8 @@ void nr_print_globals(FILE* fp) {
 
   fprintf(fp, "current_framework=%d\n", (int)NRPRG(current_framework));
   fprintf(fp, "framework_version=%d\n", NRPRG(framework_version));
-  fprintf(fp, "cur_drupal_module_kids_duration=%p\n",
-          NRPRG(cur_drupal_module_kids_duration));
-  fprintf(fp, "cur_drupal_view_kids_duration=%p\n",
-          NRPRG(cur_drupal_view_kids_duration));
 
-  fprintf(fp, "execute_count=%d\n", NRPRG(execute_count));
+  fprintf(fp, "execute_count=%d\n", NRTXNGLOBAL(execute_count));
   fprintf(fp, "php_cur_stack_depth=%d\n", NRPRG(php_cur_stack_depth));
 
   fprintf(fp, "txn=%p\n", NRPRG(txn));
@@ -102,8 +98,7 @@ void nr_print_globals(FILE* fp) {
   fprintf(fp, "ttcustom_where=%d\n", NRPRG(ttcustom_where));
 
   fprintf(fp, "curl_exec_x_newrelic_app_data=%s\n",
-          NRSAFESTR(NRPRG(curl_exec_x_newrelic_app_data)));
-  fprintf(fp, "need_rshutdown_cleanup=%d\n", NRPRG(need_rshutdown_cleanup));
+          NRSAFESTR(NRTXNGLOBAL(curl_exec_x_newrelic_app_data)));
   fprintf(fp, "deprecated_capture_request_parameters=%d\n",
           NRPRG(deprecated_capture_request_parameters));
 

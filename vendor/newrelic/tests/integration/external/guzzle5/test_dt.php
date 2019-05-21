@@ -53,7 +53,7 @@ newrelic=found X-NewRelic-ID=missing X-NewRelic-Transaction=missing tracing endp
     [{"name":"DurationByCaller/Unknown/Unknown/Unknown/Unknown/allOther"}, 
                                                           [1, "??", "??", "??", "??", "??"]],
     [{"name":"Supportability/DistributedTrace/CreatePayload/Success"}, 
-                                                          [2, "??", "??", "??", "??", "??"]]
+                                                          [1, "??", "??", "??", "??", "??"]]
   ]
 ]
 */

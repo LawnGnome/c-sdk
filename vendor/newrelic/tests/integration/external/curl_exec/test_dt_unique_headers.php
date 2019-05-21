@@ -12,7 +12,7 @@ if (!extension_loaded("curl")) {
 }
 */
 
-/*EXPECT
+/*EXPECT_REGEX
 ok - headers should be unique
 */
 

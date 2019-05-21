@@ -653,7 +653,7 @@ NR_INNER_WRAPPER(mysqli_construct) {
   nr_php_mysqli_save_datastore_instance(mysqli_obj, host, port, socket,
                                         database TSRMLS_CC);
 
-  if (mysqli_obj && (0 == NRPRG(generating_explain_plan))) {
+  if (mysqli_obj && (0 == NRTXNGLOBAL(generating_explain_plan))) {
     char* host_term = host ? nr_strndup(host, host_len) : NULL;
     char* username_term = username ? nr_strndup(username, username_len) : NULL;
     char* password_term = password ? nr_strndup(password, password_len) : NULL;
@@ -661,7 +661,7 @@ NR_INNER_WRAPPER(mysqli_construct) {
     char* socket_term = socket ? nr_strndup(socket, socket_len) : NULL;
 
     nr_mysqli_metadata_set_connect(
-        NRPRG(mysqli_links),
+        NRTXNGLOBAL(mysqli_links),
         (nr_mysqli_metadata_link_handle_t)Z_OBJ_HANDLE_P(mysqli_obj), host_term,
         username_term, password_term, database_term, port, socket_term, 0);
 
@@ -708,13 +708,14 @@ NR_INNER_WRAPPER(mysqli_options) {
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  if (value && (0 == NRPRG(generating_explain_plan))
+  if (value && (0 == NRTXNGLOBAL(generating_explain_plan))
       && nr_php_mysqli_zval_is_link(mysqli_obj TSRMLS_CC)
       && nr_php_is_zval_true(return_value)) {
     char* value_term = nr_strndup(value, value_len);
 
-    nr_mysqli_metadata_set_option(
-        NRPRG(mysqli_links), Z_OBJ_HANDLE_P(mysqli_obj), option, value_term);
+    nr_mysqli_metadata_set_option(NRTXNGLOBAL(mysqli_links),
+                                  Z_OBJ_HANDLE_P(mysqli_obj), option,
+                                  value_term);
 
     nr_free(value_term);
   }
@@ -786,7 +787,7 @@ NR_INNER_WRAPPER(mysqli_real_connect) {
   nr_php_mysqli_save_datastore_instance(mysqli_obj, host, port, socket,
                                         database TSRMLS_CC);
 
-  if ((0 == NRPRG(generating_explain_plan))
+  if ((0 == NRTXNGLOBAL(generating_explain_plan))
       && nr_php_mysqli_zval_is_link(mysqli_obj TSRMLS_CC)) {
     char* host_term = host ? nr_strndup(host, host_len) : NULL;
     char* username_term = username ? nr_strndup(username, username_len) : NULL;
@@ -795,7 +796,7 @@ NR_INNER_WRAPPER(mysqli_real_connect) {
     char* socket_term = socket ? nr_strndup(socket, socket_len) : NULL;
 
     nr_mysqli_metadata_set_connect(
-        NRPRG(mysqli_links),
+        NRTXNGLOBAL(mysqli_links),
         (nr_mysqli_metadata_link_handle_t)Z_OBJ_HANDLE_P(mysqli_obj), host_term,
         username_term, password_term, database_term, port, socket_term, flags);
 
@@ -845,12 +846,12 @@ NR_INNER_WRAPPER(mysqli_select_db) {
   instance = nr_php_mysqli_retrieve_datastore_instance(mysqli_obj TSRMLS_CC);
   nr_datastore_instance_set_database_name(instance, database);
 
-  if (database && (0 == NRPRG(generating_explain_plan))
+  if (database && (0 == NRTXNGLOBAL(generating_explain_plan))
       && nr_php_mysqli_zval_is_link(mysqli_obj TSRMLS_CC)
       && nr_php_is_zval_true(return_value)) {
     char* database_term = nr_strndup(database, database_len);
 
-    nr_mysqli_metadata_set_database(NRPRG(mysqli_links),
+    nr_mysqli_metadata_set_database(NRTXNGLOBAL(mysqli_links),
                                     Z_OBJ_HANDLE_P(mysqli_obj), database_term);
 
     nr_free(database_term);
@@ -914,7 +915,7 @@ NR_INNER_WRAPPER(mysqli_general_query) {
     segment->stop_time = nr_txn_now_rel(NRPRG(txn));
     instance = nr_php_mysqli_retrieve_datastore_instance(mysqli_obj TSRMLS_CC);
 
-    if ((0 == NRPRG(generating_explain_plan))
+    if ((0 == NRTXNGLOBAL(generating_explain_plan))
         && nr_php_mysqli_zval_is_link(mysqli_obj TSRMLS_CC)) {
       plan = nr_php_explain_mysqli_query(NRPRG(txn), mysqli_obj, sqlstr,
                                          sqlstrlen, segment->start_time,
@@ -944,7 +945,7 @@ static const char* nr_php_prepared_statement_find_internal(
     const char* key TSRMLS_DC) {
   const char* stmt;
 
-  stmt = nr_hashmap_get(NRPRG(prepared_statements), key, nr_strlen(key));
+  stmt = nr_hashmap_get(NRTXNGLOBAL(prepared_statements), key, nr_strlen(key));
   if (NULL == stmt) {
     stmt = NR_PHP_PREPARED_STATEMENT_UNKNOWN;
   }
@@ -981,7 +982,7 @@ static void nr_php_prepared_statement_save_internal(const char* key,
     return;
   }
 
-  nr_hashmap_update(NRPRG(prepared_statements), key, nr_strlen(key),
+  nr_hashmap_update(NRTXNGLOBAL(prepared_statements), key, nr_strlen(key),
                     nr_strndup(stmt, stmt_len));
 }
 
@@ -1058,7 +1059,7 @@ NR_INNER_WRAPPER(mysqli_stmt_bind_param) {
    * for an EXPLAIN query: we'll never look at the metadata, and it saves us
    * some work below.
    */
-  if (NRPRG(generating_explain_plan)) {
+  if (NRTXNGLOBAL(generating_explain_plan)) {
     nr_wrapper->oldhandler(INTERNAL_FUNCTION_PARAM_PASSTHRU);
     return;
   }
@@ -1165,7 +1166,7 @@ NR_INNER_WRAPPER(mysqli_stmt_execute) {
 
     segment->stop_time = nr_txn_now_rel(NRPRG(txn));
 
-    if ((0 == NRPRG(generating_explain_plan))
+    if ((0 == NRTXNGLOBAL(generating_explain_plan))
         && nr_php_mysqli_zval_is_stmt(stmt_obj TSRMLS_CC)) {
       plan = nr_php_explain_mysqli_stmt(NRPRG(txn), Z_OBJ_HANDLE_P(stmt_obj),
                                         segment->start_time,
@@ -1210,7 +1211,7 @@ static void nr_php_prepared_prepare_general(INTERNAL_FUNCTION_PARAMETERS,
   nr_php_prepared_statement_save(return_value, extension, sqlstr,
                                  sqlstrlen TSRMLS_CC);
 
-  if ((0 == NRPRG(generating_explain_plan))
+  if ((0 == NRTXNGLOBAL(generating_explain_plan))
       && nr_php_mysqli_zval_is_stmt(return_value TSRMLS_CC)
       && nr_php_mysqli_zval_is_link(conn_obj TSRMLS_CC)
       && nr_php_explain_mysql_query_is_explainable(sqlstr, sqlstrlen)) {
@@ -1265,7 +1266,7 @@ NR_INNER_WRAPPER(mysqli_stmt_construct) {
                                    sqlstrlen TSRMLS_CC);
   }
 
-  if ((0 == NRPRG(generating_explain_plan))
+  if ((0 == NRTXNGLOBAL(generating_explain_plan))
       && nr_php_is_zval_valid_object(return_value)
       && nr_php_mysqli_zval_is_stmt(NR_PHP_INTERNAL_FN_THIS TSRMLS_CC)
       && nr_php_mysqli_zval_is_link(mysqli_obj TSRMLS_CC)) {
@@ -1295,7 +1296,7 @@ NR_INNER_WRAPPER(mysqli_stmt_init) {
     mysqli_obj = NR_PHP_INTERNAL_FN_THIS;
   }
 
-  if (NRPRG(generating_explain_plan)
+  if (NRTXNGLOBAL(generating_explain_plan)
       || !nr_php_mysqli_zval_is_link(mysqli_obj TSRMLS_CC)) {
     nr_wrapper->oldhandler(INTERNAL_FUNCTION_PARAM_PASSTHRU);
     return;
@@ -1344,7 +1345,7 @@ NR_INNER_WRAPPER(mysqli_stmt_prepare) {
   nr_php_prepared_statement_save(mysqli_stmt_obj, "mysqli", sqlstr,
                                  sqlstrlen TSRMLS_CC);
 
-  if ((0 == NRPRG(generating_explain_plan))
+  if ((0 == NRTXNGLOBAL(generating_explain_plan))
       && nr_php_mysqli_zval_is_stmt(mysqli_stmt_obj TSRMLS_CC)
       && nr_php_explain_mysql_query_is_explainable(sqlstr, sqlstrlen)) {
     nr_php_mysqli_query_set_query(Z_OBJ_HANDLE_P(mysqli_stmt_obj), sqlstr,
@@ -2078,7 +2079,7 @@ NR_INNER_WRAPPER(curl_setopt) {
   zval* curlopt = 0;
   zval* curlval = 0;
 
-  if (!NRPRG(curl_ignore_setopt)) {
+  if (!NRTXNGLOBAL(curl_ignore_setopt)) {
     rv = zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
                                   ZEND_NUM_ARGS() TSRMLS_CC, "zzz", &curlres,
                                   &curlopt, &curlval);
@@ -2090,7 +2091,7 @@ NR_INNER_WRAPPER(curl_setopt) {
 
   nr_wrapper->oldhandler(INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  if (!NRPRG(curl_ignore_setopt)) {
+  if (!NRTXNGLOBAL(curl_ignore_setopt)) {
     if (SUCCESS == rv) {
       nr_php_curl_setopt_post(curlres, curlopt, curlval TSRMLS_CC);
     }
@@ -2107,7 +2108,7 @@ NR_INNER_WRAPPER(curl_setopt_array) {
   zval* options = NULL;
   int rv = FAILURE;
 
-  if (!NRPRG(curl_ignore_setopt)) {
+  if (!NRTXNGLOBAL(curl_ignore_setopt)) {
     rv = zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
                                   ZEND_NUM_ARGS() TSRMLS_CC, "za", &curlres,
                                   &options);
@@ -2120,7 +2121,7 @@ NR_INNER_WRAPPER(curl_setopt_array) {
 
   nr_wrapper->oldhandler(INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
-  if (!NRPRG(curl_ignore_setopt)) {
+  if (!NRTXNGLOBAL(curl_ignore_setopt)) {
     if (SUCCESS == rv) {
       nr_php_curl_setopt_array(curlres, options,
                                nr_php_curl_setopt_post TSRMLS_CC);
@@ -2145,14 +2146,14 @@ NR_INNER_WRAPPER(curl_init) {
  * mixed curl_exec ( resource $ch )
  */
 NR_INNER_WRAPPER(curl_exec) {
-  nr_segment_t* segment;
+  nr_segment_t* segment = NULL;
   nr_segment_external_params_t external_params = {.library = "curl"};
   zval* curlres;
   char* method;
   int should_instrument = 0;
   int zcaught = 0;
 
-  nr_free(NRPRG(curl_exec_x_newrelic_app_data));
+  nr_free(NRTXNGLOBAL(curl_exec_x_newrelic_app_data));
 
   if (SUCCESS
       != zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET,
@@ -2176,24 +2177,30 @@ NR_INNER_WRAPPER(curl_exec) {
     external_params.procedure = nr_strdup(method);
   }
 
-  nr_php_curl_exec_set_httpheaders(curlres TSRMLS_CC);
+  /*
+   * We need to invoke nr_php_curl_exec_set_httpheaders() regardless of whether
+   * segment is NULL to ensure that we re-add any user headers, even if we're
+   * not instrumenting this particular call.
+   */
+  nr_php_curl_exec_set_httpheaders(curlres, segment TSRMLS_CC);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
-    nrl_verbosedebug(
-        NRL_CAT, "CAT: outbound response: transport='curl' %s=" NRP_FMT,
-        X_NEWRELIC_APP_DATA, NRP_CAT(NRPRG(curl_exec_x_newrelic_app_data)));
+    nrl_verbosedebug(NRL_CAT,
+                     "CAT: outbound response: transport='curl' %s=" NRP_FMT,
+                     X_NEWRELIC_APP_DATA,
+                     NRP_CAT(NRTXNGLOBAL(curl_exec_x_newrelic_app_data)));
   }
 
   if (should_instrument) {
     external_params.encoded_response_header
-        = NRPRG(curl_exec_x_newrelic_app_data);
+        = NRTXNGLOBAL(curl_exec_x_newrelic_app_data);
     nr_segment_external_end(segment, &external_params);
   }
 
-  nr_free(NRPRG(curl_exec_x_newrelic_app_data));
+  nr_free(NRTXNGLOBAL(curl_exec_x_newrelic_app_data));
   nr_free(external_params.uri);
   nr_free(external_params.procedure);
 
@@ -2504,7 +2511,7 @@ NR_INNER_WRAPPER(file_get_contents) {
 
   segment = nr_segment_start(NRPRG(txn), NULL, NULL);
 
-  nr_php_file_get_contents_add_headers(context TSRMLS_CC);
+  nr_php_file_get_contents_add_headers(context, segment TSRMLS_CC);
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
@@ -2578,10 +2585,10 @@ NR_INNER_WRAPPER(httprequest_send) {
 
   this_var = NR_PHP_INTERNAL_FN_THIS;
 
-  nr_php_httprequest_send_request_headers(this_var TSRMLS_CC);
-  external_params.uri = nr_php_httprequest_send_get_url(this_var TSRMLS_CC);
-
   segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+
+  nr_php_httprequest_send_request_headers(this_var, segment TSRMLS_CC);
+  external_params.uri = nr_php_httprequest_send_get_url(this_var TSRMLS_CC);
 
   zcaught = nr_zend_call_old_handler(nr_wrapper->oldhandler,
                                      INTERNAL_FUNCTION_PARAM_PASSTHRU);

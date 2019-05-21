@@ -75,7 +75,7 @@ newrelic=found X-NewRelic-ID=missing X-NewRelic-Transaction=missing X-NewRelic-S
     [{"name":"DurationByCaller/Unknown/Unknown/Unknown/Unknown/allWeb"}, 
                                                           [1, "??", "??", "??", "??", "??"]],
     [{"name":"Supportability/DistributedTrace/CreatePayload/Success"}, 
-                                                          [6, "??", "??", "??", "??", "??"]]
+                                                          [3, "??", "??", "??", "??", "??"]]
   ]
 ]
 */

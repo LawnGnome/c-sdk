@@ -17,7 +17,7 @@ newrelic.distributed_tracing_enabled = true
 newrelic.cross_application_tracer.enabled = false
 */
 
-/*EXPECT
+/*EXPECT_REGEX
 ok - successful
 ok - header exists
 */

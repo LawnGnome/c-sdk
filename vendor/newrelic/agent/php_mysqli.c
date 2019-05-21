@@ -79,7 +79,7 @@ zval* nr_php_mysqli_link_duplicate(zval* orig TSRMLS_DC) {
   }
 
   if (NR_FAILURE
-      == nr_mysqli_metadata_get(NRPRG(mysqli_links), Z_OBJ_HANDLE_P(orig),
+      == nr_mysqli_metadata_get(NRTXNGLOBAL(mysqli_links), Z_OBJ_HANDLE_P(orig),
                                 &metadata)) {
     return NULL;
   }
@@ -486,8 +486,8 @@ static zval* nr_php_mysqli_query_create(void) {
 }
 
 static zval* nr_php_mysqli_query_find(nr_php_object_handle_t handle TSRMLS_DC) {
-  zval* metadata
-      = (zval*)nr_hashmap_index_get(NRPRG(mysqli_queries), (uint64_t)handle);
+  zval* metadata = (zval*)nr_hashmap_index_get(NRTXNGLOBAL(mysqli_queries),
+                                               (uint64_t)handle);
 
   if (!nr_php_is_zval_valid_array(metadata)) {
     return NULL;
@@ -504,8 +504,8 @@ static zval* nr_php_mysqli_query_find_or_create(
     nr_php_object_handle_t handle TSRMLS_DC) {
   zval* metadata = NULL;
 
-  if (NULL == NRPRG(mysqli_queries)) {
-    NRPRG(mysqli_queries) = nr_hashmap_create(
+  if (NULL == NRTXNGLOBAL(mysqli_queries)) {
+    NRTXNGLOBAL(mysqli_queries) = nr_hashmap_create(
         (nr_hashmap_dtor_func_t)nr_php_mysqli_query_destroy);
   } else {
     /*
@@ -521,7 +521,8 @@ static zval* nr_php_mysqli_query_find_or_create(
    * We don't, so let's create it.
    */
   metadata = nr_php_mysqli_query_create();
-  nr_hashmap_index_update(NRPRG(mysqli_queries), (uint64_t)handle, metadata);
+  nr_hashmap_index_update(NRTXNGLOBAL(mysqli_queries), (uint64_t)handle,
+                          metadata);
 
   return metadata;
 }

@@ -53,6 +53,13 @@ void nr_php_output_install_handler(const char* name,
     return;
   }
 
+  /* 
+   * On PHP 5.4+, php_output_start_internal checks for duplicate handler and 
+   * doesn't install the handler if a handler with the same name already exists.
+   *
+   * On PHP 5.3, php_ob_set_internal_handler doesn't check for duplicate 
+   * handlers, so we check with php_ob_handler_used.
+   */
 #if ZEND_MODULE_API_NO >= ZEND_5_4_X_API_NO
   {
     int flags = PHP_OUTPUT_HANDLER_STDFLAGS;
@@ -73,8 +80,10 @@ void nr_php_output_install_handler(const char* name,
     name_duplicate[0] = '\0';
     snprintf(name_duplicate, sizeof(name_duplicate), "%s", name);
 
-    php_ob_set_internal_handler(handler, buffer_size, name_duplicate,
-                                erase TSRMLS_CC);
+    if (!php_ob_handler_used(name_duplicate TSRMLS_CC)) {
+      php_ob_set_internal_handler(handler, buffer_size, name_duplicate,
+                                  erase TSRMLS_CC);
+    }
   }
 #endif
 }

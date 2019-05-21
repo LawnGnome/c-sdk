@@ -70,7 +70,7 @@ if (!extension_loaded("curl")) {
 ]
 */
 
-/*EXPECT
+/*EXPECT_REGEX
 newrelic=found X-NewRelic-ID=missing X-NewRelic-Transaction=missing tracing endpoint reached
 ok - tracing successful
 ok - header set successfully

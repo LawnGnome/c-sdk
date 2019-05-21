@@ -91,7 +91,7 @@ void nr_php_txn_end_segment_sql(nr_segment_t* segment,
   /*
    * Bail early if this is a nested explain plan query.
    */
-  if (NRPRG(generating_explain_plan)) {
+  if (NRTXNGLOBAL(generating_explain_plan)) {
     goto error;
   }
 

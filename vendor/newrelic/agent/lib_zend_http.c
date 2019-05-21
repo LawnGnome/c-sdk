@@ -160,7 +160,8 @@ end:
  *           Zend_Http_Client::setHeaders method.
  */
 static void nr_zend_http_client_request_add_request_headers(
-    zval* this_var TSRMLS_DC) {
+    zval* this_var,
+    nr_segment_t* segment TSRMLS_DC) {
   char* x_newrelic_id = 0;
   char* x_newrelic_transaction = 0;
   char* x_newrelic_synthetics = 0;
@@ -173,7 +174,7 @@ static void nr_zend_http_client_request_add_request_headers(
     return;
   }
 
-  nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
+  nr_header_outbound_request(NRPRG(txn), segment, &x_newrelic_id,
                              &x_newrelic_transaction, &x_newrelic_synthetics,
                              &newrelic);
 
@@ -281,9 +282,9 @@ NR_PHP_WRAPPER_START(nr_zend_http_client_request) {
     goto leave;
   }
 
-  nr_zend_http_client_request_add_request_headers(this_var TSRMLS_CC);
-
   segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+  nr_zend_http_client_request_add_request_headers(this_var, segment TSRMLS_CC);
+
   NR_PHP_WRAPPER_CALL;
 
   if (retval_ptr) {

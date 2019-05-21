@@ -362,11 +362,11 @@ void nr_php_pdo_end_segment_sql(nr_segment_t* segment,
 }
 
 static zval* nr_php_pdo_options_get(zval* dbh TSRMLS_DC) {
-  if (NULL == NRPRG(pdo_link_options)) {
+  if (NULL == NRTXNGLOBAL(pdo_link_options)) {
     return NULL;
   }
 
-  return (zval*)nr_hashmap_index_get(NRPRG(pdo_link_options),
+  return (zval*)nr_hashmap_index_get(NRTXNGLOBAL(pdo_link_options),
                                      Z_OBJ_HANDLE_P(dbh));
 }
 
@@ -477,14 +477,15 @@ void nr_php_pdo_options_save(zval* dbh, zval* options TSRMLS_DC) {
   /*
    * Lazily create the link options hashmap if it isn't already created.
    */
-  if (NULL == NRPRG(pdo_link_options)) {
-    NRPRG(pdo_link_options)
+  if (NULL == NRTXNGLOBAL(pdo_link_options)) {
+    NRTXNGLOBAL(pdo_link_options)
         = nr_hashmap_create((nr_hashmap_dtor_func_t)free_options);
   }
 
   copy = nr_php_zval_alloc();
   ZVAL_DUP(copy, options);
-  nr_hashmap_index_update(NRPRG(pdo_link_options), Z_OBJ_HANDLE_P(dbh), copy);
+  nr_hashmap_index_update(NRTXNGLOBAL(pdo_link_options), Z_OBJ_HANDLE_P(dbh),
+                          copy);
 }
 
 /*

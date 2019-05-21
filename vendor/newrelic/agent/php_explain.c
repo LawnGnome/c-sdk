@@ -171,13 +171,13 @@ nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
     nrtime_t explain_start;
     nrtime_t explain_stop;
 
-    NRPRG(generating_explain_plan) = 1;
+    NRTXNGLOBAL(generating_explain_plan) = 1;
     explain_start = nr_get_time();
 
     plan = nr_php_explain_pdo_mysql_statement(stmt, parameters TSRMLS_CC);
 
     explain_stop = nr_get_time();
-    NRPRG(generating_explain_plan) = 0;
+    NRTXNGLOBAL(generating_explain_plan) = 0;
 
     /*
      * Fire off a supportability metric so we can figure out if the overhead of
@@ -192,6 +192,6 @@ nr_explain_plan_t* nr_php_explain_pdo_statement(nrtxn_t* txn,
 }
 
 int nr_php_explain_wanted(const nrtxn_t* txn, nrtime_t duration TSRMLS_DC) {
-  return ((0 == NRPRG(generating_explain_plan))
+  return ((0 == NRTXNGLOBAL(generating_explain_plan))
           && nr_segment_potential_explain_plan(txn, duration));
 }

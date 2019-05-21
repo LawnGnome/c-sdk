@@ -363,11 +363,6 @@ nrframework_t
     current_framework; /* Current request framework (forced or detected) */
 int framework_version; /* Current framework version */
 
-nrtime_t* cur_drupal_module_kids_duration; /* Points to variable to increment
-                                              for a Drupal Module child's
-                                              duration */
-nrtime_t* cur_drupal_view_kids_duration;  /* Points to variable to increment for
-                                             a  Drupal View child's duration */
 char* drupal_module_invoke_all_hook;      /* The current Drupal hook */
 size_t drupal_module_invoke_all_hook_len; /* The length of the current Drupal
                                              hook */
@@ -379,10 +374,6 @@ int symfony1_in_dispatch; /* Whether we are currently within a
 int symfony1_in_error404; /* Whether we are currently within a
                              sfError404Exception::printStackTrace() frame */
 
-nrtime_t* cur_wordpress_hook_kids_duration; /* Points to variable to increment
-                                               for a WordPress hook child's
-                                               duration */
-
 char* wordpress_tag;                   /* The current WordPress tag */
 nr_regex_t* wordpress_hook_regex;      /* Regex to sanitize hook names */
 nr_regex_t* wordpress_plugin_regex;    /* Regex for plugin filenames */
@@ -393,14 +384,11 @@ nr_hashmap_t* wordpress_file_metadata; /* Metadata for plugin and theme names
 char* doctrine_dql; /* The current Doctrine DQL. Only non-NULL while a Doctrine
                        object is on the stack. */
 
-int execute_count;       /* How many times nr_php_execute_enabled was called */
 int php_cur_stack_depth; /* Total current depth of PHP stack, measured in PHP
                             call frames */
 
 nrphpcufafn_t
     cufa_callback; /* The current call_user_func_array callback, if any */
-
-nr_hashmap_t* prepared_statements; /* Prepared statement storage */
 
 /*
  * We instrument database connection constructors and store the instance
@@ -416,25 +404,7 @@ char* mysql_last_conn;
 char* pgsql_last_conn;
 nr_hashmap_t* datastore_connections;
 
-int generating_explain_plan; /* Are we currently working on an explain plan? */
-
 nrinibool_t guzzle_enabled; /* newrelic.guzzle.enabled */
-nr_hashmap_t* guzzle_objs;  /* Guzzle request object storage: requests that are
-                               currently in progress are stored here */
-
-nr_mysqli_metadata_t* mysqli_links; /* MySQLi link metadata storage */
-nr_hashmap_t* mysqli_queries;       /* MySQLi query metadata storage */
-
-nr_hashmap_t* pdo_link_options; /* PDO link option storage */
-
-nr_hashmap_t* predis_commands;
-char* predis_ctx; /* The current Predis pipeline context name, if any */
-
-nr_hashmap_t* curl_headers;
-
-nr_hashmap_t* curl_method; /* Curl Method set, key is the curl handle */
-
-nrtxn_t* txn; /* The all-important transaction pointer */
 
 nrtime_t start_sample;          /* Time of starting rusage query */
 struct timeval start_user_time; /* User rusage at transaction's start  */
@@ -443,13 +413,6 @@ struct timeval start_sys_time;  /* System rusage at transaction's start */
 int wtfuncs_where;  /* Where was newrelic.webtransaction.name.functions set? */
 int wtfiles_where;  /* Where was newrelic.webtransaction.name.files set? */
 int ttcustom_where; /* Where was newrelic.transaction_tracer.custom set? */
-
-char* curl_exec_x_newrelic_app_data; /* Header information saved by curl_exec
-                                        callback */
-int curl_ignore_setopt; /* Non-zero to disable curl_setopt instrumentation */
-
-int need_rshutdown_cleanup; /* Does RSHUTDOWN need to clean up resource usage?
-                             */
 
 /*
  * Request parameters are now controlled by attribute configuration.
@@ -486,9 +449,36 @@ nrinibool_t custom_parameters_enabled; /* newrelic.custom_parameters_enabled */
 nrinibool_t
     distributed_tracing_enabled; /* newrelic.distributed_tracing_enabled */
 nrinibool_t span_events_enabled; /* newrelic.span_events_enabled */
+nriniuint_t max_span_events;     /* newrelic.special.max_span_events */
 
-nr_vector_t* user_function_wrappers;
 uint64_t pid;
+
+nrtxn_t* txn; /* The all-important transaction pointer */
+
+/*
+ * The globals below all refer to a transaction. Those globals contain
+ * information related to the active transaction and, contrary to the globals
+ * above, have to be reset for each transaction started during a request.
+ */
+struct {
+  int execute_count; /* How many times nr_php_execute_enabled was called */
+  int generating_explain_plan; /* Are we currently working on an explain plan?
+                                */
+  nr_hashmap_t* guzzle_objs; /* Guzzle request object storage: requests that are
+                                currently in progress are stored here */
+  nr_mysqli_metadata_t* mysqli_links; /* MySQLi link metadata storage */
+  nr_hashmap_t* mysqli_queries;       /* MySQLi query metadata storage */
+  nr_hashmap_t* pdo_link_options;     /* PDO link option storage */
+  nr_hashmap_t* predis_commands;
+  nr_hashmap_t* curl_headers;
+  nr_hashmap_t* curl_method; /* Curl Method set, key is the curl handle */
+  char* curl_exec_x_newrelic_app_data; /* Header information saved by curl_exec
+                                          callback */
+  int curl_ignore_setopt; /* Non-zero to disable curl_setopt instrumentation */
+  char* predis_ctx;       /* The current Predis pipeline context name, if any */
+  nr_vector_t* user_function_wrappers;
+  nr_hashmap_t* prepared_statements; /* Prepared statement storage */
+} txn_globals;
 
 ZEND_END_MODULE_GLOBALS(newrelic)
 
@@ -521,6 +511,7 @@ extern PHP_GSHUTDOWN_FUNCTION(newrelic);
 #endif
 
 #define NRTXN(Y) (NRPRG(txn)->Y)
+#define NRTXNGLOBAL(Y) (NRPRG(txn_globals).Y)
 
 static inline int nr_php_recording(TSRMLS_D) {
   if (nrlikely((0 != NRPRG(txn)) && (0 != NRPRG(txn)->status.recording))) {

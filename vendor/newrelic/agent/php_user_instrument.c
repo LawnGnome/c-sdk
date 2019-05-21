@@ -493,11 +493,11 @@ void nr_php_op_array_set_wraprec(zend_op_array* op_array,
     return;
   }
 
-  if (!nr_vector_push_back(NRPRG(user_function_wrappers), func)) {
+  if (!nr_vector_push_back(NRTXNGLOBAL(user_function_wrappers), func)) {
     return;
   }
 
-  index = nr_vector_size(NRPRG(user_function_wrappers)) - 1;
+  index = nr_vector_size(NRTXNGLOBAL(user_function_wrappers)) - 1;
 
   index |= (NRPRG(pid) << 16);
 
@@ -523,7 +523,7 @@ nruserfn_t* nr_php_op_array_get_wraprec(
   index &= 0xffff;
 
   if (pid != NRPRG(pid)) {
-    nrl_warning(
+    nrl_verbosedebug(
         NRL_INSTRUMENT,
         "Skipping instrumented function: pid mismatch, got " NR_INT64_FMT
         ", expected " NR_INT64_FMT,
@@ -531,5 +531,5 @@ nruserfn_t* nr_php_op_array_get_wraprec(
     return NULL;
   }
 
-  return (nruserfn_t*)nr_vector_get(NRPRG(user_function_wrappers), index);
+  return (nruserfn_t*)nr_vector_get(NRTXNGLOBAL(user_function_wrappers), index);
 }

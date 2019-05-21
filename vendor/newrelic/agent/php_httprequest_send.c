@@ -10,7 +10,8 @@
  * This pecl_http 1 instrumentation is currently not supported for Distributed
  * Tracing.
  */
-void nr_php_httprequest_send_request_headers(zval* this_var TSRMLS_DC) {
+void nr_php_httprequest_send_request_headers(zval* this_var,
+                                             nr_segment_t* segment TSRMLS_DC) {
   char* x_newrelic_id = 0;
   char* x_newrelic_transaction = 0;
   char* x_newrelic_synthetics = 0;
@@ -20,7 +21,7 @@ void nr_php_httprequest_send_request_headers(zval* this_var TSRMLS_DC) {
     return;
   }
 
-  nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
+  nr_header_outbound_request(NRPRG(txn), segment, &x_newrelic_id,
                              &x_newrelic_transaction, &x_newrelic_synthetics,
                              &newrelic);
 

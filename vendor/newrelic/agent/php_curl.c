@@ -39,8 +39,8 @@ static void nr_php_curl_save_response_header_from_zval(
     return;
   }
 
-  nr_free(NRPRG(curl_exec_x_newrelic_app_data));
-  NRPRG(curl_exec_x_newrelic_app_data) = hdr;
+  nr_free(NRTXNGLOBAL(curl_exec_x_newrelic_app_data));
+  NRTXNGLOBAL(curl_exec_x_newrelic_app_data) = hdr;
 }
 
 static void nr_php_curl_header_destroy(zval* header) {
@@ -48,11 +48,11 @@ static void nr_php_curl_header_destroy(zval* header) {
 }
 
 static inline nr_hashmap_t* nr_php_curl_get_headers(TSRMLS_D) {
-  if (NULL == NRPRG(curl_headers)) {
-    NRPRG(curl_headers)
+  if (NULL == NRTXNGLOBAL(curl_headers)) {
+    NRTXNGLOBAL(curl_headers)
         = nr_hashmap_create((nr_hashmap_dtor_func_t)nr_php_curl_header_destroy);
   }
-  return NRPRG(curl_headers);
+  return NRTXNGLOBAL(curl_headers);
 }
 
 static void nr_php_curl_method_destroy(char* method) {
@@ -60,11 +60,11 @@ static void nr_php_curl_method_destroy(char* method) {
 }
 
 static inline nr_hashmap_t* nr_php_curl_get_method_hash(TSRMLS_D) {
-  if (NULL == NRPRG(curl_method)) {
-    NRPRG(curl_method)
+  if (NULL == NRTXNGLOBAL(curl_method)) {
+    NRTXNGLOBAL(curl_method)
         = nr_hashmap_create((nr_hashmap_dtor_func_t)nr_php_curl_method_destroy);
   }
-  return NRPRG(curl_method);
+  return NRTXNGLOBAL(curl_method);
 }
 
 /*
@@ -183,33 +183,33 @@ void nr_php_curl_init(zval* curlres TSRMLS_DC) {
   nr_php_curl_set_default_request_headers(curlres TSRMLS_CC);
 }
 
-static int nr_php_curl_copy_outbound_headers_iterator(zval* element,
-                                                      zval* dest,
-                                                      zend_hash_key* key
-                                                          NRUNUSED TSRMLS_DC) {
-  NR_UNUSED_TSRMLS;
+static inline bool nr_php_curl_header_contains(const char* haystack,
+                                               nr_string_len_t len,
+                                               const char* needle) {
+  return nr_strncaseidx(haystack, needle, len) >= 0;
+}
 
-  /*
-   * Do nothing for New Relic headers, which are always strings.
-   */
-  if (nr_php_is_zval_valid_string(element)
-      && ((nr_strncaseidx(Z_STRVAL_P(element), X_NEWRELIC_ID,
-                          Z_STRLEN_P(element))
-           >= 0)
-          || (nr_strncaseidx(Z_STRVAL_P(element), X_NEWRELIC_TRANSACTION,
-                             Z_STRLEN_P(element))
-              >= 0)
-          || (nr_strncaseidx(Z_STRVAL_P(element), X_NEWRELIC_SYNTHETICS,
-                             Z_STRLEN_P(element))
-              >= 0)
-          || (nr_strncaseidx(Z_STRVAL_P(element), NEWRELIC, Z_STRLEN_P(element))
-              >= 0))) {
-    return ZEND_HASH_APPLY_KEEP;
+static inline bool nr_php_curl_header_is_newrelic(const zval* element) {
+  nr_string_len_t len;
+  const char* val;
+
+  if (!nr_php_is_zval_valid_string(element)) {
+    return false;
   }
 
+  val = Z_STRVAL_P(element);
+  len = Z_STRLEN_P(element);
+
+  return nr_php_curl_header_contains(val, len, X_NEWRELIC_ID)
+         || nr_php_curl_header_contains(val, len, X_NEWRELIC_TRANSACTION)
+         || nr_php_curl_header_contains(val, len, X_NEWRELIC_SYNTHETICS)
+         || nr_php_curl_header_contains(val, len, NEWRELIC);
+}
+
+static inline void nr_php_curl_copy_header_value(zval* dest, zval* element) {
   /*
-   * Otherwise, we copy the header into the destination array, being careful
-   * to increment the refcount on the element to avoid double frees.
+   * Copy the header into the destination array, being careful to increment the
+   * refcount on the element to avoid double frees.
    */
 #ifdef PHP7
   if (Z_REFCOUNTED_P(element)) {
@@ -219,6 +219,15 @@ static int nr_php_curl_copy_outbound_headers_iterator(zval* element,
   Z_ADDREF_P(element);
 #endif
   add_next_index_zval(dest, element);
+}
+
+static int nr_php_curl_copy_outbound_headers_iterator(zval* element,
+                                                      zval* dest,
+                                                      zend_hash_key* key
+                                                          NRUNUSED TSRMLS_DC) {
+  NR_UNUSED_TSRMLS;
+
+  nr_php_curl_copy_header_value(dest, element);
 
   return ZEND_HASH_APPLY_KEEP;
 }
@@ -229,17 +238,30 @@ char* nr_php_curl_exec_get_method(zval* curlres TSRMLS_DC) {
   return method;
 }
 
-void nr_php_curl_exec_set_httpheaders(zval* curlres TSRMLS_DC) {
+void nr_php_curl_exec_set_httpheaders(zval* curlres,
+                                      nr_segment_t* segment TSRMLS_DC) {
   zval* headers = NULL;
-  int old_curl_ignore_setopt = NRPRG(curl_ignore_setopt);
+  int old_curl_ignore_setopt = NRTXNGLOBAL(curl_ignore_setopt);
   zval* retval = NULL;
   char* x_newrelic_id = 0;
   char* x_newrelic_transaction = 0;
   char* x_newrelic_synthetics = 0;
   char* newrelic = 0;
-  zval* curlopt;
+  zval* curlopt = NULL;
   zval* curlval = nr_hashmap_index_get(nr_php_curl_get_headers(TSRMLS_C),
                                        nr_php_zval_resource_id(curlres));
+  zval* val = NULL;
+  ulong key_num = 0;
+  nr_php_string_hash_key_t* key_str = NULL;
+
+  /*
+   * Although there's a check further down in nr_header_outbound_request(), we
+   * can avoid a bunch of work and return early if segment isn't set, since we
+   * can't generate a payload regardless.
+   */
+  if (NULL == segment) {
+    return;
+  }
 
   if ((0 == curlval) || (IS_ARRAY != Z_TYPE_P(curlval))) {
     nrl_warning(NRL_CAT,
@@ -254,18 +276,39 @@ void nr_php_curl_exec_set_httpheaders(zval* curlres TSRMLS_DC) {
   }
 
   /*
-   * Copy the parameter headers into a new array, removing any existing New
-   * Relic headers along the way to prevent header accumulation.
+   * Set up a new array that we can modify if needed to invoke curl_setopt()
+   * with any New Relic headers we need to add.
    */
   headers = nr_php_zval_alloc();
   array_init(headers);
 
-  nr_php_zend_hash_zval_apply(
-      Z_ARRVAL_P(curlval),
-      (nr_php_zval_apply_t)nr_php_curl_copy_outbound_headers_iterator,
-      headers TSRMLS_CC);
+  ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(curlval), key_num, key_str, val) {
+    /*
+     * If a New Relic header is already present in the header array, that means
+     * a higher level piece of instrumentation has added headers already and we
+     * don't need to do anything here: let's just get out.
+     */
+    if (nr_php_curl_header_is_newrelic(val)) {
+      goto end;
+    }
 
-  nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
+    /*
+     * As curl header arrays are always numerically-indexed, we don't need to
+     * preserve the key, and therefore don't look at the variables.
+     */
+    (void)key_num;
+    (void)key_str;
+
+    nr_php_curl_copy_header_value(headers, val);
+  }
+  ZEND_HASH_FOREACH_END();
+
+  /*
+   * OK, there were no New Relic headers (otherwise we'd already have jumped in
+   * the loop above). So let's generate some headers, and we can add them to
+   * the request.
+   */
+  nr_header_outbound_request(NRPRG(txn), segment, &x_newrelic_id,
                              &x_newrelic_transaction, &x_newrelic_synthetics,
                              &newrelic);
 
@@ -310,7 +353,7 @@ void nr_php_curl_exec_set_httpheaders(zval* curlres TSRMLS_DC) {
    * Call curl_setopt() with the modified headers, taking care to set the
    * curl_ignore_setopt flag to avoid infinite recursion.
    */
-  NRPRG(curl_ignore_setopt) = 1;
+  NRTXNGLOBAL(curl_ignore_setopt) = 1;
   retval = nr_php_call(NULL, "curl_setopt", curlres, curlopt, headers);
   if (!nr_php_is_zval_true(retval)) {
     nrl_verbosedebug(NRL_INSTRUMENT, "%s: error calling curl_setopt", __func__);
@@ -319,7 +362,9 @@ void nr_php_curl_exec_set_httpheaders(zval* curlres TSRMLS_DC) {
   /*
    * We're done. Whether we were successful or not, let's clean up and return.
    */
-  NRPRG(curl_ignore_setopt) = old_curl_ignore_setopt;
+  NRTXNGLOBAL(curl_ignore_setopt) = old_curl_ignore_setopt;
+
+end:
   nr_php_zval_free(&headers);
   nr_php_zval_free(&retval);
   nr_php_zval_free(&curlopt);
@@ -436,7 +481,16 @@ void nr_php_curl_setopt_post(zval* curlres,
       return;
     }
 
-    // Save the headers
+    /*
+     * Save the headers so we can re-apply them along with any CAT or DT
+     * headers when curl_exec() is invoked.
+     *
+     * Note that we do _not_ strip any existing CAT or DT headers; it's
+     * possible that code instrumenting libraries built on top of curl (such as
+     * Guzzle, with the default handler) will already have added the
+     * appropriate headers, so we want to preserve those (since they likely
+     * have the correct parent ID).
+     */
     nr_php_zend_hash_zval_apply(
         ht, (nr_php_zval_apply_t)nr_php_curl_copy_outbound_headers_iterator,
         headers TSRMLS_CC);

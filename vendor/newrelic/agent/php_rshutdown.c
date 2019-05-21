@@ -36,16 +36,14 @@ PHP_RSHUTDOWN_FUNCTION(newrelic) {
   (void)type;
   (void)module_number;
 
-  if (nrlikely(0 != NRPRG(need_rshutdown_cleanup))) {
-    nrl_verbosedebug(NRL_INIT, "RSHUTDOWN processing started");
+  nrl_verbosedebug(NRL_INIT, "RSHUTDOWN processing started");
 
-    /* nr_php_txn_shutdown will check for a NULL transaction. */
-    nr_php_txn_shutdown(TSRMLS_C);
-
-    nrl_verbosedebug(NRL_INIT, "RSHUTDOWN processing done");
-  }
+  /* nr_php_txn_shutdown will check for a NULL transaction. */
+  nr_php_txn_shutdown(TSRMLS_C);
 
   nr_guzzle4_rshutdown(TSRMLS_C);
+
+  nrl_verbosedebug(NRL_INIT, "RSHUTDOWN processing done");
 
   return SUCCESS;
 }
@@ -99,14 +97,12 @@ int nr_php_post_deactivate(void) {
 
   NRPRG(cufa_callback) = NULL;
 
-  if (nrlikely(0 != NRPRG(need_rshutdown_cleanup))) {
-    if (nrlikely(0 != NRPRG(txn))) {
-      (void)nr_php_txn_end(0, 1 TSRMLS_CC);
-    }
-
-    NRPRG(current_framework) = NR_FW_UNSET;
-    NRPRG(framework_version) = 0;
+  if (nrlikely(0 != NRPRG(txn))) {
+    (void)nr_php_txn_end(0, 1 TSRMLS_CC);
   }
+
+  NRPRG(current_framework) = NR_FW_UNSET;
+  NRPRG(framework_version) = 0;
 
   nrl_verbosedebug(NRL_INIT, "post-deactivate processing done");
   return SUCCESS;

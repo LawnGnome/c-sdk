@@ -74,8 +74,8 @@ int nr_guzzle_does_zval_implement_has_emitter(zval* obj TSRMLS_DC) {
       obj, "GuzzleHttp\\Event\\HasEmitterInterface" TSRMLS_CC);
 }
 
-void nr_guzzle_obj_add(const zval* obj,
-                       const char* async_context_prefix TSRMLS_DC) {
+nr_segment_t* nr_guzzle_obj_add(const zval* obj,
+                                const char* async_context_prefix TSRMLS_DC) {
   nr_segment_t* segment;
   char* async_context;
 
@@ -85,16 +85,15 @@ void nr_guzzle_obj_add(const zval* obj,
   async_context
       = nr_guzzle_create_async_context_name(async_context_prefix, obj);
 
-  segment = nr_segment_start(NRPRG(txn), nr_txn_get_current_segment(NRPRG(txn)),
-                             async_context);
+  segment = nr_segment_start(NRPRG(txn), NULL, async_context);
 
   nr_free(async_context);
 
   /*
    * Create the guzzle_objs hash table if we haven't already done so.
    */
-  if (NULL == NRPRG(guzzle_objs)) {
-    NRPRG(guzzle_objs) = nr_hashmap_create(NULL);
+  if (NULL == NRTXNGLOBAL(guzzle_objs)) {
+    NRTXNGLOBAL(guzzle_objs) = nr_hashmap_create(NULL);
   }
 
   /*
@@ -104,25 +103,28 @@ void nr_guzzle_obj_add(const zval* obj,
    * architecture, and saves us having to transform the object handle into a
    * string to use string keys.
    */
-  nr_hashmap_index_update(NRPRG(guzzle_objs), (uint64_t)Z_OBJ_HANDLE_P(obj),
-                          segment);
+  nr_hashmap_index_update(NRTXNGLOBAL(guzzle_objs),
+                          (uint64_t)Z_OBJ_HANDLE_P(obj), segment);
+
+  return segment;
 }
 
 nr_status_t nr_guzzle_obj_find_and_remove(const zval* obj,
                                           nr_segment_t** segment_ptr
                                               TSRMLS_DC) {
-  if (NULL != NRPRG(guzzle_objs)) {
+  if (NULL != NRTXNGLOBAL(guzzle_objs)) {
     uint64_t index = (uint64_t)Z_OBJ_HANDLE_P(obj);
     nr_segment_t* segment;
 
-    segment = (nr_segment_t*)nr_hashmap_index_get(NRPRG(guzzle_objs), index);
+    segment
+        = (nr_segment_t*)nr_hashmap_index_get(NRTXNGLOBAL(guzzle_objs), index);
     *segment_ptr = segment;
 
     if (segment) {
       /*
        * Remove the object handle from the hashmap containing active requests.
        */
-      nr_hashmap_index_delete(NRPRG(guzzle_objs), index);
+      nr_hashmap_index_delete(NRTXNGLOBAL(guzzle_objs), index);
 
       return NR_SUCCESS;
     }
@@ -165,13 +167,18 @@ static void nr_guzzle_request_set_header(const char* header,
   nr_php_zval_free(&value_param);
 }
 
-void nr_guzzle_request_set_outbound_headers(zval* request TSRMLS_DC) {
+void nr_guzzle_request_set_outbound_headers(zval* request,
+                                            nr_segment_t* segment TSRMLS_DC) {
   char* x_newrelic_id = NULL;
   char* x_newrelic_transaction = NULL;
   char* x_newrelic_synthetics = NULL;
   char* newrelic = NULL;
 
-  nr_header_outbound_request(NRPRG(txn), &x_newrelic_id,
+  if (NULL == segment) {
+    return;
+  }
+
+  nr_header_outbound_request(NRPRG(txn), segment, &x_newrelic_id,
                              &x_newrelic_transaction, &x_newrelic_synthetics,
                              &newrelic);
 

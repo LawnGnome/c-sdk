@@ -163,15 +163,17 @@ static zval* nr_guzzle3_response_get_info(const char* key,
  * Params  : 1. The request object.
  */
 static void nr_guzzle3_request_state_transfer(zval* request TSRMLS_DC) {
+  nr_segment_t* segment;
+
   /*
    * Add the request object to those we're tracking.
    */
-  nr_guzzle_obj_add(request, "Guzzle 3" TSRMLS_CC);
+  segment = nr_guzzle_obj_add(request, "Guzzle 3" TSRMLS_CC);
 
   /*
    * Set the request headers.
    */
-  nr_guzzle_request_set_outbound_headers(request TSRMLS_CC);
+  nr_guzzle_request_set_outbound_headers(request, segment TSRMLS_CC);
 }
 
 /*

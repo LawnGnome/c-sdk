@@ -42,8 +42,9 @@ PHP_FUNCTION(newrelic_get_request_metadata) {
 
   array_init(return_value);
 
-  nr_header_outbound_request(NRPRG(txn), &id, &transaction, &synthetics,
-                             &newrelic);
+  nr_header_outbound_request(NRPRG(txn),
+                             nr_txn_get_current_segment(NRPRG(txn), NULL), &id,
+                             &transaction, &synthetics, &newrelic);
 
   if (NRPRG(txn) && NRTXN(special_flags.debug_cat)) {
     nrl_verbosedebug(NRL_CAT,

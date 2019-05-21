@@ -21,6 +21,10 @@ with New Relic Servers.
 
 ### Bug Fixes ###
 
+* Transaction globals are now cleanly separated from request globals. This
+  fixes crashes related to the initialization of multiple transactions during
+  one request (mostly triggered by `newrelic_set_appname`).
+
 * When obfuscating SQL, comments are stripped without any loss of the SQL itself.
 
 * Predis 0.8 commands that used the synchronous `executeCommand()` code path
@@ -118,7 +122,7 @@ with New Relic Servers.
 ### New Features ###
 
 * Requests for Laravel's built-in automatic handling of CORS HTTP OPTIONS requests
-  will now be given the transaction name `_CORS_HTTP`
+  will now be given the transaction name `_CORS_OPTIONS`
 
 ### Upgrade Notices ###
 

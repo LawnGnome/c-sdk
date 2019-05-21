@@ -1068,7 +1068,7 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
   nr_segment_t* segment = NULL;
   nruserfn_t* wraprec;
 
-  NRPRG(execute_count) += 1;
+  NRTXNGLOBAL(execute_count) += 1;
 
   if (nrunlikely(OP_ARRAY_IS_A_FILE(NR_OP_ARRAY))) {
     nr_php_execute_file(NR_OP_ARRAY, NR_EXECUTE_ORIG_ARGS TSRMLS_CC);

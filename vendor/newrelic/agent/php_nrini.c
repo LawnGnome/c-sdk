@@ -1467,7 +1467,7 @@ static PHP_INI_MH(nr_rum_loader_mh) {
 
 static PHP_INI_MH(nr_int_mh) {
   nriniint_t* p;
-  int val = 0;
+  long val = 0;
 
 #ifndef ZTS
   char* base = (char*)mh_arg2;
@@ -1486,10 +1486,52 @@ static PHP_INI_MH(nr_int_mh) {
   if (0 == NEW_VALUE_LEN) {
     val = 0;
   } else {
-    val = (int)strtol(NEW_VALUE, 0, 0);
+    val = strtol(NEW_VALUE, 0, 0);
+    if (val > INT_MAX) {
+	val = INT_MAX;
+    } else if (val < INT_MIN) {
+	val = INT_MIN;
+    }
   }
 
-  p->value = val;
+  p->value = (int)val;
+  p->where = stage;
+
+  return SUCCESS;
+}
+
+static PHP_INI_MH(nr_unsigned_int_mh) {
+  nriniuint_t* p;
+  unsigned long val = 0;
+
+#ifndef ZTS
+  char* base = (char*)mh_arg2;
+#else
+  char* base = (char*)ts_resource(*((int*)mh_arg2));
+#endif
+
+  p = (nriniuint_t*)(base + (size_t)mh_arg1);
+
+  (void)entry;
+  (void)mh_arg3;
+  NR_UNUSED_TSRMLS;
+
+  p->where = 0;
+
+  /*
+   * For negative given values, fall back to the default of 0. 
+   * For values larger than UINT_MAX, use UINT_MAX.
+   */
+  if (0 == NEW_VALUE_LEN || NEW_VALUE[0] == '-') {
+    val = 0;
+  } else {
+    val = strtoul(NEW_VALUE, 0, 0);
+    if (val > UINT_MAX) {
+      val = UINT_MAX;
+    }
+  }
+
+  p->value = (zend_uint)val;
   p->where = stage;
 
   return SUCCESS;
@@ -2361,6 +2403,15 @@ STD_PHP_INI_ENTRY_EX("newrelic.span_events_enabled",
                      NR_PHP_REQUEST,
                      nr_boolean_mh,
                      span_events_enabled,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+
+STD_PHP_INI_ENTRY_EX("newrelic.special.max_span_events",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_unsigned_int_mh,
+                     max_span_events,
                      zend_newrelic_globals,
                      newrelic_globals,
                      0)

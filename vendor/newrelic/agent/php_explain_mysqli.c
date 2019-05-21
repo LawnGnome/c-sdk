@@ -312,7 +312,7 @@ static nr_explain_plan_t* nr_php_explain_mysqli_issue(
   zval* stmt = NULL;
 
   error_reporting = nr_php_silence_errors(TSRMLS_C);
-  NRPRG(generating_explain_plan) = 1;
+  NRTXNGLOBAL(generating_explain_plan) = 1;
 
   link_dup = nr_php_mysqli_link_duplicate(link TSRMLS_CC);
   if (NULL == link_dup) {
@@ -346,7 +346,7 @@ end:
   nr_php_zval_free(&stmt);
 
   nr_php_restore_errors(error_reporting TSRMLS_CC);
-  NRPRG(generating_explain_plan) = 0;
+  NRTXNGLOBAL(generating_explain_plan) = 0;
 
   return plan;
 }
