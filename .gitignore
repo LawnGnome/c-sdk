@@ -31,7 +31,10 @@ tests/test_*
 #
 libnewrelic.a
 libnewrelic.o
+libnewrelic.so
 newrelic-daemon
+vendor/newrelic/bin/
+vendor/newrelic/pkg/
 
 #
 # Byproducts from make libnewrelic.so
@@ -63,5 +66,3 @@ tests/integration/*/*.log
 # Byproducts of jetbrains
 #
 .idea/
-
-newrelic-daemon
