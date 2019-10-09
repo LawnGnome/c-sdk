@@ -62,13 +62,14 @@ ispkg=
 imode=
 if [ -n "$1" ]; then
   [ "$1" = "install" ] && imode=$1
+  [ "$1" = "install_daemon" ] && imode=$1
   [ "$1" = "uninstall" ] && imode=$1
   [ "$1" = "purge" ] && imode=$1
 fi
 
 if [ -n "${NR_INSTALL_SILENT}" ]; then
   if [ -z "$imode" ]; then
-    echo "ERROR: must invoke with either 'install' or 'uninstall' in silent mode." >&2
+    echo "ERROR: must invoke with either 'install', 'install_daemon' or 'uninstall' in silent mode." >&2
     exit 1
   fi
 fi
@@ -673,7 +674,11 @@ log "Install mode: ${imode}"
 # If we have no PHP versions in our list, exit now.
 #
 dodaemon=
-if [ "${imode}" = "install" -a -z "${nrphplist}" ]; then
+if [ "${imode}" = "install_daemon" ] ; then
+  dodaemon=yes
+  nrphplist=
+  numphp=0
+elif [ "${imode}" = "install" -a -z "${nrphplist}" ]; then
   log "Empty PHP directory list"
   if [ -z "${NR_INSTALL_SILENT}" ]; then
     cat <<EOF
@@ -1691,7 +1696,14 @@ EOF
 
   if [ -z "${NR_INSTALL_SILENT}" ]; then
     if [ -n "${dodaemon}" ]; then
-      cat <<EOF
+      if [ "${imode}" = "install_daemon" ] ; then
+        cat <<EOF
+
+The New Relic Proxy Daemon is now installed on your system. Congratulations!
+
+EOF
+      else
+        cat <<EOF
 
 The New Relic Proxy Daemon is installed, but the agent
 is not. Please point your favorite web browser at
@@ -1699,6 +1711,7 @@ ${bold}http://newrelic.com/docs/php${rmso} for how to install the agent
 by hand.
 
 EOF
+      fi
     else
       if [ -z "${unsupported_php}" ]; then
         cat <<EOF
@@ -1875,6 +1888,7 @@ EOF
 }
 
 [ "${imode}" = "install" ] && do_install
+[ "${imode}" = "install_daemon" ] && do_install
 [ "${imode}" = "uninstall" ] && do_uninstall
 [ "${imode}" = "purge" ] && do_purge
 

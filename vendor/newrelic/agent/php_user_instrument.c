@@ -58,7 +58,7 @@ int nr_zend_call_orig_execute_special(nruserfn_t* wraprec,
                                       NR_EXECUTE_PROTO TSRMLS_DC) {
   volatile int zcaught = 0;
   zend_try {
-    if (wraprec->special_instrumentation) {
+    if (wraprec && wraprec->special_instrumentation) {
       wraprec->special_instrumentation(wraprec, segment,
                                        NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
     } else {
@@ -493,11 +493,11 @@ void nr_php_op_array_set_wraprec(zend_op_array* op_array,
     return;
   }
 
-  if (!nr_vector_push_back(NRTXNGLOBAL(user_function_wrappers), func)) {
+  if (!nr_vector_push_back(NRPRG(user_function_wrappers), func)) {
     return;
   }
 
-  index = nr_vector_size(NRTXNGLOBAL(user_function_wrappers)) - 1;
+  index = nr_vector_size(NRPRG(user_function_wrappers)) - 1;
 
   index |= (NRPRG(pid) << 16);
 
@@ -531,5 +531,5 @@ nruserfn_t* nr_php_op_array_get_wraprec(
     return NULL;
   }
 
-  return (nruserfn_t*)nr_vector_get(NRTXNGLOBAL(user_function_wrappers), index);
+  return (nruserfn_t*)nr_vector_get(NRPRG(user_function_wrappers), index);
 }

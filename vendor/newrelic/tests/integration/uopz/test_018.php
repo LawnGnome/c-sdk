@@ -13,6 +13,8 @@ int(1)
 int(0)
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	const BAR = 1;
 }

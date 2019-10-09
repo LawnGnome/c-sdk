@@ -27,6 +27,7 @@
 #endif
 
 #include "nr_axiom.h"
+#include "nr_agent.h"
 #include "nr_app.h"
 #include "nr_utilization.h"
 #include "php_includes.h"
@@ -396,16 +397,6 @@ static inline zval* nr_php_execute_scope(zend_execute_data* execute_data) {
 #endif
 }
 
-static inline zend_op_array* nr_php_current_op_array(TSRMLS_D) {
-#ifdef PHP7
-  zend_function* func = EG(current_execute_data)->func;
-
-  return func ? &func->op_array : NULL;
-#else
-  return EG(current_execute_data)->op_array;
-#endif /* PHP7 */
-}
-
 /*
  * Purpose : Get the execute data for the function that called the current user
  *           function.
@@ -759,5 +750,27 @@ extern zval* nr_php_parse_str(const char* str, size_t len TSRMLS_DC);
  * Returns : Boolean int: 1 == static method, 0 == instance method
  */
 extern bool nr_php_function_is_static_method(const zend_function* func);
+
+/*
+ * Purpose : Get the execution data for the current PHP environment.
+ *
+ * Params  : 1. The NR_EXECUTE_PROTO passed to us from the zend engine.
+ *
+ *           For PHP5.5, this entails using the execution data from the zend
+ *           engine, which is passed to and through us. Sometimes we don't have
+ *           this information directly from the zend engine, in which case we
+ *           fall back to using the value from EG (current_execute_path).
+ *
+ *           For PHP 5.5, empirically, EG (current_execute_path) is the same as
+ *           the non-null NR_EXECUTE_PROTO, and I don't know why this is true,
+ *           or why this might change.
+ *
+ *           For PHP5.4 and before, this entails just using EG
+ *           (current_execute_path).
+ *
+ * TODO(rrh); there's also an opportunity to compare the op_array arguments
+ * being passed around with that from what's returned here ->op_array
+ */
+extern zend_execute_data* nr_get_zend_execute_data(NR_EXECUTE_PROTO TSRMLS_DC);
 
 #endif /* PHP_AGENT_HDR */

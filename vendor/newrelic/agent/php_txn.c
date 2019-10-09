@@ -16,6 +16,7 @@
 #include "nr_commands.h"
 #include "nr_header.h"
 #include "nr_rum.h"
+#include "nr_segment_children.h"
 #include "nr_txn.h"
 #include "nr_version.h"
 #include "util_labels.h"
@@ -598,6 +599,12 @@ nrobj_t* nr_php_txn_get_supported_security_policy_settings(nrtxnopt_t* opts) {
   return supported_policy_settings;
 }
 
+static void nr_php_txn_segment_dtor(void* element, void* userdata NRUNUSED) {
+  nr_segment_t* segment = (nr_segment_t*)element;
+
+  nr_segment_children_deinit(&segment->children);
+}
+
 nr_status_t nr_php_txn_begin(const char* appnames,
                              const char* license TSRMLS_DC) {
   nrtxnopt_t opts;
@@ -675,6 +682,17 @@ nr_status_t nr_php_txn_begin(const char* appnames,
   opts.span_events_enabled = NRINI(span_events_enabled);
   opts.max_span_events = NRINI(max_span_events);
 
+  /*
+   * Enable the behaviour whereby asynchronous time is discounted from the total
+   * time. This matches the actual behaviour of PHP when Predis and Guzzle are
+   * used, which are the only methods by which the PHP agent can create
+   * asynchronous segments.
+   *
+   * In the future, when the PHP agent has support for threaded or evented PHP
+   * frameworks, we may want to make this toggleable.
+   */
+  opts.discount_main_context_blocking = true;
+
   if ((0 == appnames) || (0 == appnames[0])) {
     appnames = NRINI(appnames);
   }
@@ -723,6 +741,13 @@ nr_status_t nr_php_txn_begin(const char* appnames,
     return NR_FAILURE;
   }
 
+  /*
+   * We'll initialise the reusable segment vector as quickly as possible.
+   */
+  NRTXNGLOBAL(reusable_segments)
+      = nr_vector_create(128, nr_php_txn_segment_dtor, NULL);
+  NRTXNGLOBAL(allocated_segments) = 0;
+
   nr_php_collect_x_request_start(TSRMLS_C);
   nr_php_set_initial_path(NRPRG(txn) TSRMLS_CC);
 
@@ -732,7 +757,6 @@ nr_status_t nr_php_txn_begin(const char* appnames,
     nr_txn_set_as_background_job(NRPRG(txn), "CLI SAPI");
   }
 
-  NRTXNGLOBAL(user_function_wrappers) = nr_vector_create(64, NULL, NULL);
   NRTXNGLOBAL(mysqli_links) = nr_mysqli_metadata_create();
 
   nr_php_add_user_instrumentation(TSRMLS_C);
@@ -810,16 +834,6 @@ nr_status_t nr_php_txn_begin(const char* appnames,
               "to use distributed tracing");
   }
 
-  if (NRPRG(txn)->options.distributed_tracing_enabled && NRINI(tt_detail)) {
-    NRINI(tt_detail) = 0;
-
-    nrl_verbose(NRL_INIT,
-                "Enabling distributed tracing automatically disables "
-                "transaction tracer detail. To add specific function calls to "
-                "the tracer use the API method newrelic_add_custom_tracer or "
-                "the newrelic.transaction_tracer.custom configuration value.");
-  }
-
   return NR_SUCCESS;
 }
 
@@ -862,6 +876,38 @@ void nr_php_txn_shutdown(TSRMLS_D) {
 
   if (0 != txn) {
     nr_php_txn_do_shutdown(txn TSRMLS_CC);
+  }
+}
+
+void nr_php_txn_handle_fpm_error(nrtxn_t* txn TSRMLS_DC) {
+  if (nrunlikely(NULL == txn)) {
+    return;
+  }
+
+  /*
+   * PHP-FPM starts and stops a transaction even if the script it's trying to
+   * load doesn't exist or can't be loaded. To avoid a potential MGI on the URI
+   * naming, we'll detect that case using a combination of the SAPI name,
+   * response code, and whether we ever saw a PHP function or file frame, and
+   * if so, use a status code transaction name.
+   *
+   * Technically, the call count and path type checks are redundant in normal
+   * use, but are here just in case anyone is doing crazy things where their
+   * entire request is handled in an extension and no PHP frame ever occurs.
+   */
+  if (NR_PATH_TYPE_URI == txn->status.path_type
+      && nr_streq(sapi_module.name, "fpm-fcgi")
+      && 0 == NRTXNGLOBAL(execute_count)) {
+    char* response_code = nr_formatf("%d", nr_php_http_response_code(TSRMLS_C));
+
+    nr_attributes_agent_add_string(txn->attributes,
+                                   NR_ATTRIBUTE_DESTINATION_NONE, "request.uri",
+                                   txn->path);
+
+    nr_txn_set_path("FPM status code", txn, response_code,
+                    NR_PATH_TYPE_STATUS_CODE, NR_NOT_OK_TO_OVERWRITE);
+
+    nr_free(response_code);
   }
 }
 
@@ -925,6 +971,10 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
                   "Supportability/execute/user/call_count",
                   NRTXNGLOBAL(execute_count));
 
+    nrm_force_add(txn->unscoped_metrics,
+              "Supportability/execute/user/custom_segment_count",
+              NRTXNGLOBAL(allocated_segments));
+
     /* Add CPU and memory metrics */
     nr_php_resource_usage_sampler_end(TSRMLS_C);
 
@@ -933,6 +983,8 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
     nr_framework_create_metric(TSRMLS_C);
 
     nr_php_txn_set_response_header_attributes(txn TSRMLS_CC);
+
+    nr_php_txn_handle_fpm_error(txn TSRMLS_CC);
 
     nr_txn_end(txn);
 
@@ -947,12 +999,10 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
     }
   }
 
+  nr_vector_destroy(&NRTXNGLOBAL(reusable_segments));
   nr_txn_destroy(&NRPRG(txn));
 
   nr_hashmap_destroy(&NRTXNGLOBAL(guzzle_objs));
-
-  nr_free(NRTXNGLOBAL(predis_ctx));
-  nr_hashmap_destroy(&NRTXNGLOBAL(predis_commands));
 
   nr_hashmap_destroy(&NRTXNGLOBAL(prepared_statements));
   nr_hashmap_destroy(&NRTXNGLOBAL(curl_headers));
@@ -961,8 +1011,6 @@ nr_status_t nr_php_txn_end(int ignoretxn, int in_post_deactivate TSRMLS_DC) {
   nr_mysqli_metadata_destroy(&NRTXNGLOBAL(mysqli_links));
 
   nr_free(NRTXNGLOBAL(curl_exec_x_newrelic_app_data));
-
-  nr_vector_destroy(&NRTXNGLOBAL(user_function_wrappers));
 
   return NR_SUCCESS;
 }

@@ -97,6 +97,100 @@ zval* nr_php_arg_get(ssize_t index, NR_EXECUTE_PROTO TSRMLS_DC) {
   return arg;
 }
 
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+/*
+ * This function can be used to add arguments to a PHP function call in
+ * the wrapper function. This is done by manipulating the current stack
+ * frame (execute context) which is passed into the wapper.
+ *
+ * This is the layout of a stack frame, as described in
+ * https://nikic.github.io/2017/04/14/PHP-7-Virtual-machine.html#stack-frame-layout:
+ *
+ * +----------------------------------------+
+ * | zend_execute_data                      |
+ * +----------------------------------------+
+ * | VAR[0]                =         ARG[1] | arguments
+ * | ...                                    |
+ * | VAR[num_args-1]       =         ARG[N] |
+ * | VAR[num_args]         =   CV[num_args] | remaining CVs
+ * | ...                                    |
+ * | VAR[last_var-1]       = CV[last_var-1] |
+ * | VAR[last_var]         =         TMP[0] | TMP/VARs
+ * | ...                                    |
+ * | VAR[last_var+T-1]     =         TMP[T] |
+ * | ARG[N+1] (extra_args)                  | extra arguments
+ * | ...                                    |
+ * +----------------------------------------+
+ *
+ * Each PHP stack frame is allocated on the VM stack and, amongst other things,
+ * contains:
+ *
+ *  - zval slots for each argument of the function definition (VAR). These
+ *    slots can be addressed via the ZEND_CALL_ARG macro and an index
+ *    (starting with 1).
+ *  - A counter that holds the number of arguments given to the function call.
+ *    This counter can be obtained via the ZEND_CALL_NUM_ARGS macro. All
+ *    zval argument slots with an index less than or equal to the value of
+ *    this counter are initialized when the wrapper is called. zval
+ *    argument with an index greater than the value of this counter are
+ *    uninitialized when the wrapper is called.
+ *  - A pointer to the zend_function that is called. This zend_function
+ *    holds a counter that specifies the number of arguments that were
+ *    defined to that function. This counter includes default arguments,
+ *    but does not include extra arguments.
+ *
+ * This function does the following:
+ *
+ *  1. It checks if there is an uninitialized zval argument slot. It
+ *     does so by comparing the counter for defined arguments (in
+ *     the zend_function) with the counter of arguments given in the
+ *     call (in the stack frame, accessed via ZEND_CALL_NUM_ARGS).
+ *  2. It obtains the uninitialized zval argument slot.
+ *  3. It copies the given zval into the slot.
+ *
+ * If there is no uninitialized zval argument slot, this function does
+ * nothing and returns false.
+ *
+ * This function does not alter extra arguments (arguments defined with
+ * the splat operator or returned by func_get_args). This could by done
+ * by manipulating the ARG[N+1] slot pictured in the stack frame layout
+ * above. However, there is currently no requirement for doing that.
+ */
+bool nr_php_arg_add(NR_EXECUTE_PROTO, zval* newarg) {
+  zval* orig;
+  size_t num_args;
+  size_t max_args;
+  zend_execute_data* ex = nr_get_zend_execute_data(NR_EXECUTE_ORIG_ARGS);
+
+  if (NULL == newarg || NULL == ex) {
+    return false;
+  }
+
+  /*
+   * Check not to add more arguments than the function has defined.
+   */
+  num_args = ZEND_CALL_NUM_ARGS(ex) + 1;
+  max_args = ex->func->common.num_args;
+
+  if (num_args > max_args) {
+    return false;
+  }
+
+  /*
+   * Increase the count of given arguments.
+   */
+  ZEND_CALL_NUM_ARGS(ex) = num_args;
+
+  /*
+   * Copy the new argument into the zval argument slot in the function.
+   */
+  orig = ZEND_CALL_ARG(ex, num_args);
+  ZVAL_DUP(orig, newarg);
+
+  return true;
+}
+#endif
+
 void nr_php_arg_release(zval** ppzv) {
   release_zval(ppzv);
 }

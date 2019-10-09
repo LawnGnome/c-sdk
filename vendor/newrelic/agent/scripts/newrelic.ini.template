@@ -161,21 +161,36 @@ newrelic.daemon.logfile = "/var/log/newrelic/newrelic-daemon.log"
 ;
 ;newrelic.daemon.loglevel = "info"
 
-; Setting: newrelic.daemon.port
+; Setting: newrelic.daemon.address (alias: newrelic.daemon.port)
 ; Type   : string or integer
 ; Scope  : system
 ; Default: /tmp/.newrelic.sock
 ; Info   : Sets how the agent and daemon communicate. How this is set can impact
-;          performance. The default is to use a UNIX-domain socket located at
-;          /tmp/.newrelic.sock. If you want to use UNIX domain sockets then
-;          this value must begin with a "/". If you set this to an integer
-;          value in the range 1-65534, then this will instruct the agent to use
-;          a normal TCP socket on the port specified. This may be easier to use
-;          if you are using a chroot environment. On Linux, an abstract socket
-;          can be created by prefixing the socket name with '@'. Support for
-;          abstract sockets was added in PHP agent version 5.2.
+;          performance.
 ;
-;newrelic.daemon.port = "/tmp/.newrelic.sock"
+;          The default is to use a UNIX-domain socket located at 
+;          /tmp/.newrelic.sock. If you want to use UNIX domain sockets then
+;          this value must begin with a "/". 
+;
+;          On Linux, an abstract socket can be created by prefixing the socket
+;          name with '@'. Support for abstract sockets was added in PHP agent
+;          version 5.2.
+;
+;          If you set this to an integer value in the range 1-65535, then this
+;          will instruct the agent to use a normal TCP socket on the port 
+;          specified. This may be easier to use if you are using a chroot 
+;          environment.
+;
+;          To connect to a daemon that is running on a different host, set this
+;          value to '<host>:<port>', where '<host>' denotes either a host name
+;          or an IP address and '<port>' denotes a valid port number. IPv6 is
+;          supported.
+;
+;          In order to use a TCP socket with a port in the range 1-1023,
+;          the daemon must be started by the super-user. This is a fundamental
+;          OS limitation and not one imposed by the daemon itself.
+;
+;newrelic.daemon.address = "/tmp/.newrelic.sock"
 
 ; Setting: newrelic.daemon.ssl_ca_bundle
 ; Type   : string

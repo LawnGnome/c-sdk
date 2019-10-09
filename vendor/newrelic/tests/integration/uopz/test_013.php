@@ -17,6 +17,8 @@ string(58) "cannot delete method Foo::exists, it was not added by uopz"
 
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function exists() {}
 }

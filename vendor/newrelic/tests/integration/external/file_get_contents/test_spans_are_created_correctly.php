@@ -6,6 +6,7 @@ Test to make sure the correct span is marked as external.
 
 /*INI
 newrelic.distributed_tracing_enabled = true
+newrelic.transaction_tracer.detail = 0
 newrelic.transaction_tracer.threshold = 0
 */
 

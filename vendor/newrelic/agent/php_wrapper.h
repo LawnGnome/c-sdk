@@ -98,8 +98,9 @@ extern nruserfn_t* nr_php_wrap_callable(zend_function* callable,
  * Params  : 1. The 1-indexed index of the argument.
  *           2. The PHP version specific execute data.
  *
- * Returns : The argument, or NULL if an error occurs. The argument must be
- *           released with nr_php_arg_release() when no longer required.
+ * Returns : A duplicate of the argument (created with ZVAL_DUP), or NULL if an
+ *           error occurs. The argument must be released with
+ *           nr_php_arg_release() when no longer required.
  *
  * Warning : This function MUST only be called in a user function wrapper, and
  *           MUST be called before the user function is executed.
@@ -112,6 +113,28 @@ extern zval* nr_php_arg_get(ssize_t index, NR_EXECUTE_PROTO TSRMLS_DC);
  * Params  : 1. A pointer to the argument.
  */
 extern void nr_php_arg_release(zval** ppzv);
+
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+/*
+ * Purpose : Add an argument to the current execute data.
+ *
+ *           In case the caller doesn't specify values for default parameters,
+ *           this function can be used to add values for those parameters.
+ *
+ * Params  : 1. The PHP version specific execute data.
+ *           2. The argument to be added. The zval will be duplicated, so
+ *              ownership remains with the caller.
+ *
+ * Returns : true if the argument could be added.
+ *
+ * Warning : This function MUST only be called in a user function wrapper, and
+ *           MUST be called before the user function is executed.
+ *
+ *           This function DOES NOT consider and alter extra arguments
+ *           (arguments handled by the splat operator or by func_get_args).
+ */
+bool nr_php_arg_add(NR_EXECUTE_PROTO, zval* newarg);
+#endif
 
 /*
  * Purpose : Retrieve the current object scope ($this, in PHP), ensuring that
@@ -153,11 +176,13 @@ extern zval** nr_php_get_return_value_ptr(TSRMLS_D);
 #define NR_PHP_WRAPPER_PROTOTYPE(name) \
   struct nrspecialfn_return_t name(NR_SPECIALFNPTR_PROTO TSRMLS_DC)
 
-#define NR_PHP_WRAPPER_START(name) \
-  NR_PHP_WRAPPER_PROTOTYPE(name) { \
-    int was_executed = 0;          \
-    int zcaught = 0;               \
-                                   \
+#define NR_PHP_WRAPPER_START(name)                          \
+  NR_PHP_WRAPPER_PROTOTYPE(name) {                          \
+    int was_executed = 0;                                   \
+    int zcaught = 0;                                        \
+    const nrtxn_t* txn = NRPRG(txn);                        \
+    const nrtime_t txn_start_time = nr_txn_start_time(txn); \
+                                                            \
     (void)auto_segment;  // auto_segment isn't generally used in wrapper
                          // functions
 
@@ -179,10 +204,19 @@ extern zval** nr_php_get_return_value_ptr(TSRMLS_D);
   }                                                  \
   }
 
-#define NR_PHP_WRAPPER_CALL                                              \
-  if (!was_executed) {                                                   \
-    zcaught = nr_zend_call_orig_execute(NR_EXECUTE_ORIG_ARGS TSRMLS_CC); \
-    was_executed = 1;                                                    \
+#define NR_PHP_WRAPPER_CALL                                                 \
+  if (!was_executed) {                                                      \
+    zcaught = nr_zend_call_orig_execute(NR_EXECUTE_ORIG_ARGS TSRMLS_CC);    \
+    was_executed = 1;                                                       \
+                                                                            \
+    if (nrunlikely(NRPRG(txn) != txn                                        \
+                   || nr_txn_start_time(NRPRG(txn)) != txn_start_time)) {   \
+      nrl_verbosedebug(NRL_TXN,                                             \
+                       "%s: transaction restarted during wrapped function " \
+                       "call; clearing the segment pointer",                \
+                       __func__);                                           \
+      auto_segment = NULL;                                                  \
+    }                                                                       \
   }
 
 #define NR_PHP_WRAPPER_LEAVE goto callback_end;

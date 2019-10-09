@@ -128,4 +128,18 @@ nr_status_t module_invoke_all_parse_module_and_hook_from_strings(
     const char* module_hook,
     size_t module_hook_len);
 
+/*
+ * Purpose: This function adds NR request headers for Drupal. arg is the second
+ *          argument given to drupal_http_request. arg can either be:
+ *
+ *           - an array with request header key/value pairs for Drupal 6
+ *           - an options array, in which the value for the key 'headers' is an
+ *             array with request header key/value pairs
+ *
+ * Params  : 1. A zval holding the second argument given to drupal_http_request
+ *           2. true if headers should be added for Drupal 7 or newer, false
+ *              it headers should be added for Drupal 6 or older.
+ */
+void nr_drupal_headers_add(zval* arg, bool is_drupal_7 TSRMLS_DC);
+
 #endif /* FW_DRUPAL_COMMON_HDR */

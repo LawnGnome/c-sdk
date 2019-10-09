@@ -589,6 +589,7 @@ static PHP_INI_MH(nr_daemon_loglevel_mh) {
 }
 
 static PHP_INI_MH(nr_daemon_port_mh) {
+  const char* local_new_value = 0;
   (void)entry;
   (void)mh_arg1;
   (void)mh_arg2;
@@ -596,33 +597,32 @@ static PHP_INI_MH(nr_daemon_port_mh) {
   (void)stage;
   NR_UNUSED_TSRMLS;
 
-  NR_PHP_PROCESS_GLOBALS(port) = 0;
   nr_free(NR_PHP_PROCESS_GLOBALS(udspath));
 
   if (NEW_VALUE_LEN > 0) {
-#if NR_SYSTEM_LINUX
-    /* '@' prefix specifies a Linux abstract domain socket. */
-    if ('@' == NEW_VALUE[0]) {
-      NR_PHP_PROCESS_GLOBALS(udspath) = nr_strdup(NEW_VALUE); /*NOTTESTED*/
-      return SUCCESS;
-    }
-#endif
-
-    /*
-     * TODO(msl): Failed port validation should result in actionable messages in
-     * the log. Should we also trigger a user level error?
-     */
-    if ('/' == NEW_VALUE[0]) {
-      NR_PHP_PROCESS_GLOBALS(udspath) = nr_strdup(NEW_VALUE); /*NOTTESTED*/
-    } else {
-      int p = (int)strtol(NEW_VALUE, 0, 10);
-
-      if ((p <= 0) || (p >= 65536)) {
-        return FAILURE;
-      }
-      NR_PHP_PROCESS_GLOBALS(port) = p;
-    }
+    local_new_value = NEW_VALUE;
   }
+
+  NR_PHP_PROCESS_GLOBALS(udspath) = nr_strdup(local_new_value);
+  return SUCCESS;
+}
+
+static PHP_INI_MH(nr_daemon_address_mh) {
+  const char* local_new_value = 0;
+  (void)entry;
+  (void)mh_arg1;
+  (void)mh_arg2;
+  (void)mh_arg3;
+  (void)stage;
+  NR_UNUSED_TSRMLS;
+
+  nr_free(NR_PHP_PROCESS_GLOBALS(address_path));
+
+  if (NEW_VALUE_LEN > 0) {
+    local_new_value = NEW_VALUE;
+  }
+
+  NR_PHP_PROCESS_GLOBALS(address_path) = nr_strdup(local_new_value);
   return SUCCESS;
 }
 
@@ -1219,6 +1219,37 @@ static PHP_INI_MH(nr_tt_detail_mh) {
   return SUCCESS;
 }
 
+static PHP_INI_MH(nr_tt_max_segments_mh) {
+  nriniuint_t* p;
+  int val = 1;
+
+#ifndef ZTS
+  char* base = (char*)mh_arg2;
+#else
+  char* base = (char*)ts_resource(*((int*)mh_arg2));
+#endif
+
+  p = (nriniuint_t*)(base + (size_t)mh_arg1);
+
+  (void)entry;
+  (void)mh_arg3;
+  NR_UNUSED_TSRMLS;
+
+  p->where = 0;
+
+  /*
+   * Attempts to set the value with a 0-length string will do nothing.
+   */
+  if (0 != NEW_VALUE_LEN) {
+    val = (int)strtol(NEW_VALUE, 0, 0);
+    check_ini_int_min_max(&val, 0, INT_MAX);
+    p->value = (zend_uint)val;
+    p->where = stage;
+  }
+
+  return SUCCESS;
+}
+
 static PHP_INI_MH(nr_max_nesting_level_mh) {
   nriniuint_t* p;
   int val = 1;
@@ -1488,9 +1519,9 @@ static PHP_INI_MH(nr_int_mh) {
   } else {
     val = strtol(NEW_VALUE, 0, 0);
     if (val > INT_MAX) {
-	val = INT_MAX;
+      val = INT_MAX;
     } else if (val < INT_MIN) {
-	val = INT_MIN;
+      val = INT_MIN;
     }
   }
 
@@ -1519,7 +1550,7 @@ static PHP_INI_MH(nr_unsigned_int_mh) {
   p->where = 0;
 
   /*
-   * For negative given values, fall back to the default of 0. 
+   * For negative given values, fall back to the default of 0.
    * For values larger than UINT_MAX, use UINT_MAX.
    */
   if (0 == NEW_VALUE_LEN || NEW_VALUE[0] == '-') {
@@ -1590,8 +1621,8 @@ static const zend_ini_entry ini_entries; /* ctags landing pad only */
 PHP_INI_BEGIN() /* { */
 /*
  * This first set are system settings. That is, they can only ever have the
- * default value or a value set in a master INI file. They can not be changed
- * on a per-directory basis, via .htaccess or via ini_set().
+ * default value or a value set in a master INI file. They can not be
+ * changed on a per-directory basis, via .htaccess or via ini_set().
  *
  * Each of these has their own modify handler,
  * and is NOT wired through the PHP macros to any data structure
@@ -1648,9 +1679,14 @@ PHP_INI_ENTRY_EX("newrelic.daemon.loglevel",
                  nr_daemon_loglevel_mh,
                  0)
 PHP_INI_ENTRY_EX("newrelic.daemon.port",
-                 NR_PHP_INI_DEFAULT_PORT,
+                 NR_PHP_INI_DEFAULT_PORT,  // port and address share the same default
                  NR_PHP_SYSTEM,
                  nr_daemon_port_mh,
+                 0)
+PHP_INI_ENTRY_EX("newrelic.daemon.address",
+                 NR_PHP_INI_DEFAULT_PORT,  // port and address share the same default
+                 NR_PHP_SYSTEM,
+                 nr_daemon_address_mh,
                  0)
 PHP_INI_ENTRY_EX("newrelic.daemon.ssl_ca_bundle",
                  "",
@@ -1734,12 +1770,12 @@ PHP_INI_ENTRY_EX("newrelic.daemon.special.integration",
 
 /*
  * These entries are NOT documented anywhere in
- * https://docs.newrelic.com/docs/agents/php-agent These entries are intended to
- * be private for in-house development or on-site debugging. See
+ * https://docs.newrelic.com/docs/agents/php-agent These entries are
+ * intended to be private for in-house development or on-site debugging. See
  * scripts/newrelic.ini.private.template for some additional documentation.
  *
- * The defaults for these settings _must_ be "", otherwise phpinfo() will show
- * them. This behaviour cannot be disabled by a display handler.
+ * The defaults for these settings _must_ be "", otherwise phpinfo() will
+ * show them. This behaviour cannot be disabled by a display handler.
  */
 PHP_INI_ENTRY_EX("newrelic.special", "", NR_PHP_SYSTEM, nr_special_mh, 0)
 PHP_INI_ENTRY_EX("newrelic.special.appinfo_timeout",
@@ -1772,8 +1808,9 @@ PHP_INI_ENTRY_EX("newrelic.daemon.special.curl_verbose",
  * The remaining entries are all per-directory settable, or settable via
  * scripts. Unlike the global entries above, these should only ever set
  * variables in the per-request globals. There are a few cases, such as the
- * "newrelic.enabled" setting, that have special meaning at the global scope.
- * These are well documented in the corresponding modify handler functions.
+ * "newrelic.enabled" setting, that have special meaning at the global
+ * scope. These are well documented in the corresponding modify handler
+ * functions.
  *
  * STD_ZEND_INI_ENTRY_EX(name, default_value, modifiable, on_modify,
  * property_name, struct_type, struct_ptr, displayer)
@@ -1986,6 +2023,14 @@ STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.detail",
                      NR_PHP_REQUEST,
                      nr_tt_detail_mh,
                      tt_detail,
+                     zend_newrelic_globals,
+                     newrelic_globals,
+                     0)
+STD_PHP_INI_ENTRY_EX("newrelic.transaction_tracer.max_segments",
+                     "0",
+                     NR_PHP_REQUEST,
+                     nr_tt_max_segments_mh,
+                     tt_max_segments,
                      zend_newrelic_globals,
                      newrelic_globals,
                      0)
@@ -2468,8 +2513,8 @@ static void nr_ini_displayer_cb(zend_ini_entry* ini_entry, int type TSRMLS_DC) {
  *   typedef int (*apply_func_arg_t)(void *pDest, void *argument TSRMLS_DC);
  * TODO: the type casting through the arguments is dicey.
  *
- * This function is called for every ini setting, even those in other modules.
- * We have to filter out only things for our module.
+ * This function is called for every ini setting, even those in other
+ * modules. We have to filter out only things for our module.
  */
 static int nr_ini_displayer_global(zend_ini_entry* ini_entry,
                                    int* module_number,
@@ -2525,8 +2570,8 @@ static int nr_ini_displayer_global(zend_ini_entry* ini_entry,
  *   typedef int (*apply_func_arg_t)(void *pDest, void *argument TSRMLS_DC);
  * TODO: the type casting through the arguments is dicey.
  *
- * This function is called for every ini setting, even those in other modules.
- * We have to filter out only things for our module.
+ * This function is called for every ini setting, even those in other
+ * modules. We have to filter out only things for our module.
  */
 static int nr_ini_displayer_perdir(zend_ini_entry* ini_entry,
                                    int* module_number,
@@ -2631,8 +2676,8 @@ typedef struct _settings_st {
 } settings_st;
 
 /*
- * This function must be compatible with typedef int (*apply_func_arg_t)(void
- * *pDest, void *argument TSRMLS_DC);
+ * This function must be compatible with typedef int
+ * (*apply_func_arg_t)(void *pDest, void *argument TSRMLS_DC);
  */
 static int nr_ini_settings(zend_ini_entry* ini_entry,
                            settings_st* setarg,
@@ -2667,12 +2712,12 @@ static int nr_ini_settings(zend_ini_entry* ini_entry,
                         NR_PSTR("newrelic.distributed_tracing_enabled")))) {
     /*
      * TODO:  This is a ugly hack.  The collector requires that the value of
-     * newrelic.browser_monitoring.debug is a bool, so we must convert it here.
-     * Eventually, all bool ini settings should be sent up as true or false
-     * instead of "0" or "1".
+     * newrelic.browser_monitoring.debug is a bool, so we must convert it
+     * here. Eventually, all bool ini settings should be sent up as true or
+     * false instead of "0" or "1".
      *
-     * NOTE: The daemon expects newrelic.distributed_tracing_enabled to be sent
-     * up as a bool, so it must be converted here.
+     * NOTE: The daemon expects newrelic.distributed_tracing_enabled to be
+     * sent up as a bool, so it must be converted here.
      */
     nro_set_hash_boolean(setarg->obj, PHP_INI_ENTRY_NAME(ini_entry),
                          nr_bool_from_str(PHP_INI_ENTRY_VALUE(ini_entry)));

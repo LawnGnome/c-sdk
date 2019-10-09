@@ -13,6 +13,8 @@ bool(false)
 bool(true)
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function method() {}
 }

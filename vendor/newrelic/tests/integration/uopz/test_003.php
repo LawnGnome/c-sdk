@@ -16,6 +16,8 @@ bool(false)
 bool(false)
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function bar() {
 		return false;

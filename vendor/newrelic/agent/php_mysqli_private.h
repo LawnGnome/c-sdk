@@ -55,4 +55,13 @@ extern nr_datastore_instance_t* nr_php_mysqli_create_datastore_instance(
     const char* socket,
     const char* database);
 
+/*
+ * Purpose : Strip the "p:" prefix from a host name, if set.
+ *
+ * Params  : 1. The host name.
+ *
+ * Returns : A pointer to the start of the real host name.
+ */
+extern const char* nr_php_mysqli_strip_persistent_prefix(const char* host);
+
 #endif /* PHP_MYSQLI_PRIVATE_HDR */

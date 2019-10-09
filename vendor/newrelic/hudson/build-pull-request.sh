@@ -21,6 +21,14 @@ die() {
 test -d /opt/nr/camp || die 'NRCAMP not found'
 test -d /opt/nr/lamp || die 'NRLAMP not found'
 
+# Our macOS build node seems to sometimes forget that /usr/local/bin should be
+# in the PATH, no matter how often we tell it in the Jenkins node
+# configuration. Let's just add it here and move on with our lives.
+case ":$PATH:" in
+  *:/usr/local/bin:*) ;;
+  *) PATH=/usr/local/bin:$PATH
+esac
+
 case ":$PATH:" in
   *:/opt/nr/lamp/bin:*) ;;
   *) PATH=/opt/nr/lamp/bin:$PATH

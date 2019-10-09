@@ -62,6 +62,8 @@ TEST_BINARIES = \
 	tests/test_call \
 	tests/test_datastore \
 	tests/test_environment \
+	tests/test_execute \
+	tests/test_fw_codeigniter \
 	tests/test_fw_drupal \
 	tests/test_globals \
 	tests/test_internal_instrument \
@@ -74,9 +76,13 @@ TEST_BINARIES = \
 	tests/test_pdo_mysql \
 	tests/test_pdo_pgsql \
 	tests/test_pgsql \
+	tests/test_php_execute \
+	tests/test_php_minit \
 	tests/test_php_stack \
+	tests/test_php_wrapper \
 	tests/test_predis \
 	tests/test_redis \
+	tests/test_txn \
 	tests/test_txn_private \
 	tests/test_user_instrument \
 	tests/test_zval
@@ -162,8 +168,14 @@ ifeq (Darwin,$(shell uname))
 	EXPORT_DYNAMIC := -Wl,-export_dynamic
 endif
 
-# By default, the embed library is at $prefix/lib/libphp$major.a.
-PHP_EMBED_LIBRARY := $(libdir)/libphp$(shell $(PHP_CONFIG) --version | cut -d . -f 1).a
+# By default, the embed library is at $prefix/lib/libphp$major.{a,so}. We'll
+# prefer the static version if it's available, but depending on how PHP was
+# installed, we may only have the shared version.
+ifneq (,$(wildcard $(libdir)/libphp$(shell $(PHP_CONFIG) --version | cut -d . -f 1).a))
+	PHP_EMBED_LIBRARY := $(libdir)/libphp$(shell $(PHP_CONFIG) --version | cut -d . -f 1).a
+else
+	PHP_EMBED_LIBRARY := $(libdir)/libphp$(shell $(PHP_CONFIG) --version | cut -d . -f 1).so
+endif
 
 # Another nrlamp hack: set $(PHP_EMBED_LIBRARY) correctly, since PHP's build
 # system doesn't handle suffixes correctly for embed SAPI builds.

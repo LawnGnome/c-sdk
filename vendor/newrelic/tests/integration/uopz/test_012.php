@@ -16,6 +16,8 @@ string(73) "will not replace existing method Foo::exists, use uopz_set_return in
 
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function exists() {}
 }

@@ -19,6 +19,7 @@
 #include "util_syscalls.h"
 
 #include "ext/standard/dl.h"
+#include "ext/standard/php_var.h"
 
 /* {{{ Global variables
  *
@@ -766,6 +767,29 @@ void tlib_php_free_zval_array(zval*** arr_ptr) {
   nr_realfree((void**)arr_ptr);
 }
 
+char* tlib_php_zval_dump(zval* zv TSRMLS_DC) {
+  char* dump = NULL;
+  zval* result;
+
+  if (NULL == zv) {
+    return nr_strdup("<NULL pointer>");
+  }
+
+  tlib_php_request_eval("ob_start();" TSRMLS_CC);
+#ifdef PHP7
+  php_var_dump(zv, 0);
+#else
+  php_var_dump(&zv, 0 TSRMLS_CC);
+#endif
+  result = tlib_php_request_eval_expr("ob_get_clean()" TSRMLS_CC);
+  if (nr_php_is_zval_valid_string(result)) {
+    dump = nr_strndup(Z_STRVAL_P(result), Z_STRLEN_P(result));
+  }
+
+  nr_php_zval_free(&result);
+  return dump;
+}
+
 /* }}} */
 
 /* {{{ Axiom function replacements */
@@ -1116,5 +1140,31 @@ static nr_status_t stub_cmd_txndata_tx(int daemon_fd NRUNUSED,
   return NR_SUCCESS;
 }
 /* }}} */
+
+void tlib_pass_if_zval_identical_f(const char* msg,
+                                   zval* expected,
+                                   zval* actual,
+                                   const char* file,
+                                   int line TSRMLS_DC) {
+  char* actual_str = tlib_php_zval_dump(actual TSRMLS_CC);
+  char* expected_str = tlib_php_zval_dump(expected TSRMLS_CC);
+  zval* result = nr_php_zval_alloc();
+
+  // This shouldn't fail under normal circumstances: if it does, that's probably
+  // an indication that the expected or actual zval is bogus.
+  tlib_pass_if_true_f(
+      msg, SUCCESS == is_identical_function(result, expected, actual TSRMLS_CC),
+      file, line,
+      "SUCCESS == is_identical_function(result, expected, actual TSRMLS_CC)",
+      "expected=%s actual=%s", expected_str, actual_str);
+
+  tlib_pass_if_true_f(msg, nr_php_is_zval_true(result), file, line,
+                      "expected === actual", "expected=%s actual=%s",
+                      expected_str, actual_str);
+
+  nr_free(actual_str);
+  nr_free(expected_str);
+  nr_php_zval_free(&result);
+}
 
 /* vim: set fdm=marker: */

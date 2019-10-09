@@ -30,33 +30,13 @@ extern void nr_magento2_enable(TSRMLS_D);
 extern void nr_mediawiki_enable(TSRMLS_D);
 extern void nr_symfony1_enable(TSRMLS_D);
 extern void nr_symfony2_enable(TSRMLS_D);
+extern void nr_symfony4_enable(TSRMLS_D);
 extern void nr_silex_enable(TSRMLS_D);
 extern void nr_slim_enable(TSRMLS_D);
 extern void nr_wordpress_enable(TSRMLS_D);
 extern void nr_yii_enable(TSRMLS_D);
 extern void nr_zend_enable(TSRMLS_D);
 extern void nr_fw_zend2_enable(TSRMLS_D);
-
-extern void nr_fw_aura_enable(TSRMLS_D);
-extern void nr_fw_fuel_enable(TSRMLS_D);
-extern void nr_fw_lithium_enable(TSRMLS_D);
-extern void nr_fw_micromvc_enable(TSRMLS_D);
-extern void nr_fw_phpbb_enable(TSRMLS_D);
-extern void nr_fw_phpixie_enable(TSRMLS_D);
-extern void nr_fw_phreeze_enable(TSRMLS_D);
-extern void nr_fw_sellvana_enable(TSRMLS_D);
-extern void nr_fw_senthot_enable(TSRMLS_D);
-extern void nr_fw_typo3_enable(TSRMLS_D);
-extern void nr_fw_moodle_enable(TSRMLS_D);
-extern void nr_fw_atutor_enable(TSRMLS_D);
-extern void nr_fw_dokeos_enable(TSRMLS_D);
-extern void nr_fw_expression_engine_enable(TSRMLS_D);
-extern void nr_fw_dokuwiki_enable(TSRMLS_D);
-extern void nr_fw_phpnuke_enable(TSRMLS_D);
-extern void nr_fw_silverstripe_enable(TSRMLS_D);
-extern void nr_fw_sugarcrm_enable(TSRMLS_D);
-extern void nr_fw_xoops_enable(TSRMLS_D);
-extern void nr_fw_e107_enable(TSRMLS_D);
 
 /* Libraries. */
 extern void nr_doctrine2_enable(TSRMLS_D);

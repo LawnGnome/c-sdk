@@ -47,6 +47,42 @@ static void php_newrelic_init_globals(zend_newrelic_globals* nrg) {
 }
 
 /*
+ * Purpose : The customer-facing configurations newrelic.daemon.port and
+ *           newrelic.daemon.address are aliases of each other.  However
+ *           both cannot be set simultaneously.  This function examines
+ *           whether each of these values has been set and returns a
+ *           pointer to the daemon's address path. If both have been set,
+ *           it returns a pointer to the string supplied by
+ *           newrelic.daemon.address. If neither value has been set, a
+ *           pointer to the default daemon location is returned.
+ *
+ * Returns : A pointer to the daemon's address path. The setting
+ *           newrelic.daemon.address takes precedence over
+ *           newrelic.daemon.port.
+ */
+static char* php_newrelic_init_daemon_path(void) {
+  int port_is_set = nr_php_ini_setting_is_set_by_user("newrelic.daemon.port");
+  int address_is_set
+      = nr_php_ini_setting_is_set_by_user("newrelic.daemon.address");
+
+  /* newrelic.daemon.address takes precedence */
+  if (port_is_set && address_is_set) {
+    nrl_warning(
+        NRL_INIT,
+        "Both newrelic.daemon.address and newrelic.daemon.port are set. "
+        "Using newrelic.daemon.address: %s",
+        NR_PHP_PROCESS_GLOBALS(address_path));
+    return NR_PHP_PROCESS_GLOBALS(address_path);
+  }
+  if (port_is_set) {
+    return NR_PHP_PROCESS_GLOBALS(udspath);
+  } else if (address_is_set) {
+    return NR_PHP_PROCESS_GLOBALS(address_path);
+  }
+  return NR_PHP_INI_DEFAULT_PORT;
+}
+
+/*
  * Zend uses newrelic_globals as the auto-generated name for the per-request
  * globals and then uses the same name to pass the per-request globals
  * as a parameter to the GINIT and GSHUTDOWN functions.
@@ -80,9 +116,9 @@ PHP_GSHUTDOWN_FUNCTION(newrelic) {
   NR_UNUSED_TSRMLS;
 
   /*
-   * Note that this is allocated the first time RINIT is called, rather than in
-   * the more obvious GINIT function. nr_php_extension_instrument_dtor can cope
-   * with an uninitialised extensions structure.
+   * Note that this is allocated the first time RINIT is called, rather than
+   * in the more obvious GINIT function. nr_php_extension_instrument_dtor can
+   * cope with an uninitialised extensions structure.
    */
   nr_php_extension_instrument_destroy(&newrelic_globals->extensions);
 }
@@ -92,14 +128,10 @@ PHP_GSHUTDOWN_FUNCTION(newrelic) {
 #endif
 
 /*
- * Returns : a nr_daemon_startup_mode_t describing the daemon startup mode.
- *
- * Consults configuration settings and file system markers to decide what to do.
- * See the documentation in:
- *   https://docs.newrelic.com/docs/agents/php-agent/installation/starting-php-daemon
- *   https://docs.newrelic.com/docs/agents/php-agent/configuration/php-agent-configuration
+ * Consults configuration settings and file system markers to decide if the
+ * agent should start the dameon
  */
-static nr_daemon_startup_mode_t nr_php_get_daemon_startup_mode(void) {
+nr_daemon_startup_mode_t nr_php_get_daemon_startup_mode(void) {
   /*
    * Never launch a daemon if there exists a manual configuration file.
    * If the file /etc/newrelic/newrelic.cfg exists, the agent will never
@@ -114,8 +146,8 @@ static nr_daemon_startup_mode_t nr_php_get_daemon_startup_mode(void) {
   if (3 == NR_PHP_PROCESS_GLOBALS(no_daemon_launch)) {
     /*
      * The agent will never start the daemon.
-     * Use this if you are configuring the daemon via newrelic.cfg and starting
-     * it outside of the agent.
+     * Use this if you are configuring the daemon via newrelic.cfg and
+     * starting it outside of the agent.
      */
     return NR_DAEMON_STARTUP_INIT;
   }
@@ -131,12 +163,33 @@ static nr_daemon_startup_mode_t nr_php_get_daemon_startup_mode(void) {
   } else {
     /*
      * If non-command line version of PHP was used (for example Apache or
-     * php-fpm) then the agent will not start the daemon (only the command line
-     * usage will start the daemon).
+     * php-fpm) then the agent will not start the daemon (only the command
+     * line usage will start the daemon).
      */
     if (2 == NR_PHP_PROCESS_GLOBALS(no_daemon_launch)) {
       return NR_DAEMON_STARTUP_INIT;
     }
+  }
+
+  if (NULL == NR_PHP_PROCESS_GLOBALS(daemon_conn_params)) {
+    nrl_verbosedebug(
+        NRL_DAEMON,
+        "Daemon connection information is unknown. Unable to check whether "
+        "connection settings specify a host different from the local host. "
+        "Daemon will not be started by the agent.");
+    return NR_DAEMON_STARTUP_INIT;
+  }
+
+  if (NR_AGENT_CONN_TCP_HOST_PORT
+      == NR_PHP_PROCESS_GLOBALS(daemon_conn_params)->type) {
+    /*
+     * Never start the daemon if the daemon connection settings specify a host
+     * different from the local host
+     */
+    nrl_info(NRL_DAEMON,
+             "Daemon connection settings specify a host different from the "
+             "local host. Daemon will not be started by the Agent.");
+    return NR_DAEMON_STARTUP_INIT;
   }
 
   return NR_DAEMON_STARTUP_AGENT;
@@ -295,10 +348,10 @@ void zm_startup_newrelic(void); /* ctags landing pad only */
 #endif
 PHP_MINIT_FUNCTION(newrelic) {
   nr_status_t ret;
-  int port = 0;
-  char* udspath = 0;
+  char* daemon_address;
   nr_daemon_startup_mode_t daemon_startup_mode;
   int daemon_connect_succeeded;
+  nr_conn_params_t* conn_params;
 
   zend_extension dummy;
 
@@ -360,10 +413,17 @@ PHP_MINIT_FUNCTION(newrelic) {
     return SUCCESS;
   }
 
-  port = NR_PHP_PROCESS_GLOBALS(port);
-  udspath = NR_PHP_PROCESS_GLOBALS(udspath);
+  /* Determine i) the daemon location and ii) the type of connection
+   * required between the daemon and agent. Then setup the necessary
+   * communication parameters required for that to happen */
+  daemon_address = php_newrelic_init_daemon_path();
 
-  ret = nr_agent_initialize_daemon_connection_parameters(udspath, port);
+  nrl_info(NRL_INIT, "attempt daemon connection via '%s'", daemon_address);
+
+  conn_params = nr_conn_params_init(daemon_address);
+  NR_PHP_PROCESS_GLOBALS(daemon_conn_params) = conn_params;
+
+  ret = nr_agent_initialize_daemon_connection_parameters(conn_params);
   if (NR_FAILURE == ret) {
     nrl_warning(NRL_INIT, "daemon connection initialization failed");
     goto disbad;
@@ -373,8 +433,7 @@ PHP_MINIT_FUNCTION(newrelic) {
 
   {
     char* agent_specific_info = nr_php_get_agent_specific_info();
-
-    nr_banner(port, udspath, daemon_startup_mode, agent_specific_info);
+    nr_banner(daemon_address, daemon_startup_mode, agent_specific_info);
     nr_free(agent_specific_info);
   }
 
@@ -383,17 +442,16 @@ PHP_MINIT_FUNCTION(newrelic) {
         NRL_INIT,
         "A global default license has not been set or has invalid format. "
         "Please add a 'newrelic.license' key in the global php.ini or "
-        "in the newrelic.ini file, or ensure that a valid license is provided "
-        "on a "
-        "per-virtual host or per-directory basis.");
+        "in the newrelic.ini file, or ensure that a valid license is "
+        "provided on a per-virtual host or per-directory basis.");
   }
 
-    /*
-     * Attempt to connect to the daemon here.  Note that we do this no matter
-     * the startup mode.  This delay allows CLI processes enough time to
-     * connect. Since they handle a single request, they cannot wait through a
-     * request for the connection to finish.
-     */
+  /*
+   * Attempt to connect to the daemon here.  Note that we do this no matter
+   * the startup mode.  This delay allows CLI processes enough time to
+   * connect. Since they handle a single request, they cannot wait through a
+   * request for the connection to finish.
+   */
 #define NR_PHP_MINIT_DAEMON_CONNECTION_TIMEOUT_MS 10
   daemon_connect_succeeded
       = nr_agent_try_daemon_connect(NR_PHP_MINIT_DAEMON_CONNECTION_TIMEOUT_MS);
@@ -406,8 +464,7 @@ PHP_MINIT_FUNCTION(newrelic) {
       nr_memset(&daemon_args, 0, sizeof(daemon_args));
 
       daemon_args.proxy = NR_PHP_PROCESS_GLOBALS(proxy);
-      daemon_args.sockfile = NR_PHP_PROCESS_GLOBALS(udspath);
-      daemon_args.tcp_port = NR_PHP_PROCESS_GLOBALS(port);
+      daemon_args.daemon_address = daemon_address;
       daemon_args.tls_cafile = NR_PHP_PROCESS_GLOBALS(ssl_cafile);
       daemon_args.tls_capath = NR_PHP_PROCESS_GLOBALS(ssl_capath);
 
@@ -479,9 +536,9 @@ PHP_MINIT_FUNCTION(newrelic) {
    * takes place (see the function below) is called on the very first call
    * to RINIT. The reason this is done is that we want to do some work once
    * ALL extensions have been loaded. Here during the MINIT phase there may
-   * still be many other extensions to come and some, like XDEBUG, are not very
-   * well behaved citizens and we need to ensure certain initialization tasks
-   * are run only once the PHP VM engine is ticking over fully.
+   * still be many other extensions to come and some, like XDEBUG, are not
+   * very well behaved citizens and we need to ensure certain initialization
+   * tasks are run only once the PHP VM engine is ticking over fully.
    */
 
   NR_PHP_PROCESS_GLOBALS(orig_execute) = NR_ZEND_EXECUTE_HOOK;
@@ -552,8 +609,8 @@ static void nr_php_fatal_signal_handler(int sig) {
   }
 
   /*
-   * Reraise the signal with the default signal handler so that the OS can dump
-   * core or perform any other configured action.
+   * Reraise the signal with the default signal handler so that the OS can
+   * dump core or perform any other configured action.
    */
   nr_signal_reraise(sig);
 }
@@ -589,8 +646,8 @@ void nr_php_late_initialization(void) {
   }
 
   /*
-   * Install our signal handler, unless the user has set a special flag telling
-   * us not to.
+   * Install our signal handler, unless the user has set a special flag
+   * telling us not to.
    */
   if (0 == (NR_PHP_PROCESS_GLOBALS(special_flags).no_signal_handler)) {
     nr_signal_handler_install(nr_php_fatal_signal_handler);

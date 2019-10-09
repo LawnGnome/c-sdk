@@ -27,7 +27,7 @@ $NEWRELIC_SPAN_EVENTS_MAX = 1000; // The agent internal maximum of span events
 newrelic_add_custom_tracer('main');
 function main()
 {
-  usleep(2);
+  usleep(10);
 }
 
 for ($i = 0; $i < $NEWRELIC_SPAN_EVENTS_MAX + 1; $i++) {

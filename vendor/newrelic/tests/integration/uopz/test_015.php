@@ -13,6 +13,8 @@ bool(true)
 string(54) "the class provided (Bar) already has the interface Foo"
 */
 
+require __DIR__.'/load.inc';
+
 interface Foo {}
 class Bar {}
 

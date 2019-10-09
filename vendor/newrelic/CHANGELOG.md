@@ -6,38 +6,78 @@
 
 ### New Features ###
 
+* When terminating the New Relic PHP Daemon via the `SIGTERM` signal (and/or
+  the `SIGINT` signal if started with the `-f`, `--foreground` flag), the
+  daemon will now send all buffered data to New Relic prior to exiting.
+
+* The PHP Daemon has introduced a new configuration `--watchdog-foreground`.
+  This keeps the daemon watchdog process in the foreground, whereas the
+  `--foreground` configuration keeps the daemon worker process in the
+  foreground. The new configuration makes it possible to use the daemon in a
+  blocking way, without losing the additional stability provided by the
+  watchdog process.
+
 ### Upgrade Notices ###
 
-* The daemon may no longer be invoked with the `--tls` flag.  With version 8.0.0
-of the PHP Agent, the `newrelic.daemon.ssl` ini setting had been removed to increase 
-security, but one could still invoke the daemon from the command line with `--tls true`.
-Command-line invocations of the daemon with the `--tls` flag will cause the invocation
-to fail.  
+* The PHP Agent has introduced a new configuration `newrelic.daemon.address` 
+  which serves as an alias to `newrelic.daemon.port`.  Customers may use either
+  to specify the location of the New Relic PHP Daemon.  If both values are set,
+  `newrelic.daemon.address` takes precedence. 
+  
+  Similarly, the PHP Daemon has introduced a new configuration `--address`
+  which serves as an alias to `--port`.  Customers may use either to specify the 
+  location of the New Relic PHP Daemon.  If both values are set, `--address` 
+  takes precedence. 
 
-As with all versions of the PHP Agent since 8.0.0, TLS is always used for communication 
-with New Relic Servers.
+  But the best part of this new configuration is that one can specify an
+  <host>:<ip> for `newrelic.daemon.address` and `--address`!  This is an 
+  exciting new feature for the PHP Agent.  The impact is that the PHP Daemon and
+  Agent no longer have to reside on the same host and can communicate over a 
+  IPv4 or IPv6 TCP socket. 
 
+* When starting the daemon as an external process, the daemon will now wait for
+  up to three seconds for the listening port to be ready to receive connections
+  before forking into the background. This usually occurs in (much) less than a
+  second, and most users with this configuration will notice no difference in
+  practice.
+
+  The time that the daemon will wait can be controlled by setting the
+  `--wait-for-port` setting with a duration. This duration may be 0 to prevent
+  any blocking. If the option is omitted, the default value is `3s`.
+
+  Note that this is _not_ the default configuration shipped with the PHP agent,
+  and generally is only used in conjunction with the PHP agent configured with
+  `newrelic.daemon.dont_launch` set to `3`.
+
+  Daemons started in foreground mode (with the `--foreground` flag) are
+  unaffected, and will behave as before.
+  
 ### Notes ###
 
 ### Bug Fixes ###
 
-* Transaction globals are now cleanly separated from request globals. This
-  fixes crashes related to the initialization of multiple transactions during
-  one request (mostly triggered by `newrelic_set_appname`).
+* Previously, the PHP Agent was silently ignoring the setting `newrelic.daemon.port`
+  if the value was outside of the range 1 - 65535.  In this case, it used the default
+  value of `/tmp/.newrelic.sock`.  The PHP Agent no longer silently ignores these
+  port values; it now logs these errors in `php_agent.log`
+  
+  ```
+  error: invalid daemon port setting: port must be between 0 and 65535 inclusive
+  warning: daemon connection initialization failed
+  ```
 
-* When obfuscating SQL, comments are stripped without any loss of the SQL itself.
+* When duplicating database connections to generate explain plans, the agent
+  will no longer make those connections persistent, even if the original
+  connection was persistent.
 
-* Predis 0.8 commands that used the synchronous `executeCommand()` code path
-  (for example, `HSET`) on a clustered connection did not generate metrics.
-  This has been fixed.
+* The daemon now synchronously handles critical code paths related to harvesting and
+  merging transaction data. This prevents crashes caused by race conditions.
 
 ### Internal Changes ###
 
-* Nodes are no more!
-
-  Segments are now represented internally using a segment data type that
-  provides better support for distributed tracing, asynchronous execution, and
-  metric creation.
+* The hostname sent in the connect request is now acquired in axiom. This
+  ensures that the correct hostname is reported if agent and daemon run on
+  different hosts.
 
 ### Acquia-only Notes ###
 
@@ -45,6 +85,11 @@ with New Relic Servers.
 
 | Release Number | Release Date |
 | ------------- |-------------|
+| [9.1.0](#910) | 2019-09-04 |
+| [9.0.2](#902) | 2019-08-19 |
+| [9.0.1](#901) | 2019-08-14 (testing release only) |
+| [9.0.0](#900) | 2019-08-08 |
+| [8.7.0](#870) | 2019-05-21 |
 | [8.6.0](#860) | 2019-03-14 |
 | [8.5.0](#850) | 2018-12-19 |
 | [8.4.0](#840) | 2018-12-05 |
@@ -115,7 +160,151 @@ with New Relic Servers.
 | [4.4.5.35](#44535) | 2014-01-08 |
 | [4.3.5.33](#43533) | 2013-12-11 |
 
-## 8.6 ##
+## 9.1.0 ## 
+
+### New Features ###
+
+* Support for automatically naming transactions has been added for Symfony 4.
+
+### Upgrade Notices ###
+
+* Requests handled by PHP-FPM that result in a 404 error because the script
+  does not exist, or a 403 error because PHP-FPM does not have permission to
+  access the script, will now result in a transaction called `404` or `403`,
+  respectively, rather than being named after the request URI. This change was
+  made to prevent
+  [metric grouping issues](https://docs.newrelic.com/docs/agents/manage-apm-agents/troubleshooting/metric-grouping-issues),
+  particularly when sites are being probed by potential attackers.
+
+  If you wish to capture the actual request URI for analysis, it can be
+  attached to the transaction event under the `request.uri` attribute using the
+  following configuration setting:
+  `newrelic.transaction_events.attributes.include=request.uri`
+  
+### Bug Fixes ###
+
+* In version 9.0, Guzzle and Predis execution time could be double counted on
+  application overview and transaction charts in APM, as time could be
+  attributed to both PHP execution and the external or datastore time,
+  respectively. This has been fixed, and charts should now revert back to their
+  previous behaviour.
+
+* Restarting a transaction from within a Drupal or WordPress hook could result
+  in a segfault. This has been fixed.
+
+### Internal Changes ###
+
+* All error paths when accepting or creating a distributed tracing payload will
+  now generate a warning at the `info` level, with additional detail being
+  available at `debug` where appropriate.
+
+  This does not apply to defensive error paths that exist solely to prevent
+  segfaults, and are not expected to be hit in any normal scenario outside of
+  memory corruption, faulty hardware, or cosmic rays.
+
+* To support migration from HSM to LASP, `high_security` is now included in the
+  preconnect payload. From an end user perspective, this means that in cases where
+  the account is configured for LASP and HSM, and no security token is provided,
+  the agent will successfully connect with HSM.
+
+* Added the private configuration setting `newrelic.transaction_tracer.max_segments` 
+  which limits the number of custom segments the PHP Agent records during a transaction.
+  For more information, see the configuration description in newrelic.ini.private.template. 
+  
+* The agent now collects an additional Supportability metric for the number of
+  custom segments allocated for each transaction, 
+  `Supportability/execute/user/custom_segment_count`.  This shall aid the 
+  development team in data-based decisions on any default limits on 
+  `newrelic.transaction_tracer.max_segments`.  Furthermore, this shall aid the
+  support team in troubleshooting customer applications that may be exhausting
+  system memory with thousands or millions of custom segments.
+  
+## 9.0.2 ##
+
+### Bug Fixes ###
+
+* A bug that could result in segfaults for CodeIgniter applications on PHP 7
+  when `call_user_func_array()` inlining failed was fixed.
+
+## 9.0.1 ##
+
+### Bug Fixes ###
+
+* A bug that could result in segfaults when transactions were restarted (either
+  directly through `newrelic_start_transaction()` or indirectly through
+  `newrelic_set_appname()`) was fixed.
+
+  This also affected customers using Laravel Queue instrumentation, as this
+  uses transaction restarts internally.
+
+* PHPUnit may not have been detected on case sensitive filesystems on 9.0.0.
+  This has been fixed.
+
+## 9.0.0 ##
+
+### Upgrade Notices ###
+
+* The daemon will now issue a warning if it cannot find a root certificate
+  bundle on startup.
+
+  The daemon includes its own certificates and will still operate, but a future
+  version of the PHP agent will remove the builtin certificates, at which point
+  the PHP agent will not be able to communicate with New Relic's servers.
+
+  New Relic recommends ensuring that a root certificate bundle is installed on
+  your host or in your container before using the PHP agent. This is generally
+  available on most Linux distributions as a `ca-certificates` package. On
+  FreeBSD, a bundle is available via the `security/ca_root_nss` package in
+  ports.
+
+* The daemon may no longer be invoked with the `--tls` flag.  With version 8.0.0
+  of the PHP Agent, the `newrelic.daemon.ssl` ini setting had been removed to
+  increase security, but one could still invoke the daemon from the command
+  line with `--tls true`.  Command-line invocations of the daemon with the
+  `--tls` flag will cause the invocation to fail.
+
+  As with all versions of the PHP Agent since 8.0.0, TLS is always used for
+  communication with New Relic servers.
+
+* Enabling distributed tracing no longer disables transaction trace detail.
+
+### Bug Fixes ###
+
+* A potential segfault when using `drupal_http_request` under PHP 7.3 has been
+  fixed.
+
+* In some cases, starting a new transaction during a request (via
+  `newrelic_start_transaction` or `newrelic_set_appname`) could result in an
+  incomplete state of framework and user function instrumentation. Storing user
+  function wrapper on a per-request rather than on a per-transaction basis 
+  solves this problem.
+
+* When obfuscating SQL, comments are stripped without any loss of the SQL itself.
+
+* Predis 0.8 commands that used the synchronous `executeCommand()` code path
+  (for example, `HSET`) on a clustered connection did not generate metrics.
+  This has been fixed.
+
+### Internal Changes ###
+
+* Nodes are no more!
+
+  Segments are now represented internally using a segment data type that
+  provides better support for distributed tracing, asynchronous execution, and
+  metric creation.
+
+* Framework and library detection has been somewhat optimised. There should be
+  no behavioural difference in practice.
+
+## 8.7.0 ##
+
+### Bug Fixes ###
+
+* Transaction globals are now cleanly separated from request globals. This
+  fixes crashes related to the initialization of multiple transactions during
+  one request (mostly triggered by `newrelic_set_appname`).
+
+## 8.6.0 ##
 
 ### End of Life Notices ###
 
@@ -145,7 +334,7 @@ with New Relic Servers.
 
 ### Acquia-only Notes ###
 
-## 8.5 ##
+## 8.5.0 ##
 
 ### End of Life Notices ###
 
@@ -165,7 +354,7 @@ with New Relic Servers.
 
 ### Acquia-only Notes ###
 
-## 8.4 ##
+## 8.4.0 ##
 
 ### End of Life Notices ###
 

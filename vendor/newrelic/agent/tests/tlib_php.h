@@ -193,6 +193,16 @@ extern zval** tlib_php_zvals_not_of_type(zend_uchar type TSRMLS_DC);
 extern void tlib_php_free_zval_array(zval*** arr_ptr);
 
 /*
+ * Purpose : Utility function to generate a string representation of a zval
+ *           using var_dump().
+ *
+ * Params  : 1. The zval to var_dump().
+ *
+ * Returns : A string, which the caller must free, or NULL on error.
+ */
+extern char* tlib_php_zval_dump(zval* zv TSRMLS_DC);
+
+/*
  * Internal macros used for formatting messages.
  *
  * Some assertions below require multiple assertions underneath. Since the line
@@ -311,5 +321,15 @@ extern void tlib_php_free_zval_array(zval*** arr_ptr);
   tlib_pass_if_zval_is_bool_value((M), false, (ZVAL))
 #define tlib_pass_if_zval_is_bool_true(M, ZVAL) \
   tlib_pass_if_zval_is_bool_value((M), true, (ZVAL))
+
+extern void tlib_pass_if_zval_identical_f(const char* msg,
+                                          zval* expected,
+                                          zval* actual,
+                                          const char* file,
+                                          int line TSRMLS_DC);
+
+#define tlib_pass_if_zval_identical(M, EXPECTED, ACTUAL)             \
+  tlib_pass_if_zval_identical_f((M), (EXPECTED), (ACTUAL), __FILE__, \
+                                __LINE__ TSRMLS_CC)
 
 #endif /* TLIB_PHP_HDR */

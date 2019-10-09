@@ -12,7 +12,8 @@ nr_framework_classification_t nr_cakephp_special_1(
   (void)op_array;
   NR_UNUSED_TSRMLS;
 
-  if (OP_ARRAY_IS_FILE(op_array, "cake/libs/object.php")) {
+  if (nr_strcaseidx(nr_php_op_array_file_name(op_array), "cake/libs/object.php")
+      >= 0) {
     return FRAMEWORK_IS_SPECIAL;
   }
 
@@ -24,7 +25,8 @@ nr_framework_classification_t nr_cakephp_special_2(
   (void)op_array;
   NR_UNUSED_TSRMLS;
 
-  if (OP_ARRAY_IS_FILE(op_array, "Cake/Core/App.php")) {
+  if (nr_strcaseidx(nr_php_op_array_file_name(op_array), "cake/core/app.php")
+      >= 0) {
     return FRAMEWORK_IS_SPECIAL;
   }
 

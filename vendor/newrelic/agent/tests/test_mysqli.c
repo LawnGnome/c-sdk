@@ -337,6 +337,29 @@ static void test_create_datastore_instance() {
                 }));
 }
 
+static void test_strip_persistent_prefix(void) {
+  tlib_pass_if_null("a NULL host should return NULL",
+                    nr_php_mysqli_strip_persistent_prefix(NULL));
+
+  tlib_pass_if_str_equal("an empty host should return an empty string", "",
+                         nr_php_mysqli_strip_persistent_prefix(""));
+
+  tlib_pass_if_str_equal("a single character host should return the same host",
+                         "a", nr_php_mysqli_strip_persistent_prefix("a"));
+
+  tlib_pass_if_str_equal("an unprefixed host should return the same host",
+                         "host.name",
+                         nr_php_mysqli_strip_persistent_prefix("host.name"));
+
+  tlib_pass_if_str_equal(
+      "a prefixed host with no name after it should return an empty string", "",
+      nr_php_mysqli_strip_persistent_prefix("p:"));
+
+  tlib_pass_if_str_equal("a prefixed host should return the unprefixed name",
+                         "host.name",
+                         nr_php_mysqli_strip_persistent_prefix("p:host.name"));
+}
+
 void test_main(void* p NRUNUSED) {
 #if defined(ZTS) && !defined(PHP7)
   void*** tsrm_ls = NULL;
@@ -356,6 +379,8 @@ void test_main(void* p NRUNUSED) {
 
   tlib_php_engine_destroy(TSRMLS_C);
   nr_free(system_host_name);
+
+  test_strip_persistent_prefix();
 }
 
 tlib_parallel_info_t parallel_info

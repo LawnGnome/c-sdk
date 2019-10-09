@@ -94,7 +94,7 @@ fi
 nrdaemonopts="${cfgarg}${pidarg}"
 
 #
-# It's just cosmetic but lets figure how to suppress newlines in echo
+# It's just cosmetic but let's figure how to suppress newlines in echo
 #
 if echo ' \c' | grep 'c' > /dev/null 2>&1; then
   en='-n'

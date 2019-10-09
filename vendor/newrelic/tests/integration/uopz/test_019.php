@@ -19,6 +19,8 @@ int(100)
 int(100)
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	private static $staticBar;
 	private $bar;

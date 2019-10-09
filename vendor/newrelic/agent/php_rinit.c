@@ -31,6 +31,7 @@ PHP_RINIT_FUNCTION(newrelic) {
   NRPRG(deprecated_capture_request_parameters) = NRINI(capture_params);
   NRPRG(sapi_headers) = NULL;
   NRPRG(pid) = getpid();
+  NRPRG(user_function_wrappers) = nr_vector_create(64, NULL, NULL);
 
   if ((0 == NR_PHP_PROCESS_GLOBALS(enabled)) || (0 == NRINI(enabled))) {
     return SUCCESS;

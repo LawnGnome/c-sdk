@@ -23,6 +23,7 @@ be added.
 newrelic.distributed_tracing_enabled = 1
 newrelic.cross_application_tracer.enabled = false
 newrelic.transaction_tracer.threshold = '1h'
+newrelic.transaction_tracer.detail = 0
 newrelic.special.expensive_node_min = 0
 */
 

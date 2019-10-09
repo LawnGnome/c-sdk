@@ -270,27 +270,7 @@ zend_function* nr_php_zval_to_function(zval* zv TSRMLS_DC) {
   return NULL;
 }
 
-/*
- * Purpose : Get the execution data for the current PHP environment.
- *
- * Params  : 1. The NR_EXECUTE_PROTO passed to us from the zend engine.
- *
- *           For PHP5.5, this entails using the execution data from the zend
- *           engine, which is passed to and through us. Sometimes we don't have
- *           this information directly from the zend engine, in which case we
- *           fall back to using the value from EG (current_execute_path).
- *
- *           For PHP 5.5, empirically, EG (current_execute_path) is the same as
- *           the non-null NR_EXECUTE_PROTO, and I don't know why this is true,
- *           or why this might change.
- *
- *           For PHP5.4 and before, this entails just using EG
- *           (current_execute_path).
- *
- * TODO(rrh); there's also an opportunity to compare the op_array arguments
- * being passed around with that from what's returned here ->op_array
- */
-static zend_execute_data* nr_get_zend_execute_data(NR_EXECUTE_PROTO TSRMLS_DC) {
+zend_execute_data* nr_get_zend_execute_data(NR_EXECUTE_PROTO TSRMLS_DC) {
   zend_execute_data* ptrg
       = EG(current_execute_data); /* via zend engine global data structure */
 

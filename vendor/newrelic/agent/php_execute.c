@@ -299,6 +299,65 @@ static void nr_show_execute_params(NR_EXECUTE_PROTO, char* pbuf TSRMLS_DC) {
 }
 
 /*
+ * Optimized segment allocation.
+ *
+ * Usually in real-world PHP applications, lots of segments will be
+ * discarded because their duration is very short. This, however, causes
+ * lots of memory allocation overhead.
+ *
+ * For this reason, discarded segments are not de-allocated, but just
+ * de-initialized and then added to the reusable_segments. When a segment is
+ * started, previously allocated segments from the reusable_segments are
+ * used and initialized instead of allocating new segments.
+ *
+ * This approach yields a significant performance gain.
+ */
+
+static nr_segment_t* nr_php_segment_start(TSRMLS_D) {
+  nr_segment_t* s = NULL;
+
+  if (nrunlikely(NULL == NRPRG(txn))) {
+    return NULL;
+  }
+
+  /* Attempt to reuse a segment.  If there isn't a reusable segment available,
+   * check whether the maximum number of custom segments
+   * has been exceeded before allocating a brand new one. */
+  nr_vector_pop_back(NRTXNGLOBAL(reusable_segments), (void**)&s);
+
+  if (NULL == s) {
+    size_t max_segments = NRINI(tt_max_segments);
+
+    /* If the maximum number of segments has a non-default setting, affirm
+     * whether the agent has exceeded the total number of segments
+     * for this transaction. */
+    if (max_segments
+          && max_segments <= NRTXNGLOBAL(allocated_segments)) {
+      return NULL;
+    }
+
+    NRTXNGLOBAL(allocated_segments) += 1;
+    return nr_segment_start(NRPRG(txn), NULL, NULL);
+  }
+
+  nr_segment_init(s, NRPRG(txn), NULL, NULL);
+  return s;
+}
+
+static void nr_php_segment_discard(nr_segment_t** segment_ptr TSRMLS_DC) {
+  if (nrunlikely(NULL == segment_ptr)) {
+    return;
+  }
+
+  if (nr_segment_deinit(*segment_ptr)) {
+    nr_vector_push_back(NRTXNGLOBAL(reusable_segments), *segment_ptr);
+    (*segment_ptr) = NULL;
+  } else {
+    nr_segment_discard(segment_ptr);
+  }
+}
+
+/*
  * Framework handling, definition and callbacks.
  */
 
@@ -315,6 +374,8 @@ typedef struct _nr_framework_table_t {
  * Note that the maximum length of framework and library names is presently 31
  * bytes due to the use of a 64 byte static buffer when constructing
  * supportability metrics.
+ *
+ * Note that all paths should be in lowercase.
  */
 static const nr_framework_table_t all_frameworks[] = {
     /*
@@ -324,7 +385,7 @@ static const nr_framework_table_t all_frameworks[] = {
      */
     {"CakePHP", "cakephp", "cake/libs/object.php", nr_cakephp_special_1,
      nr_cakephp_enable_1, NR_FW_CAKEPHP},
-    {"CakePHP", "cakephp", "Cake/Core/App.php", nr_cakephp_special_2,
+    {"CakePHP", "cakephp", "cake/core/app.php", nr_cakephp_special_2,
      nr_cakephp_enable_2, NR_FW_CAKEPHP},
 
     /*
@@ -334,7 +395,7 @@ static const nr_framework_table_t all_frameworks[] = {
      * specifically a problem for Expression Engine (look for expression_engine,
      * below.)
      */
-    {"CodeIgniter", "codeigniter", "CodeIgniter.php", 0, nr_codeigniter_enable,
+    {"CodeIgniter", "codeigniter", "codeigniter.php", 0, nr_codeigniter_enable,
      NR_FW_CODEIGNITER},
 
     {"Drupal8", "drupal8", "core/includes/bootstrap.inc", 0, nr_drupal8_enable,
@@ -348,9 +409,9 @@ static const nr_framework_table_t all_frameworks[] = {
      NR_FW_JOOMLA}, /* >= Joomla 1.6, including 2.5 and 3.2 */
 
     {"Kohana", "kohana", "kohana/core.php", 0, nr_kohana_enable, NR_FW_KOHANA},
-    {"Kohana", "kohana", "Kohana/Core.php", 0, nr_kohana_enable, NR_FW_KOHANA},
+    {"Kohana", "kohana", "kohana/core.php", 0, nr_kohana_enable, NR_FW_KOHANA},
 
-    {"Laravel", "laravel", "Illuminate/Foundation/Application.php", 0,
+    {"Laravel", "laravel", "illuminate/foundation/application.php", 0,
      nr_laravel_enable, NR_FW_LARAVEL},
     {"Laravel", "laravel", "bootstrap/compiled.php", 0, nr_laravel_enable,
      NR_FW_LARAVEL}, /* 4.x */
@@ -361,31 +422,34 @@ static const nr_framework_table_t all_frameworks[] = {
     {"Laravel", "laravel", "bootstrap/cache/compiled.php", 0, nr_laravel_enable,
      NR_FW_LARAVEL}, /* 5.1.0-x */
 
-    {"Magento", "magento", "app/Mage.php", 0, nr_magento1_enable,
+    {"Magento", "magento", "app/mage.php", 0, nr_magento1_enable,
      NR_FW_MAGENTO1},
-    {"Magento2", "magento2", "magento/framework/App/Bootstrap.php", 0,
+    {"Magento2", "magento2", "magento/framework/app/bootstrap.php", 0,
      nr_magento2_enable, NR_FW_MAGENTO2},
 
-    {"MediaWiki", "mediawiki", "includes/WebStart.php", 0, nr_mediawiki_enable,
+    {"MediaWiki", "mediawiki", "includes/webstart.php", 0, nr_mediawiki_enable,
      NR_FW_MEDIAWIKI},
 
-    {"Silex", "silex", "Silex/Application.php", 0, nr_silex_enable,
+    {"Silex", "silex", "silex/application.php", 0, nr_silex_enable,
      NR_FW_SILEX},
 
-    {"Slim", "slim", "slim/Slim/App.php", 0, nr_slim_enable,
+    {"Slim", "slim", "slim/slim/app.php", 0, nr_slim_enable,
      NR_FW_SLIM}, /* 3.x */
-    {"Slim", "slim", "slim/Slim/Slim.php", 0, nr_slim_enable,
+    {"Slim", "slim", "slim/slim/slim.php", 0, nr_slim_enable,
      NR_FW_SLIM}, /* 2.x */
 
-    {"Symfony", "symfony1", "sfContext.class.php", 0, nr_symfony1_enable,
+    {"Symfony", "symfony1", "sfcontext.class.php", 0, nr_symfony1_enable,
      NR_FW_SYMFONY1},
-    {"Symfony", "symfony1", "sfConfig.class.php", 0, nr_symfony1_enable,
+    {"Symfony", "symfony1", "sfconfig.class.php", 0, nr_symfony1_enable,
      NR_FW_SYMFONY1},
     {"Symfony2", "symfony2", "bootstrap.php.cache", 0, nr_symfony2_enable,
      NR_FW_SYMFONY2}, /* also Symfony 3 */
     {"Symfony2", "symfony2",
-     "Symfony/Bundle/FrameworkBundle/FrameworkBundle.php", 0,
+     "symfony/bundle/frameworkbundle/frameworkbundle.php", 0,
      nr_symfony2_enable, NR_FW_SYMFONY2}, /* also Symfony 3 */
+    {"Symfony4", "symfony4", "http-kernel/httpkernel.php", 0, nr_symfony4_enable,
+     NR_FW_SYMFONY4},
+
 
     {"WordPress", "wordpress", "wp-config.php", 0, nr_wordpress_enable,
      NR_FW_WORDPRESS},
@@ -393,86 +457,11 @@ static const nr_framework_table_t all_frameworks[] = {
     {"Yii", "yii", "framework/yii.php", 0, nr_yii_enable, NR_FW_YII},
     {"Yii", "yii", "framework/yiilite.php", 0, nr_yii_enable, NR_FW_YII},
 
-    {"Zend", "zend", "Zend/Loader.php", 0, nr_zend_enable, NR_FW_ZEND},
-    {"Zend2", "zend2", "Zend/Mvc/Application.php", 0, nr_fw_zend2_enable,
+    {"Zend", "zend", "zend/loader.php", 0, nr_zend_enable, NR_FW_ZEND},
+    {"Zend2", "zend2", "zend/mvc/application.php", 0, nr_fw_zend2_enable,
      NR_FW_ZEND2},
-    {"Zend2", "zend2", "zend-mvc/src/Application.php", 0, nr_fw_zend2_enable,
+    {"Zend2", "zend2", "zend-mvc/src/application.php", 0, nr_fw_zend2_enable,
      NR_FW_ZEND2},
-
-    /*
-     * miscellaneous zoo of frameworks, detected only, but not specifically
-     * instrumented.
-     */
-    {"Aura", NULL, "Aura/Framework/System.php", 0, nr_fw_aura_enable,
-     NR_FW_AURA},
-    {"Fuel", NULL, "fuel/core/classes/fuel.php", 0, nr_fw_fuel_enable,
-     NR_FW_FUEL},
-    {"Lithium", NULL, "lithium/core/Libraries.php", 0, nr_fw_lithium_enable,
-     NR_FW_LITHIUM},
-    {"Micromvc", NULL, "vendor/micro/micro/Micro/View.php", 0,
-     nr_fw_micromvc_enable, NR_FW_MICROMVC},
-    {"Phpbb", NULL, "phpbb/request/request.php", 0, nr_fw_phpbb_enable,
-     NR_FW_PHPBB},
-    {"Phpixie", NULL, "phpixie/core/classes/PHPixie/Pixie.php", 0,
-     nr_fw_phpixie_enable, NR_FW_PHPIXIE},
-    {"Phreeze", NULL, "Phreeze/Controller.php", 0, nr_fw_phreeze_enable,
-     NR_FW_PHREEZE},
-    {"Sellvana", NULL, "FCom/Core/Main.php", 0, nr_fw_sellvana_enable,
-     NR_FW_SELLVANA},
-    {"Senthot", NULL, "Senthot/Senthot.php", 0, nr_fw_senthot_enable,
-     NR_FW_SENTHOT},
-    {"Typo3", NULL, "Classes/TYPO3/Flow/Core/Bootstrap.php", 0,
-     nr_fw_typo3_enable, NR_FW_TYPO3},
-
-    /*
-     * miscellaneous zoo of CMS (content management systems), detected only, but
-     * not specifically instrumented. From the list on PHP-493 as of 20Feb2014
-     */
-    {"Moodle", NULL, "moodlelib.php", 0, nr_fw_moodle_enable, NR_FW_MOODLE},
-    /*
-     * TODO(rrh): The ATutor installation hung/deadlocked while parsing
-     * responses from the server when executing in step4.php.  Robert hacked
-     * near line 127 to not fsockopen, and just spoof the contents: $header[] =
-     * 'ATutor-Get: OK'; vitals.inc.php is included early, and hopefully is a
-     * unique enough name for this framework.
-     */
-    {"ATutor", NULL, "include/vitals.inc.php", 0, nr_fw_atutor_enable,
-     NR_FW_ATUTOR},
-    /*
-     * This is the only loaded file that had a framework specific name 'dokeos'
-     * in it. However, loading this file may come so late in the transaction
-     * that we don't get accurate statistics.
-     */
-    {"Dokeos", NULL, "main/inc/lib/javascript/dokeos.js.php", 0,
-     nr_fw_dokeos_enable, NR_FW_DOKEOS},
-    /*
-     * It is likely that this will never be found, since the CodeIgniter.php
-     * will get loaded first, and as such mark this transaction as belonging to
-     * CodeIgniter, and not Expession Engine. (Both are made by the same
-     * company, ellislab) Perhaps look for expressionengine/core/EE_Config.php
-     */
-    {"ExpressionEngine", NULL, "system/expressionengine/config/config.php", 0,
-     nr_fw_expression_engine_enable, NR_FW_EXPESSION_ENGINE},
-    {"DokuWiki", NULL, "doku.php", 0, nr_fw_dokuwiki_enable, NR_FW_DOKUWIKI},
-    /*
-     * ipban.php seems like a relatively unique name, and it is loaded into
-     * PHPNuke early, but the ice is thin.
-     */
-    {"PHPNuke", NULL, "ipban.php", 0, nr_fw_phpnuke_enable, NR_FW_PHPNUKE},
-
-    /*
-     * SilverStripeInjectionCreator is about the 15th file loaded.
-     * The earlier loaded files have names that are pretty blandly generic.
-     */
-    {"SilverStripe", NULL, "injector/SilverStripeInjectionCreator.php", 0,
-     nr_fw_silverstripe_enable, NR_FW_SILVERSTRIPE},
-
-    {"SugarCRM", NULL, "SugarObjects/SugarConfig.php", 0, nr_fw_sugarcrm_enable,
-     NR_FW_SUGARCRM},
-
-    {"Xoops", NULL, "class/xoopsload.php", 0, nr_fw_xoops_enable, NR_FW_XOOPS},
-    {"E107", NULL, "e107_handlers/e107_class.php", 0, nr_fw_e107_enable,
-     NR_FW_E107},
 };
 static const int num_all_frameworks
     = sizeof(all_frameworks) / sizeof(nr_framework_table_t);
@@ -525,28 +514,31 @@ typedef struct _nr_library_table_t {
   nr_library_enable_fn_t enable;
 } nr_library_table_t;
 
+/*
+ * Note that all paths should be in lowercase.
+ */
 static nr_library_table_t libraries[] = {
-    {"Doctrine 2", "Doctrine/ORM/Query.php", nr_doctrine2_enable},
-    {"Guzzle 3", "Guzzle/Http/Client.php", nr_guzzle3_enable},
+    {"Doctrine 2", "doctrine/orm/query.php", nr_doctrine2_enable},
+    {"Guzzle 3", "guzzle/http/client.php", nr_guzzle3_enable},
     /*
      * TODO:  This file ClientInterface.php also exists in Guzzle 3 and 6.
      *        This file also exists in Predis.
      */
-    {"Guzzle 4-5", "ClientInterface.php", nr_guzzle4_enable},
-    {"Guzzle 6", "HandlerStack.php", nr_guzzle6_enable},
+    {"Guzzle 4-5", "clientinterface.php", nr_guzzle4_enable},
+    {"Guzzle 6", "handlerstack.php", nr_guzzle6_enable},
 
-    {"MongoDB", "mongodb/src/Client.php", nr_mongodb_enable},
+    {"MongoDB", "mongodb/src/client.php", nr_mongodb_enable},
 
     /*
      * The first path is for Composer installs, the second is for
      * /usr/local/bin. While BaseTestRunner isn't the very first file to load,
      * it contains the test status constants and loads before tests can run.
      */
-    {"PHPUnit", "phpunit/src/Runner/BaseTestRunner.php", nr_phpunit_enable},
-    {"PHPUnit", "phpunit/Runner/BaseTestRunner.php", nr_phpunit_enable},
+    {"PHPUnit", "phpunit/src/runner/basetestrunner.php", nr_phpunit_enable},
+    {"PHPUnit", "phpunit/runner/basetestrunner.php", nr_phpunit_enable},
 
-    {"Predis", "predis/src/Client.php", nr_predis_enable},
-    {"Predis", "Predis/Client.php", nr_predis_enable},
+    {"Predis", "predis/src/client.php", nr_predis_enable},
+    {"Predis", "Predis/client.php", nr_predis_enable},
 
     /*
      * Allow Zend Framework 1.x to be detected as a library as well as a
@@ -554,7 +546,65 @@ static nr_library_table_t libraries[] = {
      * with other frameworks or even without a framework at all. This is
      * necessary for Magento in particular, which is built on ZF1.
      */
-    {"Zend_Http", "Zend/Http/Client.php", nr_zend_http_enable},
+    {"Zend_Http", "zend/http/client.php", nr_zend_http_enable},
+
+    /*
+     * Miscellaneous zoo of frameworks, detected only, but not specifically
+     * instrumented. We detect these as libraries so that we don't prevent
+     * detection of a supported framework or library later (since a transaction
+     * can only have one framework).
+     */
+    {"Aura1", "Aura/framework/system.php", NULL},
+    {"Aura2", "aura/di/src/containerinterface.php", NULL},
+    {"Aura3", "aura/di/src/containerconfiginterface.php", NULL},
+    {"CakePHP3", "cakephp/src/core/functions.php", NULL},
+    {"Fuel", "fuel/core/classes/fuel.php", NULL},
+    {"Lithium", "lithium/core/libraries.php", NULL},
+    {"Lumen", "lumen-framework/src/helpers.php", NULL},
+    {"Phpbb", "phpbb/request/request.php", NULL},
+    {"Phpixie2", "phpixie/core/classes/phpixie/pixie.php", NULL},
+    {"Phpixie3", "phpixie/framework.php", NULL},
+    {"React", "react/event-loop/src/loopinterface.php", NULL},
+    {"SilverStripe", "injector/silverstripeinjectioncreator.php", NULL},
+    {"SilverStripe4", "silverstripeserviceconfigurationlocator.php", NULL},
+    {"Typo3", "classes/typo3/flow/core/bootstrap.php", NULL},
+    {"Typo3", "typo3/sysext/core/classes/core/bootstrap.php", NULL},
+    {"Yii2", "yii2/baseyii.php", NULL},
+
+    /*
+     * miscellaneous zoo of CMS (content management systems), detected only, but
+     * not specifically instrumented. From the list on PHP-493 as of 20Feb2014
+     */
+    {"Moodle", "moodlelib.php", NULL},
+    /*
+     * It is likely that this will never be found, since the CodeIgniter.php
+     * will get loaded first, and as such mark this transaction as belonging to
+     * CodeIgniter, and not Expession Engine. (Both are made by the same
+     * company, ellislab) Perhaps look for expressionengine/core/EE_Config.php
+     */
+    {"ExpressionEngine", "system/expressionengine/config/config.php", NULL},
+    /*
+     * ExpressionEngine 5, however, has a very obvious file we can look for.
+     * (And also has its own New Relic transaction naming logic.)
+     */
+    {"ExpressionEngine5", "expressionengine/boot/boot.php", NULL},
+    /*
+     * DokuWiki uses doku.php as an entry point, but has other files that are
+     * loaded directly that this won't pick up. That's probably OK for
+     * supportability metrics, but we'll add the most common name for the
+     * configuration file as well just in case.
+     */
+    {"DokuWiki", "doku.php", NULL},
+    {"DokuWiki", "conf/dokuwiki.php", NULL},
+
+    /*
+     * SugarCRM no longer has a community edition, so this likely only works
+     * with older versions.
+     */
+    {"SugarCRM", "sugarobjects/sugarconfig.php", NULL},
+
+    {"Xoops", "class/xoopsload.php", NULL},
+    {"E107", "e107_handlers/e107_class.php", NULL},
 };
 
 static size_t num_libraries = sizeof(libraries) / sizeof(nr_library_table_t);
@@ -773,10 +823,12 @@ static nrframework_t nr_try_detect_framework(
     const nr_framework_table_t frameworks[],
     size_t num_frameworks,
     const zend_op_array* op_array TSRMLS_DC) {
+  nrframework_t detected = NR_FW_UNSET;
+  char* file = nr_string_to_lowercase(nr_php_op_array_file_name(op_array));
   size_t i;
 
   for (i = 0; i < num_frameworks; i++) {
-    if (OP_ARRAY_IS_FILE(op_array, frameworks[i].file_to_check)) {
+    if (nr_stridx(file, frameworks[i].file_to_check) >= 0) {
       /*
        * If we have a special check function and it tells us to ignore
        * the file name because some other condition wasn't met, continue
@@ -794,10 +846,14 @@ static nrframework_t nr_try_detect_framework(
       nr_framework_log("detected framework", frameworks[i].framework_name);
 
       frameworks[i].enable(TSRMLS_C);
-      return frameworks[i].detected;
+      detected = frameworks[i].detected;
+      goto end;
     }
   }
-  return NR_FW_UNSET;
+
+end:
+  nr_free(file);
+  return detected;
 }
 
 /*
@@ -836,24 +892,27 @@ static nrframework_t nr_try_force_framework(
 }
 
 static void nr_execute_handle_library(const zend_op_array* op_array TSRMLS_DC) {
+  char* file = nr_string_to_lowercase(nr_php_op_array_file_name(op_array));
   size_t i;
 
   for (i = 0; i < num_libraries; i++) {
-    if (OP_ARRAY_IS_FILE(op_array, libraries[i].file_to_check)) {
-      /* TODO(aharvey): another place asprintf would be handy */
-      char metname[64];
+    if (nr_stridx(file, libraries[i].file_to_check) >= 0) {
+      char* metname = nr_formatf("Supportability/library/%s/detected",
+                                 libraries[i].library_name);
 
       nrl_debug(NRL_INSTRUMENT, "detected library=%s",
                 libraries[i].library_name);
-      snprintf(metname, sizeof(metname), "Supportability/library/%s/detected",
-               libraries[i].library_name);
       nrm_force_add(NRTXN(unscoped_metrics), metname, 0);
 
       if (NULL != libraries[i].enable) {
         libraries[i].enable(TSRMLS_C);
       }
+
+      nr_free(metname);
     }
   }
+
+  nr_free(file);
 }
 
 /*
@@ -1036,7 +1095,7 @@ static inline void nr_php_execute_segment_add_metric(
 static inline void nr_php_execute_segment_end(
     nr_segment_t* segment,
     const nr_php_execute_metadata_t* metadata,
-    bool create_metric) {
+    bool create_metric TSRMLS_DC) {
   nrtime_t duration;
 
   if (NULL == segment) {
@@ -1047,10 +1106,11 @@ static inline void nr_php_execute_segment_end(
 
   duration = nr_time_duration(segment->start_time, segment->stop_time);
 
-  if (create_metric || (duration >= NR_PHP_PROCESS_GLOBALS(expensive_min))) {
+  if (create_metric || (duration >= NR_PHP_PROCESS_GLOBALS(expensive_min))
+      || nr_vector_size(segment->metrics)) {
     nr_php_execute_segment_add_metric(segment, metadata, create_metric);
-  } else if (0 == nr_vector_size(segment->metrics)) {
-    nr_segment_discard(&segment);
+  } else {
+    nr_php_segment_discard(&segment TSRMLS_CC);
   }
 }
 
@@ -1118,7 +1178,7 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
 
     txn_start_time = nr_txn_start_time(NRPRG(txn));
 
-    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+    segment = nr_php_segment_start(TSRMLS_C);
 
     zcaught = nr_zend_call_orig_execute_special(wraprec, segment,
                                                 NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
@@ -1137,7 +1197,7 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
       segment = NULL;
     }
 
-    nr_php_execute_segment_end(segment, &metadata, create_metric);
+    nr_php_execute_segment_end(segment, &metadata, create_metric TSRMLS_CC);
 
     nr_php_execute_metadata_release(&metadata);
 
@@ -1154,20 +1214,10 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
 
     txn_start_time = nr_txn_start_time(NRPRG(txn));
 
-    segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+    segment = nr_php_segment_start(TSRMLS_C);
 
-    /*
-     * Here we use orig_execute rather than nr_zend_call_orig_execute to avoid
-     * calling setjmp in this critical code path. This is OK: the only thing
-     * this function uses that potentially needs to be released is the scope
-     * and function names in PHP 7, and as those are ultimately emalloc()'d, so
-     * we'll trust the Zend Engine memory manager to free those.
-     *
-     * One positive consequence of this lack of setjmp is that if the
-     * stack depth limit is reached and this call never returns, we will not
-     * create a highly recursive transaction trace which could trouble rpm's UI.
-     */
-    NR_PHP_PROCESS_GLOBALS(orig_execute)(NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
+    zcaught = nr_zend_call_orig_execute_special(wraprec, segment,
+                                                NR_EXECUTE_ORIG_ARGS TSRMLS_CC);
 
     /*
      * During this call, the transaction may have been ended and/or a new
@@ -1179,9 +1229,13 @@ static void nr_php_execute_enabled(NR_EXECUTE_PROTO TSRMLS_DC) {
       segment = NULL;
     }
 
-    nr_php_execute_segment_end(segment, &metadata, false);
+    nr_php_execute_segment_end(segment, &metadata, false TSRMLS_CC);
 
     nr_php_execute_metadata_release(&metadata);
+
+    if (nrunlikely(zcaught)) {
+      zend_bailout();
+    }
   } else {
     /*
      * This is the case for New Relic is enabled, but we're not recording.
@@ -1367,7 +1421,7 @@ void nr_php_execute_internal(zend_execute_data* execute_data,
 #endif /* PHP >= 5.5 */
   }
 
-  segment = nr_segment_start(NRPRG(txn), NULL, NULL);
+  segment = nr_php_segment_start(TSRMLS_C);
   CALL_ORIGINAL;
   nr_segment_end(segment);
 

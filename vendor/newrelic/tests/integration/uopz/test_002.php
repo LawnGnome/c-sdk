@@ -17,6 +17,8 @@ object(Closure)#1 (0) {
 NULL
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function bar() {
 		return false;

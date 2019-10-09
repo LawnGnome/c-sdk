@@ -124,6 +124,60 @@ NR_PHP_WRAPPER(nr_drupal_http_request_exec) {
   zval* method = 0;
   zval** return_value = NULL;
 
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  /*
+   * For PHP 7.3 and newer, NR headers are added here. For older versions, NR
+   * headers are added via the proxy function nr_drupal_replace_http_request.
+   *
+   * Reason: using the proxy function involves swizzling
+   * (nr_php_swap_user_functions), which breaks as since PHP 7.3 user
+   * functions are stored in shared memory.
+   */
+  bool is_drupal_7;
+  zval* arg;
+  zend_execute_data* ex = nr_get_zend_execute_data(NR_EXECUTE_ORIG_ARGS);
+
+  if (NULL == ex) {
+    NR_PHP_WRAPPER_LEAVE
+  }
+
+  is_drupal_7 = (ex->func->common.num_args == 2);
+
+  /*
+   * If only one argument is given, an empty list is inserted as second
+   * argument. NR headers are added during a later step.
+   */
+  if (ZEND_NUM_ARGS() == 1) {
+    arg = nr_php_zval_alloc();
+    array_init(arg);
+
+    nr_php_arg_add(NR_EXECUTE_ORIG_ARGS, arg);
+
+    nr_php_zval_free(&arg);
+  }
+
+  /*
+   * nr_php_get_user_func_arg is used, as nr_php_arg_get calls ZVAL_DUP
+   * on the argument zval and thus doesn't allow us to change the
+   * original argument.
+   */
+  arg = nr_php_get_user_func_arg(2, NR_EXECUTE_ORIG_ARGS);
+
+  /*
+   * Add NR headers.
+   */
+  nr_drupal_headers_add(arg, is_drupal_7 TSRMLS_CC);
+
+  /*
+   * If an invalid argument was given for the second argument ($headers
+   * or $options), the wrapped PHP function will throw a TypeError.
+   */
+  if (0 == nr_php_is_zval_valid_array(arg)) {
+    NR_PHP_WRAPPER_CALL;
+    goto end;
+  }
+#endif
+
   (void)wraprec;
 
   NR_PHP_WRAPPER_REQUIRE_FRAMEWORK(NR_FW_DRUPAL);
@@ -372,6 +426,7 @@ NR_PHP_WRAPPER(nr_drupal_cron_run) {
 }
 NR_PHP_WRAPPER_END
 
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
 static void nr_drupal_replace_http_request(TSRMLS_D) {
   zend_function* orig;
   zend_function* wrapper;
@@ -471,6 +526,7 @@ static void nr_drupal_replace_http_request(TSRMLS_D) {
     nr_php_swap_user_functions(orig, wrapper);
   }
 }
+#endif
 
 NR_PHP_WRAPPER(nr_drupal_wrap_module_invoke) {
   int module_len;
@@ -572,6 +628,13 @@ void nr_drupal_enable(TSRMLS_D) {
                               nr_drupal_wrap_view_execute TSRMLS_CC);
   }
 
+#if ZEND_MODULE_API_NO < ZEND_7_3_X_API_NO
+  /*
+   * For PHP 7.3 and newer, NR headers are added directly in
+   * nr_drupal_http_request_exec. For older versions, NR headers are
+   * added via the proxy function nr_drupal_replace_http_request.
+   */
   nr_php_user_function_add_declared_callback(
       NR_PSTR("drupal_http_request"), nr_drupal_replace_http_request TSRMLS_CC);
+#endif
 }

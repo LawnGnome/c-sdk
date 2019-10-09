@@ -13,6 +13,8 @@ string(3) "Bar"
 NULL
 */
 
+require __DIR__.'/load.inc';
+
 class Bar {}
 
 uopz_set_mock(Foo::class, Bar::class);

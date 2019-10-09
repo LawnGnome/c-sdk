@@ -29,6 +29,14 @@ if [ ! -d packaging ]; then
   exit 1
 fi
 
+# Our macOS build node seems to sometimes forget that /usr/local/bin should be
+# in the PATH, no matter how often we tell it in the Jenkins node
+# configuration. Let's just add it here and move on with our lives.
+case ":$PATH:" in
+  *:/usr/local/bin:*) ;;
+  *) PATH=/usr/local/bin:$PATH
+esac
+
 case ":$PATH:" in
   *:/opt/nr/camp/bin:*) ;;
   *) PATH=/opt/nr/camp/bin:$PATH

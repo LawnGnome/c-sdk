@@ -14,6 +14,8 @@ object(Bar)#1 (0) {
 }
 */
 
+require __DIR__.'/load.inc';
+
 class Bar {}
 
 uopz_set_mock(Foo::class, Bar::class);

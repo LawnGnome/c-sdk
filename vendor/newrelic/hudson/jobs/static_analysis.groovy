@@ -25,7 +25,7 @@ use(extensions) {
 
     steps {
       environmentVariables {
-	env('PATH', '/usr/local/go/bin:$PATH')
+	env('PATH', '/usr/local/go/bin:/usr/local/bin:$PATH')
       }
 
       shell("./hudson/static-analysis.sh")

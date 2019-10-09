@@ -372,7 +372,7 @@ static zval* nr_php_pdo_options_get(zval* dbh TSRMLS_DC) {
 
 zval* nr_php_pdo_duplicate(zval* dbh TSRMLS_DC) {
   zend_uint argc = 3;
-  zval* argv[4];
+  zval* argv[4] = {NULL, NULL, NULL, NULL};
   const char* driver = NULL;
   char* dsn = NULL;
   int dsn_len;
@@ -434,7 +434,7 @@ zval* nr_php_pdo_duplicate(zval* dbh TSRMLS_DC) {
    */
   options = nr_php_pdo_options_get(dbh TSRMLS_CC);
   if (options) {
-    argv[3] = options;
+    argv[3] = nr_php_pdo_disable_persistence(options TSRMLS_CC);
     argc++;
   }
 
@@ -454,6 +454,7 @@ zval* nr_php_pdo_duplicate(zval* dbh TSRMLS_DC) {
   nr_php_zval_free(&argv[0]);
   nr_php_zval_free(&argv[1]);
   nr_php_zval_free(&argv[2]);
+  nr_php_zval_free(&argv[3]);
   nr_php_zval_free(&retval);
 
   return dup;
@@ -529,4 +530,95 @@ void nr_php_pdo_free_data_sources(struct pdo_data_src_parser* parsed,
       efree(parsed[i].optval);
     }
   }
+}
+
+zval* nr_php_pdo_disable_persistence(const zval* options TSRMLS_DC) {
+  const zend_class_entry* pdo_ce;
+  ulong num_key = 0;
+  zval* persistent;
+  zval* result;
+  nr_php_string_hash_key_t* string_key;
+  zval* value;
+
+  if (!nr_php_is_zval_valid_array(options)) {
+    if (options) {
+      nrl_verbosedebug(
+          NRL_SQL, "unexpected type for the options array: expected %d; got %d",
+          IS_ARRAY, (int)Z_TYPE_P(options));
+    } else {
+      nrl_verbosedebug(NRL_SQL, "unexpected NULL options array");
+    }
+
+    return NULL;
+  }
+
+  // We need to get the actual value of the PDO::ATTR_PERSISTENT class
+  // constant. Firstly, we need to find the class entry itself.
+  pdo_ce = nr_php_find_class("pdo" TSRMLS_CC);
+  if (NULL == pdo_ce) {
+    // Log, since we shouldn't get here if PDO is unavailable.
+    nrl_verbosedebug(NRL_SQL, "cannot get class entry for PDO");
+    return NULL;
+  }
+
+  // Secondly, we need to get the class constant zval, which should be an
+  // integer. In practice, the value is 12 in every PHP version we support, but
+  // this is not guaranteed by the API.
+  persistent = nr_php_get_class_constant(pdo_ce, "ATTR_PERSISTENT");
+  if (!nr_php_is_zval_valid_integer(persistent)) {
+    if (persistent) {
+      nrl_verbosedebug(
+          NRL_SQL,
+          "unexpected type for PDO::ATTR_PERSISTENT: expected %d; got %d",
+          IS_LONG, (int)Z_TYPE_P(persistent));
+
+      nr_php_zval_free(&persistent);
+    } else {
+      nrl_verbosedebug(NRL_SQL, "unexpected NULL PDO::ATTR_PERSISTENT");
+    }
+
+    return NULL;
+  }
+
+  // Now we can allocate an empty array and start copying values in from the
+  // input options.
+  result = nr_php_zval_alloc();
+  array_init(result);
+
+  ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(options), num_key, string_key, value) {
+    // On a high level, what we want to do is copy every value as is unless the
+    // key is PDO::ATTR_PERSISTENT, in which case we'll insert a `false` value.
+    //
+    // We'll use nr_php_add_assoc_zval() or nr_php_add_index_zval() to do the
+    // copying, since those functions duplicate the zval before inserting them
+    // into the new array.
+
+    if (string_key) {
+      // We know that PDO::ATTR_PERSISTENT is an integer, so if there's a
+      // string key, we can just copy the value and move on.
+      nr_php_add_assoc_zval(result, ZEND_STRING_VALUE(string_key), value);
+    } else if (num_key == (ulong)Z_LVAL_P(persistent)) {
+      // Here's the interesting case: the key is an integer, and it matches
+      // PDO::ATTR_PERSISTENT. Regardless of the input value, we're going to
+      // force the result array to have `false` here to ensure that persistent
+      // connections are disabled.
+      //
+      // When we only support PHP 7, we could just do this on the stack with a
+      // real zval value, but PHP 5 is too pointer oriented for that to work
+      // today, and this is an unusual enough code path that there's no point
+      // adding complications now.
+      zval* zv_false = nr_php_zval_alloc();
+
+      nr_php_zval_bool(zv_false, 0);
+      nr_php_add_index_zval(result, num_key, zv_false);
+      nr_php_zval_free(&zv_false);
+    } else {
+      // Any other integer key can also be copied as is.
+      nr_php_add_index_zval(result, num_key, value);
+    }
+  }
+  ZEND_HASH_FOREACH_END();
+
+  nr_php_zval_free(&persistent);
+  return result;
 }

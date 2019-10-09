@@ -5,50 +5,10 @@
 #include "php_wrapper.h"
 #include "fw_hooks.h"
 #include "fw_support.h"
+#include "fw_symfony_common.h"
 #include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
-
-/*
- * Helper to handle the nitty gritty of naming a transaction based on the
- * string value of a zval.
- */
-static int nr_symfony2_name_the_wt_from_zval(const zval* name TSRMLS_DC) {
-  if (nrlikely(nr_php_is_zval_non_empty_string(name))) {
-    char* path = nr_strndup(Z_STRVAL_P(name), Z_STRLEN_P(name));
-
-    nr_txn_set_path(
-        "Symfony2", NRPRG(txn), path, NR_PATH_TYPE_ACTION,
-        NR_OK_TO_OVERWRITE); /* Watch out: this name is OK to overwrite */
-
-    nr_free(path);
-    return NR_SUCCESS;
-  }
-
-  return NR_FAILURE;
-}
-
-/*
- * Call the get method on the given object and return a string zval if a valid
- * string was returned. The result must be freed.
- */
-static zval* nr_symfony2_object_get_string(zval* obj,
-                                           const char* param TSRMLS_DC) {
-  zval* rval = 0;
-  zval* param_zv = nr_php_zval_alloc();
-
-  nr_php_zval_str(param_zv, param);
-  rval = nr_php_call(obj, "get", param_zv);
-  nr_php_zval_free(&param_zv);
-
-  if (NULL == rval) {
-    nrl_verbosedebug(NRL_TXN, "Symfony 2: Error calling get('%s')", param);
-  } else if (!nr_php_is_zval_non_empty_string(rval)) {
-    nr_php_zval_free(&rval);
-  }
-
-  return rval;
-}
 
 NR_PHP_WRAPPER(nr_symfony2_name_the_wt) {
   zval* event = 0;
@@ -97,11 +57,11 @@ NR_PHP_WRAPPER(nr_symfony2_name_the_wt) {
           request, "Symfony\\Component\\HttpFoundation\\Request" TSRMLS_CC)) {
     /* Let's look for _route first. */
     zval* route_rval
-        = nr_symfony2_object_get_string(request, "_route" TSRMLS_CC);
+        = nr_symfony_object_get_string(request, "_route" TSRMLS_CC);
 
     if (route_rval) {
       if (NR_SUCCESS
-          != nr_symfony2_name_the_wt_from_zval(route_rval TSRMLS_CC)) {
+          != nr_symfony_name_the_wt_from_zval(route_rval TSRMLS_CC, "Symfony 2")) {
         nrl_verbosedebug(
             NRL_TXN, "Symfony 2: Request::get('_route') returned a non-string");
       }
@@ -109,11 +69,11 @@ NR_PHP_WRAPPER(nr_symfony2_name_the_wt) {
     } else {
       /* No _route. Look for _controller. */
       zval* controller_rval
-          = nr_symfony2_object_get_string(request, "_controller" TSRMLS_CC);
+          = nr_symfony_object_get_string(request, "_controller" TSRMLS_CC);
 
       if (controller_rval) {
         if (NR_SUCCESS
-            != nr_symfony2_name_the_wt_from_zval(controller_rval TSRMLS_CC)) {
+            != nr_symfony_name_the_wt_from_zval(controller_rval TSRMLS_CC, "Symfony 2")) {
           nrl_verbosedebug(
               NRL_TXN,
               "Symfony 2: Request::get('_controller') returned a non-string");

@@ -10,9 +10,6 @@
  */
 #define OP_ARRAY_IS_A_FILE(OP) \
   ((0 == nr_php_op_array_function_name(OP)) && nr_php_op_array_file_name(OP))
-#define OP_ARRAY_IS_FILE(OP, FNAME) \
-  ((OP_ARRAY_IS_A_FILE(OP))         \
-   && (nr_strcaseidx(nr_php_op_array_file_name(OP), (FNAME)) >= 0))
 #define OP_ARRAY_IS_A_FUNCTION(OP) \
   (nr_php_op_array_function_name(OP) && (0 == (OP)->scope))
 #define OP_ARRAY_IS_FUNCTION(OP, FNAME) \

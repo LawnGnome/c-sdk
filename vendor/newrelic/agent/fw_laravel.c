@@ -647,8 +647,7 @@ static void nr_laravel_register_after_filter(zval* app TSRMLS_DC) {
    */
   if (0 == nr_php_object_has_concrete_method(router, "after" TSRMLS_CC)) {
     nrl_verbosedebug(NRL_FRAMEWORK,
-                     "%s: Router does not support filters, transaction naming "
-                     "may be degraded",
+                     "%s: Router does not support filters",
                      __func__);
     goto end;
   }

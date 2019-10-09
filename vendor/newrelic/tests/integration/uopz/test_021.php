@@ -20,4 +20,6 @@ Stack trace:
   thrown in __FILE__ on line ??
 */
 
+require __DIR__.'/load.inc';
+
 uopz_set_return();

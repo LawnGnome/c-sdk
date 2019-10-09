@@ -1,11 +1,9 @@
 <?php
 
+require __DIR__.'/load.inc';
+
 if (!extension_loaded("uopz")) {
-  // Attempt to load uopz.
-  $result = @dl('uopz.so');
-  if (!$result) {
-    die("skip: uopz extension required");
-  }
+  die("skip: uopz extension required");
 }
 
 // These tests are only for the PHP 7 version of uopz.

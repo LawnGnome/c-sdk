@@ -2,6 +2,7 @@
 
 #include "php_agent.h"
 #include "php_call.h"
+#include "php_hash.h"
 #include "php_pdo.h"
 #include "php_pdo_private.h"
 
@@ -200,6 +201,157 @@ static void test_get_driver_internal(void) {
                          nr_php_pdo_get_driver_internal(&dbh));
 }
 
+static void test_disable_persistence(TSRMLS_D) {
+  zval** bad_options;
+  zval* expected;
+  int i;
+  zval* input;
+  zval* output;
+  zval* persistent;
+
+  tlib_php_request_start();
+
+  persistent = tlib_php_request_eval_expr("PDO::ATTR_PERSISTENT" TSRMLS_CC);
+
+  /*
+   * Test : Bad options.
+   */
+  tlib_pass_if_null("NULL options should fail to disable persistence",
+                    nr_php_pdo_disable_persistence(NULL TSRMLS_CC));
+
+  bad_options = tlib_php_zvals_not_of_type(IS_ARRAY TSRMLS_CC);
+  for (i = 0; bad_options[i]; i++) {
+    tlib_pass_if_null("non-array options should fail to disable persistence",
+                      nr_php_pdo_disable_persistence(bad_options[i] TSRMLS_CC));
+  }
+  tlib_php_free_zval_array(&bad_options);
+
+  /*
+   * There's no useful way to test not having PDO or PDO::ATTR_PERSISTENT
+   * available. We'll just assume those tests are appropriately defensive.
+   */
+
+  /*
+   * Test : Empty options array.
+   */
+  input = tlib_php_request_eval_expr("array()" TSRMLS_CC);
+  output = nr_php_pdo_disable_persistence(input TSRMLS_CC);
+  tlib_pass_if_not_null(
+      "an empty input array should return a valid output array", output);
+  tlib_pass_if_zval_identical("the output array should match the input array",
+                              input, output);
+  nr_php_zval_free(&input);
+  nr_php_zval_free(&output);
+
+  /*
+   * Test : Valid options array, but no PDO::ATTR_PERSISTENT entry.
+   */
+  input = tlib_php_request_eval_expr(
+      "array("
+      "PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,"
+      ")" TSRMLS_CC);
+  output = nr_php_pdo_disable_persistence(input TSRMLS_CC);
+  tlib_pass_if_not_null(
+      "a valid input array without a PDO::ATTR_PERSISTENT entry should return "
+      "a valid output array",
+      output);
+  tlib_pass_if_zval_identical("the output array should match the input array",
+                              input, output);
+  nr_php_zval_free(&input);
+  nr_php_zval_free(&output);
+
+  /*
+   * Test : Valid options arrays with only a PDO::ATTR_PERSISTENT entry.
+   */
+  for (i = 0; i < 2; i++) {
+    expected = tlib_php_request_eval_expr(
+        "array(PDO::ATTR_PERSISTENT => false)" TSRMLS_CC);
+
+    if (i) {
+      input = tlib_php_request_eval_expr(
+          "array(PDO::ATTR_PERSISTENT => true)" TSRMLS_CC);
+    } else {
+      input = tlib_php_request_eval_expr(
+          "array(PDO::ATTR_PERSISTENT => false)" TSRMLS_CC);
+    }
+
+    output = nr_php_pdo_disable_persistence(input TSRMLS_CC);
+    tlib_pass_if_not_null(
+        "a valid input array with a PDO::ATTR_PERSISTENT entry should "
+        "return a valid output array ",
+        output);
+    tlib_pass_if_zval_identical(
+        "the output array should match the expected array", expected, output);
+
+    nr_php_zval_free(&expected);
+    nr_php_zval_free(&input);
+    nr_php_zval_free(&output);
+  }
+
+  /*
+   * Test : Valid options arrays with possibly invalid PDO::ATTR_PERSISTENT
+   *        entries (which should be converted to false anyway).
+   */
+  bad_options = tlib_php_zvals_of_all_types(TSRMLS_C);
+  expected = tlib_php_request_eval_expr(
+      "array(PDO::ATTR_PERSISTENT => false)" TSRMLS_CC);
+
+  for (i = 0; bad_options[i]; i++) {
+#ifdef PHP7
+    if (IS_UNDEF == Z_TYPE_P(bad_options[i])) {
+      continue;
+    }
+#endif
+
+    input = nr_php_zval_alloc();
+
+    array_init(input);
+    nr_php_add_index_zval(input, (ulong)Z_LVAL_P(persistent), bad_options[i]);
+
+    output = nr_php_pdo_disable_persistence(input TSRMLS_CC);
+    tlib_pass_if_not_null(
+        "a valid input array with a PDO::ATTR_PERSISTENT entry should "
+        "return a valid output array ",
+        output);
+    tlib_pass_if_zval_identical(
+        "the output array should match the expected array", expected, output);
+
+    nr_php_zval_free(&input);
+    nr_php_zval_free(&output);
+  }
+  nr_php_zval_free(&expected);
+  tlib_php_free_zval_array(&bad_options);
+
+  /*
+   * Test : Valid options array with other keys that should be left alone.
+   */
+  input = tlib_php_request_eval_expr(
+      "$options = array("
+      "PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,"
+      "PDO::ATTR_PERSISTENT => true,"
+      ")" TSRMLS_CC);
+  expected = tlib_php_request_eval_expr(
+      "$options = array("
+      "PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,"
+      "PDO::ATTR_PERSISTENT => false,"
+      ")" TSRMLS_CC);
+
+  output = nr_php_pdo_disable_persistence(input TSRMLS_CC);
+  tlib_pass_if_not_null(
+      "a valid input array with a PDO::ATTR_PERSISTENT entry should "
+      "return a valid output array ",
+      output);
+  tlib_pass_if_zval_identical(
+      "the output array should match the expected array", expected, output);
+
+  nr_php_zval_free(&expected);
+  nr_php_zval_free(&input);
+  nr_php_zval_free(&output);
+
+  nr_php_zval_free(&persistent);
+  tlib_php_request_end();
+}
+
 void test_main(void* p NRUNUSED) {
 #if defined(ZTS) && !defined(PHP7)
   void*** tsrm_ls = NULL;
@@ -208,11 +360,15 @@ void test_main(void* p NRUNUSED) {
   tlib_php_engine_create("" PTSRMLS_CC);
 
   if (tlib_php_require_extension("PDO" TSRMLS_CC)) {
-    test_datastore_make_key();
-    test_get_database_object_from_object(TSRMLS_C);
-    test_get_datastore_for_driver();
-    test_get_datastore_internal();
-    test_get_driver_internal();
+    if (tlib_php_require_extension("pdo_sqlite" TSRMLS_CC)) {
+      test_datastore_make_key();
+      test_get_database_object_from_object(TSRMLS_C);
+      test_get_datastore_for_driver();
+      test_get_datastore_internal();
+      test_get_driver_internal();
+    }
+
+    test_disable_persistence(TSRMLS_C);
   }
 
   tlib_php_engine_destroy(TSRMLS_C);

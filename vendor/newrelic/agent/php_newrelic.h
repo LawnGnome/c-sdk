@@ -4,6 +4,7 @@
 #ifndef PHP_NEWRELIC_HDR
 #define PHP_NEWRELIC_HDR
 
+#include "nr_banner.h"
 #include "nr_mysqli_metadata.h"
 #include "nr_segment.h"
 #include "nr_txn.h"
@@ -106,48 +107,15 @@ typedef enum {
   NR_FW_MAGENTO1,
   NR_FW_MAGENTO2,
   NR_FW_MEDIAWIKI,
+  NR_FW_SILEX,
+  NR_FW_SLIM,
   NR_FW_SYMFONY1,
   NR_FW_SYMFONY2,
+  NR_FW_SYMFONY4,
   NR_FW_WORDPRESS,
   NR_FW_YII,
   NR_FW_ZEND,
   NR_FW_ZEND2,
-
-  /*
-   * Miscellaneous frameworks that are only detected.
-   * See PHP-493
-   * Once these frameworks become instrumented and more "first class",
-   * move the corresponding enum into alphabetical order above.
-   */
-  NR_FW_AURA,     /* see www.auraphp.com */
-  NR_FW_FUEL,     /* see http://fuelphp.com */
-  NR_FW_LITHIUM,  /* see https://github.com/UnionOfRAD */
-  NR_FW_MICROMVC, /* see https://github.com/Xeoncross/micromvc */
-  NR_FW_PHPBB,    /* see https://github.com/phpbb/phpbb */
-  NR_FW_PHPIXIE,  /* see http://phpixie.com */
-  NR_FW_PHREEZE,  /* see http://www.phreeze.com */
-  NR_FW_SELLVANA, /* see http://sellvana.com (dev prerelease as of 02/2014) */
-  NR_FW_SENTHOT,  /* see http://www.senthot.com */
-  NR_FW_SILEX,    /* see http://silex.sensiolabs.org */
-  NR_FW_SLIM,     /* see http://docs.slimframework.com */
-  NR_FW_TYPO3,    /* see http://docs.typo3.org */
-
-  /*
-   * Miscellaneous CMS that are only detected.
-   * See PHP-493
-   * Once these CMSs become instrumented and more "first class",
-   * move the corresponding enum into alphabetical order above.
-   */
-  NR_FW_MOODLE,           /* see http://moodle.org */
-  NR_FW_ATUTOR,           /* see http://atutor.ca */
-  NR_FW_DOKEOS,           /* see www.dokeos.com */
-  NR_FW_EXPESSION_ENGINE, /* see store.ellislab.com */
-  NR_FW_DOKUWIKI,         /* see dokwiki.org */
-  NR_FW_PHPNUKE,          /* see www.phpnuke.org */
-  NR_FW_SILVERSTRIPE,     /* see www.silverstripe.org */
-  NR_FW_SUGARCRM,         /* see www.sugarcrm.com */
-  NR_FW_XOOPS,            /* see http://sourceforge.net/projects/xoops/ */
-  NR_FW_E107,             /* see http://e107.org */
 
   NR_FW_NONE, /* Must be immediately before NR_FW_MUST_BE_LAST */
   NR_FW_MUST_BE_LAST
@@ -335,9 +303,10 @@ nrinistr_t ignored_params;  /* DEPRECATED newrelic.ignored_params */
 
 nrinibool_t
     tt_enabled; /* newrelic.transaction_tracer.enabled - paired with RPM */
-nrinibool_t ep_enabled; /* newrelic.transaction_tracer.explain_enabled */
-nriniuint_t tt_detail;  /* newrelic.transaction_tracer.detail */
-nrinibool_t tt_slowsql; /* newrelic.transaction_tracer.slow_sql */
+nrinibool_t ep_enabled;      /* newrelic.transaction_tracer.explain_enabled */
+nriniuint_t tt_detail;       /* newrelic.transaction_tracer.detail */
+nriniuint_t tt_max_segments; /* newrelic.transaction_tracer.max_segments */
+nrinibool_t tt_slowsql;      /* newrelic.transaction_tracer.slow_sql */
 zend_bool tt_threshold_is_apdex_f; /* True if threshold is apdex_f */
 nrinitime_t tt_threshold;          /* newrelic.transaction_tracer.threshold */
 nrinitime_t ep_threshold; /* newrelic.transaction_tracer.explain_threshold */
@@ -451,9 +420,18 @@ nrinibool_t
 nrinibool_t span_events_enabled; /* newrelic.span_events_enabled */
 nriniuint_t max_span_events;     /* newrelic.special.max_span_events */
 
+/*
+ * pid and user_function_wrappers are used to store user function wrappers.
+ * Storing this on a request level (as opposed to storing it on transaction
+ * level) is more robust when using multiple transactions in one request.
+ */
 uint64_t pid;
+nr_vector_t* user_function_wrappers;
 
 nrtxn_t* txn; /* The all-important transaction pointer */
+
+char* predis_ctx; /* The current Predis pipeline context name, if any */
+nr_hashmap_t* predis_commands;
 
 /*
  * The globals below all refer to a transaction. Those globals contain
@@ -469,15 +447,16 @@ struct {
   nr_mysqli_metadata_t* mysqli_links; /* MySQLi link metadata storage */
   nr_hashmap_t* mysqli_queries;       /* MySQLi query metadata storage */
   nr_hashmap_t* pdo_link_options;     /* PDO link option storage */
-  nr_hashmap_t* predis_commands;
   nr_hashmap_t* curl_headers;
   nr_hashmap_t* curl_method; /* Curl Method set, key is the curl handle */
   char* curl_exec_x_newrelic_app_data; /* Header information saved by curl_exec
                                           callback */
   int curl_ignore_setopt; /* Non-zero to disable curl_setopt instrumentation */
-  char* predis_ctx;       /* The current Predis pipeline context name, if any */
-  nr_vector_t* user_function_wrappers;
   nr_hashmap_t* prepared_statements; /* Prepared statement storage */
+  nr_vector_t*
+      reusable_segments; /* Segments that can be re-initialized and reused. */
+  size_t allocated_segments; /* The number of segments that have been started,
+                             but not ended. */
 } txn_globals;
 
 ZEND_END_MODULE_GLOBALS(newrelic)
@@ -534,5 +513,19 @@ extern void nr_print_txn(FILE* fp);
  * Params  : 1. The file handle to use.  0 defaults to stdout.
  */
 void nr_print_globals(FILE* fp);
+
+/*
+ * Purpose : Consults configuration settings and file system markers to decide
+ *           if the agent should start the dameon.
+ *           See the documentation in:
+ *           https://docs.newrelic.com/docs/agents/php-agent/installation/starting-php-daemon
+ *           https://docs.newrelic.com/docs/agents/php-agent/configuration/php-agent-configuration
+ *
+ * Returns : a nr_daemon_startup_mode_t describing the daemon startup mode.
+ *
+ * Note    : This function only returns valid values after the newrelic PHP
+ *           module is initialized.
+ */
+nr_daemon_startup_mode_t nr_php_get_daemon_startup_mode(void);
 
 #endif /* PHP_NEWRELIC_HDR */

@@ -23,3 +23,11 @@ bool nr_php_txn_is_policy_secure(const char* policy_name,
  * @return An nrobj_t*, caller is responsible for freeing with nro_delete
  */
 nrobj_t* nr_php_txn_get_supported_security_policy_settings();
+
+/*
+ * Purpose : Override the transaction name if PHP-FPM generated an error
+ *           response internally.
+ *
+ * Params  : 1. The current transaction.
+ */
+extern void nr_php_txn_handle_fpm_error(nrtxn_t* txn TSRMLS_DC);

@@ -80,23 +80,35 @@
 # Default: info
 #loglevel=info
 
-# Setting: port
-# Type   : String or Integer (1-65534)
+# Setting: address (alias: port)
+# Type   : String or Integer (1-65535)
 # Purpose: Sets how the agent and daemon communicate. How this is set can impact
-#          performance. The default is to use a UNIX-domain socket located at
-#          /tmp/.newrelic.sock. If you want to use UNIX domain sockets then
-#          this value must begin with a "/". If you set this to an integer
-#          value in the range 1-65534, then this will instruct the daemon to
-#          listen on a normal TCP socket on the port specified. This may be
-#          easier to use if you are using a chroot environment. On Linux, an
-#          abstract socket can be created by prefixing the socket name with '@'.
-#          Support for abstract sockets was added in PHP agent version 5.2.
+#          performance.
 #
-#          In order to use a port in the range 1-1023, the daemon must be
-#          started by the super-user. This is a fundamental OS limitation
-#          and not one imposed by the daemon itself.
+#          The default is to use a UNIX-domain socket located at 
+#          /tmp/.newrelic.sock. If you want to use UNIX domain sockets then
+#          this value must begin with a "/". 
+#
+#          On Linux, an abstract socket can be created by prefixing the socket
+#          name with '@'. Support for abstract sockets was added in PHP agent
+#          version 5.2.
+#
+#          If you set this to an integer value in the range 1-65535, then this
+#          will instruct the agent to use a normal TCP socket on the port 
+#          specified. This may be easier to use if you are using a chroot 
+#          environment.
+#
+#          To connect to a daemon that is running on a different host, set this
+#          value to '<host>:<port>', where '<host>' denotes either a host name
+#          or an IP address and '<port>' denotes a valid port number. IPv6 is
+#          supported.
+#
+#          In order to use a TCP socket with a port in the range 1-1023,
+#          the daemon must be started by the super-user. This is a fundamental
+#          OS limitation and not one imposed by the daemon itself.
+#
 # Default: "/tmp/.newrelic.sock"
-#port="/tmp/.newrelic.sock"
+#address="/tmp/.newrelic.sock"
 
 # Setting: ssl_ca_bundle
 # Type   : string

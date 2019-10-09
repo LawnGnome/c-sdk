@@ -2,6 +2,7 @@
 #include "php_internal_instrument.h"
 #include "php_user_instrument.h"
 #include "php_execute.h"
+#include "php_hash.h"
 #include "php_wrapper.h"
 #include "fw_drupal_common.h"
 #include "fw_hooks.h"
@@ -199,4 +200,85 @@ nr_status_t module_invoke_all_parse_module_and_hook(char** module_ptr,
 
   return module_invoke_all_parse_module_and_hook_from_strings(
       module_ptr, module_len_ptr, hook, hook_len, module_hook, module_hook_len);
+}
+
+void nr_drupal_headers_add(zval* arg, bool is_drupal_7 TSRMLS_DC) {
+  ulong key_num = 0;
+  nr_php_string_hash_key_t* key_str = NULL;
+  zval* val = NULL;
+
+  zval* headers = NULL;
+  zval* newrelic_headers = NULL;
+
+  if (NULL == arg) {
+    return;
+  }
+
+  /*
+   * For Drupal 6, a 'NULL' argument is replaced with an empty array.
+   * For Drupal 7 that is not done and thus causes a TypeError.
+   */
+  if (!is_drupal_7 && nr_php_is_zval_null(arg)) {
+    array_init(arg);
+  }
+
+  /*
+   * (Invalid) arguments that are not an array are left untouched, thus
+   * leaving it to the wrapped function to raise a TypeError.
+   */
+  if (!nr_php_is_zval_valid_array(arg)) {
+    return;
+  }
+
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+  SEPARATE_ARRAY(arg);
+#endif /* PHP >= 7.3 */
+
+  /*
+   * The following code block ensures that 'headers' points to the PHP
+   * array containing request header key/value pairs. 'headers' will
+   * point to the plain second argument ($headers) for Drupal 6 and to
+   * the value of the "headers" key of the second argument
+   * ($options["headers"]) for Drupal 7.
+   */
+  if (is_drupal_7) {
+    headers = nr_php_zend_hash_find(Z_ARRVAL_P(arg), "headers");
+    if (NULL == headers) {
+      headers = nr_php_zval_alloc();
+      array_init(headers);
+
+      nr_php_add_assoc_zval(arg, "headers", headers);
+
+      nr_php_zval_free(&headers);
+
+      headers = nr_php_zend_hash_find(Z_ARRVAL_P(arg), "headers");
+    } else if (nr_php_is_zval_valid_array(headers)) {
+#if ZEND_MODULE_API_NO >= ZEND_7_3_X_API_NO
+      SEPARATE_ARRAY(headers);
+#endif /* PHP >= 7.3 */
+    } else {
+      return;
+    }
+  } else {
+    headers = arg;
+  }
+
+  /*
+   * NR headers are created and added to the 'headers' array.
+   */
+  newrelic_headers = nr_php_call(NULL, "newrelic_get_request_metadata");
+
+  if (newrelic_headers && headers) {
+    ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(newrelic_headers), key_num, key_str,
+                              val) {
+      (void)key_num;
+
+      if (key_str) {
+        nr_php_add_assoc_zval(headers, ZEND_STRING_VALUE(key_str), val);
+      }
+    }
+    ZEND_HASH_FOREACH_END();
+  }
+
+  nr_php_zval_free(&newrelic_headers);
 }

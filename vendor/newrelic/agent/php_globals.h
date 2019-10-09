@@ -16,7 +16,6 @@ typedef struct _nrphpglobals_t {
   int our_module_number;    /* Module number for our extension */
   int mpm_bad;              /* True if we're disabled due to the worker MPM */
   int cli;                  /* Set to 1 if this is a cli/cgi invocation */
-  int port;                 /* Port for daemon */
   char* ssl_cafile;         /* Path to SSL CA bundle */
   char* ssl_capath;         /* Path to directory of SSL CA certs */
   char* collector;          /* Collector host */
@@ -27,9 +26,11 @@ typedef struct _nrphpglobals_t {
   char* daemon_loglevel;    /* Daemon log level */
   char* daemon_auditlog;    /* Daemon audit log file name (if any) */
   char* daemon_app_timeout; /* Daemon application inactivity timeout */
-  char* udspath;            /* Path for UDS for daemon if not using a port */
-  char* php_version;        /* PHP version number */
-  nr_utilization_t utilization;    /* Various daemon utilization flags */
+  char* udspath;      /* Legacy path for daemon, set by newrelic.daemon.port */
+  char* address_path; /* Path for daemon, set by newrelic.daemon.address */
+  nr_conn_params_t* daemon_conn_params; /* Daemon connection information */
+  char* php_version;                    /* PHP version number */
+  nr_utilization_t utilization;         /* Various daemon utilization flags */
   int no_daemon_launch;            /* Prevent agent from launching daemon */
   int daemon_special_curl_verbose; /* Cause the daemon to enter curl verbose
                                       mode */

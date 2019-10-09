@@ -197,7 +197,7 @@ Create your **newrelic.ini** with the agent's template. For **nrcamp/nrlamp**, t
 cat agent/scripts/newrelic.ini.template agent/scripts/newrelic.ini.private.template > /opt/nr/etc/php-common/newrelic.ini`
 ```
 
-For the **php-build-scripts** route, it is necessary to create a .ini file for each version of php. One approach is to create a .ini file in `/opt/nr/etc/php-common/newrelic.ini` and symbolically link the .ini file in, say, `/opt/nr/etc/php-5.6`.
+For the **php-build-scripts** route, it is necesary to create a .ini file for each version of php. One approach is to create a .ini file in `/opt/nr/etc/php-common/newrelic.ini` and symbolically link the .ini file in, say, `/opt/nr/etc/php-5.6`.
 
 Edit your **newrelic.ini** to add a license key, a unique application name, and a full path to your daemon. Make sure your log directory exists and is read/writable; `/opt/nr/logs` or `/var/log/` are good options. You may want to change the log levels.
 

@@ -43,6 +43,8 @@ array(1) {
 }
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function method() {
 		static $vars = [

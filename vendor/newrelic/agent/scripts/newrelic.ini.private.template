@@ -213,3 +213,31 @@
 ;          powerful, only allows (appears to allow?) us to turn off specific
 ;          named attributes.
 ; newrelic.custom_parameters_enabled = 1
+
+; Setting: newrelic.transaction_tracer.max_segments
+; Type   : integer in the range 0 - 2^31-1
+; Scope  : per-directory
+; Default: 0
+; Info   : Specifies the maximum number of custom segments the PHP agent shall
+;          record before truncating a transaction trace.
+;
+;          The PHP Agent reports a transaction trace as a collection of segments.
+;          Each segment represents a method or a function call in a transaction
+;          trace. The default value for this configuration is 0, indicating that
+;          the PHP agent shall capture all custom, datastore, and external segments
+;          during a transaction. At the end of a transaction, it assembles the
+;          highest priority segments to report in a transaction trace.
+;
+;          For long-running PHP processes with hundreds of thousands or millions
+;          of function calls, setting this to a non-zero value prevents the
+;          PHP Agent from exhausting system memory when recording custom segments.
+;
+;          Segment size can vary based upon the length of the corresponding
+;          method's name, the length of its class name, and the number of
+;          subsequent calls made by the method. That said, a conservative estimate
+;          is 400 bytes per segment. To limit the PHP Agent to 40 MB for segment
+;          capture, set this value to 100000.  If this
+;          value is set lower than 2000, it further limits the total number of
+;          segments reported for transaction traces.
+;
+;newrelic.transaction_tracer.max_segments = 0

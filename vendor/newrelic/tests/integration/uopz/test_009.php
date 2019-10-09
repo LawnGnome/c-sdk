@@ -17,6 +17,8 @@ string(64) "failed to set hook for Bar::method, the method is defined in Foo"
 
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function method($arg) {
 

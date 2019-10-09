@@ -141,4 +141,14 @@ static inline pdo_stmt_t* nr_php_pdo_get_statement_object_internal(
 #endif /* PHP7 */
 }
 
+/*
+ * Purpose : Copy the given PDO options, disabling persistence if enabled.
+ *
+ * Params  : 1. An array zval of options to PDO::__construct().
+ *
+ * Returns : A copy of the original options with persistence disabled, which is
+ *           owned by the caller, or NULL on error.
+ */
+extern zval* nr_php_pdo_disable_persistence(const zval* options TSRMLS_DC);
+
 #endif /* PHP_PDO_PRIVATE_HDR */

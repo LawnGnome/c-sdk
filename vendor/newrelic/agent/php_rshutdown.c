@@ -95,6 +95,11 @@ int nr_php_post_deactivate(void) {
   nr_free(NRPRG(pgsql_last_conn));
   nr_hashmap_destroy(&NRPRG(datastore_connections));
 
+  nr_free(NRPRG(predis_ctx));
+  nr_hashmap_destroy(&NRPRG(predis_commands));
+
+  nr_vector_destroy(&NRPRG(user_function_wrappers));
+
   NRPRG(cufa_callback) = NULL;
 
   if (nrlikely(0 != NRPRG(txn))) {

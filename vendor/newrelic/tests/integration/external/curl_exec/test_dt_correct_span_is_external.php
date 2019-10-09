@@ -8,6 +8,7 @@ Test that the correct span event is external.
 newrelic.distributed_tracing_enabled = true
 newrelic.cross_application_tracer.enabled = false
 newrelic.transaction_tracer.threshold = 0
+newrelic.transaction_tracer.detail = 0
 */
 
 /*SKIPIF

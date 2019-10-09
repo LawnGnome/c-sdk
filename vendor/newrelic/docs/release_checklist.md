@@ -21,6 +21,8 @@ Check our [CHANGELOG](CHANGELOG) and [release notes](https://docs.newrelic.com/d
 ## <a name="prerequisites"></a> Prerequisites
 You will need to have the following:
 
+* Access to the "boxlet", an Intel NUC the team uses for performance testing.  You should
+  reach out to one of the PHP team members to create an account for you.
 * Access to the [PHP Jenkins instance](https://phpagent-build.pdx.vm.datanerd.us)
 * Access to the Agent Team group in LastPass, so that you may access the
   [Fastly purge key](https://newrelic.jiveon.com/community/product/engineering/site-engineering/global-infrastructure/cloud-and-core-services/blog/2017/02/08/fastly-purge-api-key).
@@ -49,7 +51,7 @@ You will need to have the following:
 | Test Type/Ticket to Clone | Description / What to Check | Report | KickOff |
 |-----------|-----------------------------|--------|---------|
 |[Cross-Platform Installation and Sanity Testing](https://newrelic.atlassian.net/browse/PHP-1767) | Installation and sanity on various platforms. Make sure it's green, or has a good reason for being yellow. | [xPlatform Jenkins Results](https://phpagent-build.pdx.vm.datanerd.us/view/QA/job/QAPhpAutotest_xPlatform/) | Start manually [from Jenkins](https://phpagent-build.pdx.vm.datanerd.us/view/QA/job/QAPhpAutotest_xPlatform/). |
-|[Stability](https://newrelic.atlassian.net/browse/PHP-1768) | Three-day burn-in test.  Check memory and CPU use of daemon and agent. Look for ramp-ups in resource use over time. | Currently [Linux Server Monitor](https://staging.newrelic.com/accounts/432507/applications/4793110), looking for a new home. | Run manually. |
+|[Stability](https://newrelic.atlassian.net/browse/PHP-2176) | Drive traffic through applications using popular PHP frameworks. Check for memory leaks and violations with valgrind.   | TAP test results [in Jenkins](https://phpagent-build.pdx.vm.datanerd.us/view/All/job/php-inward-singing/lastCompletedBuild/testReport/). | Start manually [from Jenkins](https://phpagent-build.pdx.vm.datanerd.us/view/All/job/php-inward-singing/). |
 |[Performance](https://newrelic.atlassian.net/browse/PHP-1896) | Performance measured over an extended period comparing the agent under test with the last few releases. | Shell output. | See [`docker_cross_version_arena`](https://source.datanerd.us/php-agent/php_test_tools/tree/master/applications/docker_cross_version_arena). |
 |BETA: Multiverse (no ticket to clone) | Feature regression across various PHPs and frameworks run via integration runner. | Standard integration runner output.  | See [GitHub project](https://source.datanerd.us/php-agent/multiverse) -- BETA due to not having a standard environment for consistent clean APDEX.  |
 
@@ -130,14 +132,12 @@ Wait for those jobs to complete before proceeding with the next (likely) step:
 
 ## <a name="release-2-testing"></a>Promoting a Release Build to Testing
 
-#### 1. Verify LSM and .NET Core are not deploying
+#### 1. Verify .NET Core is not deploying
 
-The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the
-download site and the pdx-util replica. There is currently no means that
-absolutely guarantees this exclusivity. The PHP and C Agents team is currently the
-owner of the LSM agent; ask your team members whether they are currently
-deploying LSM. To determine whether the .NET Core agent is deploying, contact
-their `@hero` on Slack.
+The PHP and .NET Core agents conceptually share a global "lock" on the package
+repositories on the download site. There is currently no technical method to
+guarantee this exclusivity.  To determine whether the .NET Core agent is
+deploying, contact their `@hero` on Slack.
 
 #### 2. Get version number
 
@@ -226,11 +226,19 @@ https://phpagent-build.pdx.vm.datanerd.us/view/QA/job/QAPhpAutotest_xPlatform/
 ## <a name="testing-2-production"></a>Promoting a Build from Testing to Production
 
 #### 0. Is is OK to release?
+
 Releasing in the morning gives us more work hours to monitor for problems and
 quickly react. Releasing before the weekend makes life more difficult for our Support
 Team, and much more difficult for you if there's something wrong with the release.
 
-#### 1. Create Public Release Notes
+In summary, unless you have a _very_ good reason and agreement from the team,
+you should not release:
+
+* If it is after midday Pacific Time.
+* At any time on a Thursday, Friday, Saturday, or Sunday.
+
+#### 1. Draft Public Release Notes
+
 View the release notes in our GitHub changelog. Check with your Product Manager to see
 if they have any changes to the release notes sent to them when this release was
 pushed into the testing repository.
@@ -240,27 +248,28 @@ via [Okta][okta] then use the Okta link to log into the Drupal externally-facing
 documentation site [at docs.newrelic.com](http://docs.newrelic.com) and visit
 the release notes page. Click the most recent entry's title, click the "Clone
 content" link, and have at it.  Be sure to change the previously set version
-number(s) and release date. Also, you'll probably want to remove anything under the
-"Internal Changes" section.
+number(s) and release date. Also, you'll probably want to remove anything under
+the "Internal Changes" section.
 
 After you're happy with it, go down to the very bottom of the editing page,
 click the "Revision information" tab on the left, and set the "Moderation
-state" to "Ready for Publication." Then save it and revisit the release notes
-page to make sure it's all correct.
+state" to "Ready for Publication." Then save it and keep the tab open, since
+you'll need it again in a later step.
 
-#### 2. Verify LSM and .NET Core are not deploying
+#### 2. Verify .NET Core is not deploying
 
-The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the download
-site and the pdx-util replica. There is currently no means that absolutely guarantees
-this exclusivity. The PHP and C Agents team is currently the owner of the LSM agent; ask
-your team members whether they are currently deploying LSM. To determine whether the
-.NET Core agent is deploying, contact their `@hero` on Slack.
+The PHP and .NET Core agents conceptually share a global "lock" on the package
+repositories on the download site. There is currently no technical method to
+guarantee this exclusivity.  To determine whether the .NET Core agent is
+deploying, contact their `@hero` on Slack.
 
 #### 3. Get a co-pilot
+
 The The Change Acceptance Board (CAB) needs somebody to watch you type and follow our "runbook," which is
 this checklist. See the [CAB process documentation][CAB-process].
 
 #### 4. Get version number
+
 You need to know the full version number of the build you want to deploy.
 Typically this is a version you previously pushed to testing. Consult the
 [testing download site][testing-download-site] for this typical case.
@@ -284,10 +293,6 @@ started by clicking the progress bar to the left.
 > in place so tarfile customers can find the files they need. The customers using
 > package managers don't need directory indices, so this doesn't affect them._
 
-Verify the result at the [production download site][download-site]. Be sure to
-check the `/php_agent/archive` directory contents too! Make sure the server monitor
-is **not** deleted.
-
 #### 7. Purge the Fastly cache.
 
 You will need to purge the Fastly cache so that users don't see inconsistent
@@ -298,7 +303,13 @@ purge key, then run the following command:
 curl -i -X POST -H 'Fastly-Key:<redacted-in-lastpass>' https://api.fastly.com/service/2RMeBJ1ZTGnNJYvrWMgQhk/purge_all
 ```
 
+Now that the cache has been purged, verify the result of the S3 build at 
+the [production download site][download-site]. Be sure to check the 
+`/php_agent/archive` directory contents too! Make sure the server monitor
+is **not** deleted.
+
 #### 8. Test the public repositories
+
 Bring up an Ubuntu/Debian machine and a Red Hat/CentOS machine. Download the
 agent and make sure the installation step works.
 
@@ -325,7 +336,8 @@ Update the `php_agent_version` configuration variable in the following places
 Also note the existence of the related `min_php_agent_version` ... which is not
 typically updated.
 
-#### 11. Email agent-releases@newrelic.com
+#### 11. Notify stakeholders at agent-releases@newrelic.com
+
 We need to contact our partners to get
 the agent version upgraded for their offerings. Send an email to
 [agent-releases@newrelic.com](mailto:agent-releases@newrelic.com) notifying
@@ -334,36 +346,48 @@ interested parties. A brief statement (effectively the New and Noteworthy)
 should be included in the email. Lacking New and Noteworthy, just put the
 public release notes in there.
 
-If possible, set reply-to: `agent-team@newrelic.com`. (This is pretty hard to
-do in Gmail, and I skipped it for the 5.0.0.115 release.)
+#### 12. Notify stakeholders at the php-agent slack channel
 
-#### 12. Update feature flags
+Post a note in the #php-agent slack channel that the agent has been released.
+Maybe just paste the e-mail you sent in the previous step.
+
+#### 13. Update feature flags
+
 If any new functionality was gated by feature flags in APM, make sure that they
 are set to the right value for release.
 
-#### 13. Push Documentation Changes
+#### 14. Push Documentation Changes
+
 Push any related documentation changes to production. This includes any drafts
 waiting in the wings for agent release, setting their status to "Ready for
 Publication."  Once docs are set with the "Ready for Publication" status, let
 the hero in the [#documentation](https://newrelic.slack.com/messages/C0DSGL3FZ)
 room know the release related docs are ready to be released.
 
-If the only document to publish is the release notes, Agent engineers should be able to
-do this without help from the docs team.  Once you've set a release note's status as
-"Ready for Publication" and saved it, you should have access to set its status to "Published".
+#### 15. Publish the new release notes
 
-#### 14. Notify Heroku
+Go back to the release notes that you drafted in step 1, and change the status
+to "Published". Verify that the
+[public release notes](https://docs.newrelic.com/docs/release-notes/agent-release-notes/php-release-notes)
+include the new version from a browser that is _not_ logged in. (Right clicking
+[this link](https://docs.newrelic.com/docs/release-notes/agent-release-notes/php-release-notes)
+and opening it in a private window should take care of that.)
+
+#### 16. Notify Heroku
+
 The Heroku buildpack will need to be updated in order to have it consume the
 new version.
 
 Email David Zuelke ([dz@heroku.com](mailto:dz@heroku.com)), letting Heroku know of
 new agent availability so that the Heroku PHP buildpack will be updated.
 
-#### 15. Track Patch Releases
+#### 17. Track Patch Releases
+
 If this was a patch release, add it to the [Rollbacks and Patch
 Releases][rollbacks-patch-releases] on the wiki for tracking.
 
-#### 16. Notify Customers and the Product Manager
+#### 18. Notify Customers and the Product Manager
+
 Contact all the customers whose stories and bugs are labeled with "from
 customer" in the current release. Once contacted, add the label "customer
 notified". The [PHP Support Team](https://newrelic.atlassian.net/wiki/display/SUP/Cephalopod+Specialty+Group)
@@ -372,7 +396,8 @@ often helps us with this task, or performs it entirely.
 Tell the team's Product Manager about the release so they can manage feature
 requests.
 
-#### 17. Mark release in JIRA
+#### 19. Mark release in JIRA
+
 Visit
 [https://newrelic.atlassian.net/projects/PHP](https://newrelic.atlassian.net/projects/PHP),
 click the "Releases" icon on the left, locate the release, click the little ellipsis
@@ -382,21 +407,47 @@ the assigned engineer and/or your engineering manager.
 
 Currently (12/2018) all team engineers should  have access to this.
 
+#### 20. Update Boxlet
+
+Login to the machine colloquially referred to as "boxlet", an Intel NUC, and update its
+distribution packages.
+
+The boxlet's IP is available at 
+[this Insights dashboard](https://staging-insights.newrelic.com/accounts/432507/dashboards/1320).
+
+Update boxlet's version of the PHP Agent like so:
+
+```
+apt update; apt -y upgrade; apt -y autoremove; reboot
+```
+
 ## <a name="rollback"></a><a name="rolling-back-the-current-release"></a> Rolling Back the Current Release
 
-#### 0. Verify LSM and .NET Core are not deploying
+#### 0. Verify .NET Core is not deploying
+The PHP and .NET Core agents conceptually share a global "lock" on the package
+repositories on the download site. There is currently no technical method to
+guarantee this exclusivity.  To determine whether the .NET Core agent is
+deploying, contact their `@hero` on Slack.
 
-The PHP, LSM, and .NET Core agents conceptually share a global "lock" on the download
-site and the pdx-util replica. There is currently no means that absolutely guarantees
-this exclusivity.  The PHP and C Agents team is currently the owner of the LSM agent; ask
-your team members whether they are currently deploying LSM. To determine whether the
-.NET Core agent is deploying, contact their `@hero` on Slack.
+#### 1. Ensure you have credentials for the AWS production account
+You will need to be able to issue commands against our production account in
+AWS. (Credentials are kept in `~/.aws/credentials`, and you'll need a profile
+containing the production credentials. This should _not_ be your default
+profile.)
 
-#### 1. Get version numbers
+To test this, this command should list the files in the release directory,
+assuming you replace `$PROFILE_NAME` with the actual credential profile you're
+using:
+
+```sh
+aws --profile $PROFILE_NAME s3 ls s3://nr-downloads-main/php_agent/release/
+```
+
+#### 2. Get version numbers
 For example, "4.20.0.92" could be the offending release, so you want to
 downgrade things to "4.19.0.90" while you figure out a patch release.
 
-#### 2. Contact Support
+#### 3. Contact Support
 Tell support what's going on. They'll stay on top of customers for you, provide
 you with status updates, and even do testing for you.
 
@@ -415,24 +466,16 @@ yum downgrade newrelic-php5-4.19.0.90 newrelic-php5-common-4.19.0.90 newrelic-da
 apt-get install newrelic-php5=4.19.0.90 newrelic-php5-common=4.19.0.90 newrelic-daemon=4.19.0.90
 ```
 
-#### 3. Verify LSM is not deploying
-
-The PHP and LSM agents conceptually share a global "lock" on the download site
-and the pdx-util replica. There is currently no means that ensures this
-exclusivity. Reach out to that team and coordinate.
-
 #### 4. Run the rollback job
-
 Visit the [php-rollback-agent](https://phpagent-build.pdx.vm.datanerd.us/view/All/job/php-rollback-agent/)
 job and click "Build with Parameters" in the left-hand nav. On the following screen,
 type the full version number of the agent and choose "production." Hit "Build."
 
-#### 5. Index S3
+Note that, after this step, the
+[release directory](https://download.newrelic.com/php_agent/release/) will be
+broken until step 7 is complete.
 
-See the instructions on how to do this in the ["Promoting a Build from Testing to Production"](#index-s3) section above.
-
-#### 6. Purge the Fastly cache.
-
+#### 5. Purge the Fastly cache
 You will need to purge the Fastly cache so that users don't see inconsistent
 agent versions on download.newrelic.com. Log into LastPass, copy the Fastly
 purge key, then run the following command:
@@ -441,52 +484,71 @@ purge key, then run the following command:
 curl -i -X POST -H 'Fastly-Key:<redacted-in-lastpass>' https://api.fastly.com/service/2RMeBJ1ZTGnNJYvrWMgQhk/purge_all
 ```
 
-#### 7. Verify results
+#### 6. Verify results
+Verify the result at the [production download site][download-site]. Install the
+agent on CentOS and Ubuntu from the package repositories and verify that the
+version number is now the release that was rolled back to.
 
-Ensure that the LSM hasn't been deleted.
-
-Verify the result at the [production download site][download-site]. Uninstall
-and re-install the agent from packages CentOS and Ubuntu VMs.
-
-#### 8. Copy the previous release's build products into the release directory
-
-**THE `AWS S3` COMMANDS BELOW HAVE NOT BEEN TESTED.**
-
-_They were pretty carefully put together by Rich, though._
-
-> Eventually, the rollback script should do this for us, but for the time being,
-> you'll be left with an empty [http://download.newrelic.com/php_agent/release/](http://download.newrelic.com/php_agent/release/)
-> directory.
+#### 7. Copy the previous release's build products into the release directory
+After step 3, the
+[release directory](https://download.newrelic.com/php_agent/release/) was left
+empty. Let's fix that.
 
 You'll need to use the `aws s3` tool to very carefully copy the build products
-from the previous release into that directory:
+from the previous release into that directory. Note that you will need to use the _previous_ release's version number in these commands.
+
+First, do so as a dry run:
 
 ```bash
-aws s3 --profile=production cp --recursive --exclude "*" --include "newrelic-*.tar.gz" s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>/ s3://nr-downloads-main/php_agent/release/
+aws s3 --dryrun --profile $PROFILE_NAME cp --recursive --exclude "*" --include "newrelic-*.tar.gz" s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>/ s3://nr-downloads-main/php_agent/release/
 ```
 
-This has to be done on both servers noted above, as they don't share filesystems.
+You should see something like this:
 
-#### 9. Add a placeholder page to the archive directory.
+```
+(dryrun) copy: s3://nr-downloads-main/php_agent/archive/8.7.0.242/newrelic-php5-8.7.0.242-freebsd.tar.gz to s3://nr-downloads-main/php_agent/release/newrelic-php5-8.7.0.242-freebsd.tar.gz
+(dryrun) copy: s3://nr-downloads-main/php_agent/archive/8.7.0.242/newrelic-php5-8.7.0.242-linux-musl.tar.gz to s3://nr-downloads-main/php_agent/release/newrelic-php5-8.7.0.242-linux-musl.tar.gz
+(dryrun) copy: s3://nr-downloads-main/php_agent/archive/8.7.0.242/newrelic-php5-8.7.0.242-linux.tar.gz to s3://nr-downloads-main/php_agent/release/newrelic-php5-8.7.0.242-linux.tar.gz
+(dryrun) copy: s3://nr-downloads-main/php_agent/archive/8.7.0.242/newrelic-php5-8.7.0.242-osx.tar.gz to s3://nr-downloads-main/php_agent/release/newrelic-php5-8.7.0.242-osx.tar.gz
+```
 
-> You may want to add an index.html to the archive directory for the buggy
-> version to prevent users from accessing the download links. An example can be
-> found here:
-> [https://source.datanerd.us/gist/aharvey/d8d749c6adac27dfd5a2](https://source.datanerd.us/gist/aharvey/d8d749c6adac27dfd5a2).
-Again, you will have to run commands directly on the download servers listed
-above to move the file into place; for example:
+At the time of writing this checklist, there are four tarballs produced for
+each release, so we'd expect to see four tarballs being copied above. Your
+mileage may vary.
+
+Assuming it looks correct, then you can remove the `--dryrun` flag and actually
+do it:
 
 ```bash
-aws s3 --profile=production cp index.html s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>/
+aws s3 --profile $PROFILE_NAME cp --recursive --exclude "*" --include "newrelic-*.tar.gz" s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>/ s3://nr-downloads-main/php_agent/release/
 ```
 
-Want to completely remove the release from the archive directory instead? Be my guest:
+#### 8. Add a placeholder page to the archive directory.
+Optionally, you _may_ want to add an `index.html` to the archive directory for
+the buggy version to prevent users from discovering the download links. (We
+don't want to actually remove the files in any scenario, as users may depend on
+the files being available.)
+
+An example can be found here:
+[https://source.datanerd.us/gist/aharvey/d8d749c6adac27dfd5a2](https://source.datanerd.us/gist/aharvey/d8d749c6adac27dfd5a2).
+
+Again, let's test that we're doing the right thing:
+
 ```bash
-aws s3 --profile=production rm --recursive s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>
+aws s3 --dryrun --profile $PROFILE_NAME cp index.html s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>/
 ```
 
-#### 10. Purge the Fastly cache again.
+Assuming that looks right:
 
+```bash
+aws s3 --dryrun --profile $PROFILE_NAME cp index.html s3://nr-downloads-main/php_agent/archive/<FULL_AGENT_VERSION_NUMBER>/
+```
+
+#### 9. Index S3
+See the instructions on how to do this in the
+["Promoting a Build from Testing to Production"](#index-s3) section above.
+
+#### 10. Purge the Fastly cache again
 You will need to purge the Fastly cache so that users don't see inconsistent
 agent versions on download.newrelic.com. Log into LastPass, copy the Fastly
 purge key, then run the following command:
@@ -495,7 +557,12 @@ purge key, then run the following command:
 curl -i -X POST -H 'Fastly-Key:<redacted-in-lastpass>' https://api.fastly.com/service/2RMeBJ1ZTGnNJYvrWMgQhk/purge_all
 ```
 
-#### 11. Track Rollback
+#### 11. Remove the release notes
+Go to https://docs.newrelic.com/admin/content and search for the release notes
+(using the version number is generally the easiest way). Then delete that page
+using the link to the right called (surprise, surprise) `Delete`.
+
+#### 12. Track Rollback
 Add the release (with a note or two) to the [Rollbacks and Patch
 Releases][rollbacks-patch-releases] on the wiki for tracking.
 

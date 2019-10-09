@@ -13,12 +13,16 @@ int(1)
 int(2)
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	const BAR = 1;
 }
 
-var_dump(FOO::BAR);
+// We'll use constant() to avoid PHP being smart enough to fold in the actual
+// value, thereby defeating the redefinition.
+var_dump(constant('FOO::BAR'));
 
 uopz_redefine(Foo::class, "BAR", 2);
 
-var_dump(FOO::BAR);
+var_dump(constant('FOO::BAR'));

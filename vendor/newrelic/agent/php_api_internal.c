@@ -347,6 +347,18 @@ PHP_FUNCTION(newrelic_get_trace_json) {
   nr_segment_iterate(txn->segment_root, (nr_segment_iter_t)find_active_segments,
                      &fas_metadata);
 
+  /*
+   * The segment count is used when assembling the trace: in some cases, it's
+   * possible that it may be zero at this point (because the segment count is
+   * incremented only when a segment ends, not when it starts), which would
+   * result in JSON not being generated.
+   *
+   * Since we know how many segments we just effectively "ended" by setting
+   * their stop time above, we'll adjust the transaction's segment count
+   * accordingly.
+   */
+  txn->segment_count += nr_set_size(fas_metadata.active_segments);
+
   saved = save_txn_metric_tables(txn);
   final_data = nr_segment_tree_finalise(txn, NR_MAX_SEGMENTS, 0, NULL, NULL);
   restore_txn_metric_tables(txn, &saved);
@@ -358,6 +370,7 @@ PHP_FUNCTION(newrelic_get_trace_json) {
    * this moment.
    */
   txn->options.tt_threshold = orig_tt_threshold;
+  txn->segment_count -= nr_set_size(fas_metadata.active_segments);
   nr_segment_iterate(txn->segment_root,
                      (nr_segment_iter_t)reset_active_segments,
                      fas_metadata.active_segments);

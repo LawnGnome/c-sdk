@@ -386,7 +386,8 @@ static nr_status_t nr_php_mysqli_link_real_connect(
     argc++;                               \
   }
 
-  ADD_IF_STR_SET(argv, argc, metadata->host);
+  ADD_IF_STR_SET(argv, argc,
+                 nr_php_mysqli_strip_persistent_prefix(metadata->host));
   ADD_IF_STR_SET(argv, argc, metadata->user);
   ADD_IF_STR_SET(argv, argc, metadata->password);
 
@@ -639,4 +640,12 @@ void nr_php_mysqli_remove_datastore_instance(const zval* mysqli_obj TSRMLS_DC) {
   nr_php_datastore_instance_remove(key TSRMLS_CC);
 
   nr_free(key);
+}
+
+const char* nr_php_mysqli_strip_persistent_prefix(const char* host) {
+  if (host && 'p' == host[0] && ':' == host[1]) {
+    return host + 2;
+  }
+
+  return host;
 }

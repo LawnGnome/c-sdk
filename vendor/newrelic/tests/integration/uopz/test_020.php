@@ -17,6 +17,10 @@ xdebug.enable=0
 int(10)
 */
 
-exit(10);
+require __DIR__.'/load.inc';
+
+// PHP may optimise away any oplines after a direct exit() call. Therefore
+// we'll do it in an eval scope at runtime.
+eval('exit(10);');
 
 var_dump(uopz_get_exit_status());

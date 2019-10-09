@@ -2,10 +2,30 @@
 #include "php_internal_instrument.h"
 #include "php_user_instrument.h"
 #include "php_execute.h"
+#include "fw_codeigniter.h"
 #include "fw_support.h"
 #include "fw_hooks.h"
+#include "util_logging.h"
 #include "util_memory.h"
 #include "util_strings.h"
+
+zend_op_array* nr_codeigniter_get_topmost_user_op_array(TSRMLS_D) {
+#ifdef PHP7
+  zend_execute_data* ed;
+
+  for (ed = EG(current_execute_data); ed; ed = ed->prev_execute_data) {
+    if (ed->func
+        && (ZEND_USER_FUNCTION == ed->func->common.type
+            || ZEND_EVAL_CODE == ed->func->common.type)) {
+      return &ed->func->op_array;
+    }
+  }
+
+  return NULL;
+#else
+  return EG(current_execute_data)->op_array;
+#endif /* PHP7 */
+}
 
 /*
  * Determine the WT name from the CodeIgniter dispatcher.
@@ -14,10 +34,17 @@
 static void nr_codeigniter_name_the_wt(zend_function* func,
                                        const zend_function* caller NRUNUSED
                                            TSRMLS_DC) {
-  zend_op_array* op_array = nr_php_current_op_array(TSRMLS_C);
+  zend_op_array* op_array;
 
   if ((NR_FW_CODEIGNITER != NRPRG(current_framework) || (NULL == func)
        || (NULL == func->common.scope))) {
+    return;
+  }
+
+  op_array = nr_codeigniter_get_topmost_user_op_array(TSRMLS_C);
+  if (NULL == op_array) {
+    nrl_verbosedebug(NRL_FRAMEWORK,
+                     "CodeIgniter: unable to get the topmost user function");
     return;
   }
 
@@ -27,7 +54,8 @@ static void nr_codeigniter_name_the_wt(zend_function* func,
    *   ..calls..
    *   2. (internal function) call_user_func_array( <action>, ... )
    */
-  if (OP_ARRAY_IS_FILE(op_array, "CodeIgniter.php")) {
+  if (nr_strcaseidx(nr_php_op_array_file_name(op_array), "codeigniter.php")
+      >= 0) {
     char* action = NULL;
     zend_class_entry* ce = func->common.scope;
 

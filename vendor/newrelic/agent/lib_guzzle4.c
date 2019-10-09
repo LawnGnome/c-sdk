@@ -306,7 +306,7 @@ static PHP_NAMED_FUNCTION(nr_guzzle4_subscriber_on_complete) {
   nr_guzzle4_subscriber_event_args_t args;
   zval* request = NULL;
   zval* response = NULL;
-  zval* method;
+  zval* method = NULL;
   nr_segment_t* segment;
   nr_segment_external_params_t external_params = {.library = "Guzzle 4/5"};
   zval* url = NULL;

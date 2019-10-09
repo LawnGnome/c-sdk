@@ -169,5 +169,5 @@ Actually running it isn't much harder (in this example, we're assuming that
 provided you've already built the documentation as described above:
 
 ```bash
-./node_modules/.bin/gh-pages -d build -b gh-pages -o origin
+yarn run gh-pages -d build -b gh-pages -o origin
 ```

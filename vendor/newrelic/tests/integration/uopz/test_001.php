@@ -16,6 +16,8 @@ string(61) "failed to set return for Foo::nope, the method does not exist"
 string(63) "failed to set return for Bar::bar, the method is defined in Foo"
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {
 	public function bar(int $arg) : int {
 		return $arg;

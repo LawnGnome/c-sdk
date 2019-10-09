@@ -13,6 +13,8 @@ bool(true)
 string(44) "the class provided (Foo) already extends Bar"
 */
 
+require __DIR__.'/load.inc';
+
 class Foo {}
 class Bar {}
 
